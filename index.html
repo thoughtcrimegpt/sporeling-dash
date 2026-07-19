@@ -79,6 +79,15 @@ const JUMP_BUF = 0.12;
 const LEDGE_ASSIST = 5;    // px of automatic step-up onto ledges
 const CORNER_NUDGE = 4;    // px of ceiling-corner forgiveness
 
+// Wall-cling (unlocks at The Spire) and spore-glide (unlocks at Mycel Gardens)
+const WALL_LEVEL = 2;
+const GLIDE_LEVEL = 3;
+const GRIP_TIME = 1.5;      // seconds of cling before threads tire
+const WALL_SLIDE_V = 55;
+const WALL_TIRED_V = 130;
+const WALL_JUMP_VX = 200;
+const GLIDE_FALL = 60;
+
 const DASH_SPEED = 480;
 const DASH_TIME = 0.12;
 const DASH_FREEZE = 0.05;
@@ -91,6 +100,11 @@ const MAX_SPORES = 4;   // blooms per airtime; solid ground refills
 
 const SHAKE_MAG = 2.5;
 const SHAKE_TIME = 0.14;
+
+// Lives ("sparks") — run ends at 0; berries and chamber clears earn more
+const START_LIVES = 5;
+const MAX_LIVES = 9;
+const BERRIES_PER_LIFE = 8;
 
 // ── Palettes (one per level) ───────────────────────────────────────────────
 const PALS = [
@@ -238,6 +252,8 @@ const SFX = {
   check() { blip(523, 523, 0.09, "triangle", 0.15); blip(659, 659, 0.09, "triangle", 0.15, 0.08); blip(784, 784, 0.14, "triangle", 0.15, 0.16); },
   stomp() { blip(300, 620, 0.12, "square", 0.15); blip(180, 120, 0.08, "triangle", 0.1); },
   talk()  { blip(700, 520, 0.05, "sine", 0.05); },
+  oneUp() { [660, 880, 1175].forEach((f, i) => blip(f, f, 0.11, "triangle", 0.15, i * 0.07)); },
+  gameOver() { [392, 311, 233, 155].forEach((f, i) => blip(f, f * 0.9, 0.3, "sawtooth", 0.12, i * 0.22)); whoosh(0.8, 0.08, 180); },
   pop()   { blip(600, 150, 0.12, "square", 0.14); whoosh(0.08, 0.08, 900); },
   death() { blip(400, 60, 0.4, "sawtooth", 0.18); whoosh(0.25, 0.13, 250); },
   clear() { [523, 659, 784, 1047].forEach((f, i) => blip(f, f, 0.16, "triangle", 0.16, i * 0.09)); },
@@ -439,6 +455,14 @@ const LEVELS = [
         "Dash bold, land soft. The others didn't.",
         "...what others? Hm? I said nothing.",
       ],
+    }, {
+      c: 66, r: 7, name: "GREL", sprite: "grel",
+      lines: [
+        "Ah! It's really you. We three have watched every run.",
+        "We believed first, you know. Before the spores even settled.",
+        "Every time you bloom, somewhere in the dark a stranger cheers. That's us.",
+        "Go on then. We'll be watching. We're always watching.",
+      ],
     }],
   },
   {
@@ -460,6 +484,7 @@ const LEVELS = [
       set(2, 11, "P"); set(23, 11, "C"); set(41, 11, "C"); set(92, 10, "G");
       set(5, 11, "B"); set(13, 8, "B"); set(16, 9, "B"); set(34, 3, "B");
       set(55, 8, "B"); set(68, 11, "B"); set(91, 11, "B");
+      set(29, 3, "B");                                        // atop the tall wall — bloom-climb prize
       set(25, 11, "e"); set(43, 11, "e");                     // first slugs
       set(51, 11, "f"); set(60, 11, "f");                     // chasm puffballs
     }),
@@ -490,14 +515,17 @@ const LEVELS = [
       set(1, 35, "S"); set(28, 30, "S"); set(1, 25, "S"); set(28, 12, "S");
       set(3, 41, "P"); set(16, 21, "C"); set(15, 2, "G");
       set(26, 41, "B"); set(7, 26, "B"); set(25, 13, "B"); set(11, 8, "B");
+      set(1, 7, "B");                                         // left-wall alcove — demands wall-cling loops
       set(24, 13, "e");
       set(11, 34, "f"); set(16, 29, "f");
     }),
     clearText: "Forty-two maps. Yours goes further.",
+    unlockText: "NEW — Press into walls to cling. Jump to kick away.",
     npcs: [{
       c: 19, r: 21, name: "THE CARTOGRAPHER", sprite: "moth",
       lines: [
         "Hush — I'm mapping. Climb slower, you're smearing the ink.",
+        "Your threads have thickened since the Hollow. The walls will hold you now. Briefly.",
         "Forty-one sporelings, forty-one maps. Each one stops a little higher.",
         "Yours is the first with no end drawn yet. Do keep it that way.",
       ],
@@ -522,16 +550,19 @@ const LEVELS = [
       set(2, 11, "P"); set(34, 12, "C"); set(66, 12, "C"); set(100, 8, "G");
       set(5, 11, "B"); set(28, 11, "B"); set(37, 12, "B"); set(43, 8, "B");
       set(48, 5, "B"); set(91, 9, "B");
+      set(57, 14, "B");                                       // deep in the spike chasm — glide dip
       set(10, 12, "e"); set(20, 13, "e"); set(45, 12, "e");
       set(44, 8, "e"); set(50, 5, "E");                       // fast slug debuts
       set(75, 13, "e"); set(80, 13, "e");
       set(27, 12, "f"); set(56, 11, "f"); set(60, 13, "f"); set(94, 7, "f");
     }),
     clearText: "The garden hums as you pass. Politely.",
+    unlockText: "NEW — Hold Jump while falling to open your cap.",
     npcs: [{
       c: 69, r: 12, name: "GRANNY MOREL", sprite: "granny",
       lines: [
         "A visitor! Eat a berry, dear. You're all stem and no cap.",
+        "Take my old cap with you. Hold it open as you fall — gently, now.",
         "My garden grows best over the old climbers. Lovely rich soil.",
         "Don't look at me like that. They'd be proud to be so useful.",
         "Mind the corridor ahead, sweetling. It bites.",
@@ -554,6 +585,7 @@ const LEVELS = [
       rect(12, 3, 20, 3);
       set(3, 30, "P"); set(45, 23, "C"); set(39, 8, "C"); set(16, 1, "G");
       set(50, 30, "B"); set(11, 15, "B"); set(49, 12, "B"); set(27, 4, "B"); set(52, 28, "B");
+      set(54, 18, "B");                                       // right-wall shaft — cling on the skip route
       set(12, 30, "e"); set(20, 30, "E"); set(24, 19, "E");
       set(35, 24, "f"); set(17, 13, "f");
       set(40, 19, "w"); set(34, 11, "w"); set(20, 4, "w");
@@ -622,7 +654,7 @@ const ECHO_PAL = {
   O: "#5a7a8a", C: "#8ab0c0", H: "#c0e0e8", D: "#6a8ea0",
   B: "#d8e8ec", S: "#a8c0c8", E: "#3a505a", W: "#ffffff", R: "#b0ccd4",
 };
-const NPC_H = { keeper: 14, twins: 10, moth: 10, granny: 14, echo: 12 };
+const NPC_H = { keeper: 14, twins: 10, moth: 10, granny: 14, echo: 12, grel: 14 };
 
 // ── State ──────────────────────────────────────────────────────────────────
 let LEVEL = [], ROWS = 0, COLS = 0, WORLD_W = 0, WORLD_H = 0, PAL = PALS[0];
@@ -640,9 +672,12 @@ const S = {
   shakeT: 0, shakeMag: 0, freezeT: 0,
   deathT: 0, winT: 0, goalOpen: 0, time: 0, bannerT: 0,
   pauseSel: 0, pauseAy: 0,
+  hint: null, wispHinted: false,
   jumpHeldForCut: false,
-  score: { berries: 0, total: 0, deaths: 0, time: 0, freed: 0 },
+  lives: START_LIVES,
+  score: { berries: 0, total: 0, deaths: 0, time: 0, freed: 0, pickups: 0, metNpcs: {} },
 };
+const TOTAL_NPCS = LEVELS.reduce((a, L) => a + (L.npcs ? L.npcs.length : 0), 0);
 
 function tileAt(tx, ty) {
   if (tx < 0 || tx >= COLS || ty < 0) return "#";
@@ -657,6 +692,7 @@ function makePlayer(x, y) {
     vx: 0, vy: 0, facing: 1,
     grounded: false, coyote: 0, jumpBuf: 0,
     canDash: true, spores: MAX_SPORES, dashing: false, dashT: 0, dashDX: 0, dashDY: 0,
+    grip: GRIP_TIME, wallDir: 0, wallCoyote: 0, wjLock: 0, gliding: false, sliding: false,
     anim: "idle", animT: 0, frame: 0,
     squish: 1, squishT: 0, invuln: 0,
   };
@@ -674,7 +710,7 @@ function loadLevel(idx) {
   S.berryList = []; S.checkpoints = []; S.blooms = []; S.particles = []; S.trail = [];
   S.goal = null; S.goalOpen = 0; S.winT = 0; S.deathT = 0;
   S.shakeT = 0; S.freezeT = 0; S.jumpHeldForCut = false;
-  S.bannerT = 2.4;
+  S.bannerT = L.unlockText ? 3.6 : 2.4;
   SPIKES = []; STATIC_LIGHTS = []; DECOR = []; SPORES = []; ENEMY_SPAWNS = [];
   S.talk = null;
   S.npcs = (L.npcs || []).map(n => ({
@@ -1007,6 +1043,21 @@ function onGround(p) {
   return false;
 }
 
+const wallsUnlocked = () => S.levelIdx >= WALL_LEVEL;
+const glideUnlocked = () => S.levelIdx >= GLIDE_LEVEL;
+
+// -1 = wall on the left, 1 = wall on the right, 0 = none (real tiles only)
+function touchingWallDir(p) {
+  const l = { x: p.x - 1, y: p.y + 2, w: 1, h: p.h - 4 };
+  const r = { x: p.x + p.w, y: p.y + 2, w: 1, h: p.h - 4 };
+  for (const s of solidsNear(p.x - 2, p.y, p.w + 4, p.h)) {
+    if (s.oneWay) continue;
+    if (overlap(r, s)) return 1;
+    if (overlap(l, s)) return -1;
+  }
+  return 0;
+}
+
 function onRealGround(p) {
   const probe = { x: p.x + 1, y: p.y + p.h, w: p.w - 2, h: 2 };
   for (const r of solidsNear(probe.x, probe.y, probe.w, probe.h)) {
@@ -1072,7 +1123,12 @@ function updateEnemies(dt) {
     } else {
       const dx = (p.x + 5) - (e.x + 4), dy = (p.y + 5) - (e.y + 4);
       const d = Math.hypot(dx, dy);
-      if (d < 110 && d > 4) {
+      if (d < 90 && !S.wispHinted) {
+        S.wispHinted = true;
+        S.hint = { text: "Dash through the lost ones to set them free.", t: 4 };
+      }
+      // Wisps hang back while someone living is speaking
+      if (d < 110 && d > 4 && !S.talk) {
         e.x += dx / d * 30 * dt;
         e.y += dy / d * 30 * dt;
       } else {
@@ -1168,6 +1224,25 @@ function doDash(p, ax, ay) {
   S.shakeMag = SHAKE_MAG;
 }
 
+function doWallJump(p) {
+  p.vy = -280;
+  p.vx = -p.wallDir * WALL_JUMP_VX;
+  p.facing = -p.wallDir;
+  p.canDash = true;   // kicking off a wall re-arms the dash; spores untouched
+  p.grounded = false;
+  p.coyote = 0;
+  p.jumpBuf = 0;
+  p.wallCoyote = 0;
+  p.wjLock = 0.14;
+  p.squish = 1.25; p.squishT = 0.1;
+  S.jumpHeldForCut = true;
+  blip(370, 720, 0.12, "square", 0.15);
+  for (let i = 0; i < 5; i++) {
+    burst(p.wallDir > 0 ? p.x + p.w : p.x, p.y + 5,
+      -p.wallDir * (20 + Math.random() * 40), (Math.random() - 0.5) * 40, 0.25, rgb(PAL.mossHi), 1);
+  }
+}
+
 function doJump(p) {
   p.vy = JUMP_V;
   p.grounded = false;
@@ -1183,11 +1258,20 @@ function doJump(p) {
   }
 }
 
+function gainLife(msg) {
+  if (S.lives < MAX_LIVES) {
+    S.lives++;
+    S.hint = { text: msg || "A new spark kindles. +1 life.", t: 2.5 };
+  }
+  SFX.oneUp();
+}
+
 function killPlayer() {
   const p = S.player;
   S.mode = "dead";
   S.deathT = 0;
   S.score.deaths++;
+  S.lives--;
   SFX.death();
   for (let i = 0; i < 16; i++) {
     const a = Math.random() * Math.PI * 2;
@@ -1202,6 +1286,7 @@ function respawn() {
   p.vx = 0; p.vy = 0;
   p.dashing = false; p.dashT = 0;
   p.canDash = true; p.spores = MAX_SPORES; p.grounded = false;
+  p.grip = GRIP_TIME; p.wallCoyote = 0; p.wjLock = 0; p.gliding = false; p.sliding = false;
   p.coyote = 0; p.jumpBuf = 0;
   p.invuln = 0.5;
   S.blooms = [];
@@ -1234,10 +1319,19 @@ function tick(dt) {
 
   if (S.mode === "title") {
     if (inp.startEdge || inp.jumpEdge || inp.dashEdge) {
-      S.score = { berries: 0, total: 0, deaths: 0, time: 0, freed: 0 };
+      S.score = { berries: 0, total: 0, deaths: 0, time: 0, freed: 0, pickups: 0, metNpcs: {} };
+      S.lives = START_LIVES;
+      S.wispHinted = false; S.hint = null;
       loadLevel(0);
       S.mode = "play";
     }
+    clearJust();
+    return;
+  }
+
+  if (S.mode === "gameover") {
+    updateParticles(dt);
+    if (inp.jumpEdge) S.mode = "title";
     clearJust();
     return;
   }
@@ -1282,7 +1376,9 @@ function tick(dt) {
         loadLevel(S.levelIdx);
         S.mode = "play";
       } else {
-        S.score = { berries: 0, total: 0, deaths: 0, time: 0, freed: 0 };
+        S.score = { berries: 0, total: 0, deaths: 0, time: 0, freed: 0, pickups: 0, metNpcs: {} };
+        S.lives = START_LIVES;
+        S.wispHinted = false; S.hint = null;
         loadLevel(0);
         S.mode = "play";
       }
@@ -1294,13 +1390,21 @@ function tick(dt) {
   if (S.mode === "dead") {
     S.deathT += dt;
     updateParticles(dt);
-    if (S.deathT > 0.55) respawn();
+    if (S.deathT > 0.55) {
+      if (S.lives <= 0) {
+        S.mode = "gameover";
+        SFX.gameOver();
+      } else {
+        respawn();
+      }
+    }
     clearJust();
     return;
   }
 
   S.score.time += dt;
   if (S.bannerT > 0) S.bannerT -= dt;
+  if (S.hint) { S.hint.t -= dt; if (S.hint.t <= 0) S.hint = null; }
 
   if (S.freezeT > 0) {
     S.freezeT -= dt;
@@ -1316,6 +1420,7 @@ function tick(dt) {
 
   if (p.grounded) {
     p.coyote = COYOTE;
+    p.grip = GRIP_TIME;
     if (!p.dashing && onRealGround(p)) { p.canDash = true; p.spores = MAX_SPORES; }
     if (!wasGrounded) {
       p.squish = 0.72; p.squishT = 0.12;
@@ -1346,15 +1451,38 @@ function tick(dt) {
       endDash(p);
     }
   } else {
-    // Target-based horizontal movement: stick tilt = speed
-    const target = inp.ax * MAX_RUN;
-    let acc;
-    if (p.grounded) acc = (target === 0 || Math.abs(target) < Math.abs(p.vx) || Math.sign(target) !== Math.sign(p.vx || target)) ? MOVE_FRICTION : MOVE_ACCEL;
-    else acc = AIR_ACCEL;
-    p.vx = approach(p.vx, target, acc * dt);
-    if (inp.ax !== 0) p.facing = Math.sign(inp.ax);
+    // Wall-cling: push into a real wall while airborne. Free but temporary —
+    // the threads tire (grip) and never refill spores. Unlocks at The Spire.
+    p.sliding = false;
+    if (wallsUnlocked() && !p.grounded) {
+      const wd = touchingWallDir(p);
+      if (wd !== 0 && Math.sign(inp.ax) === wd && p.vy > -40) {
+        p.sliding = true;
+        p.wallDir = wd;
+        p.wallCoyote = 0.1;
+        if (p.grip > 0) p.grip -= dt;
+        if (Math.random() < 0.25)
+          burst(wd > 0 ? p.x + p.w : p.x, p.y + 4 + Math.random() * 6, -wd * 12, 20 + Math.random() * 20, 0.25, rgb(PAL.rockHi), 1);
+      }
+    }
+    if (!p.sliding) p.wallCoyote = Math.max(0, p.wallCoyote - dt);
 
-    if (p.jumpBuf > 0 && p.coyote > 0) doJump(p);
+    // Horizontal movement (briefly locked after a wall-jump so the kick sticks)
+    if (p.wjLock > 0) {
+      p.wjLock -= dt;
+    } else {
+      const target = inp.ax * MAX_RUN;
+      let acc;
+      if (p.grounded) acc = (target === 0 || Math.abs(target) < Math.abs(p.vx) || Math.sign(target) !== Math.sign(p.vx || target)) ? MOVE_FRICTION : MOVE_ACCEL;
+      else acc = AIR_ACCEL;
+      p.vx = approach(p.vx, target, acc * dt);
+      if (inp.ax !== 0) p.facing = Math.sign(inp.ax);
+    }
+
+    if (p.jumpBuf > 0) {
+      if (p.coyote > 0) doJump(p);
+      else if (wallsUnlocked() && p.wallCoyote > 0) doWallJump(p);
+    }
 
     if (S.jumpHeldForCut && !inp.jumpDown && p.vy < 0) {
       p.vy *= JUMP_CUT;
@@ -1362,8 +1490,20 @@ function tick(dt) {
     }
     if (p.vy >= 0) S.jumpHeldForCut = false;
 
+    // Spore-glide: hold jump while falling and the cap opens like a parasol.
+    // Only slows descent — never gains height. Unlocks at Mycel Gardens.
+    const wasGliding = p.gliding;
+    p.gliding = glideUnlocked() && !p.grounded && !p.dashing && !p.sliding && p.vy > 20 && inp.jumpDown;
+    if (p.gliding && !wasGliding) whoosh(0.15, 0.05, 600);
+
     p.vy += GRAVITY * dt;
     if (p.vy > MAX_FALL) p.vy = MAX_FALL;
+    if (p.sliding) p.vy = Math.min(p.vy, p.grip > 0 ? WALL_SLIDE_V : WALL_TIRED_V);
+    else if (p.gliding) {
+      p.vy = Math.min(p.vy, GLIDE_FALL);
+      if (Math.random() < 0.15)
+        burst(p.x + Math.random() * 10, p.y - 4, (Math.random() - 0.5) * 10, -12, 0.4, "#c4a878", 1);
+    }
 
     p.grounded = false;
     moveAxis(p, p.vx * dt, 0);
@@ -1380,7 +1520,7 @@ function tick(dt) {
 
   p.animT += dt;
   if (p.dashing) p.anim = "dash";
-  else if (!p.grounded) p.anim = p.vy < -20 ? "jump" : "fall";
+  else if (!p.grounded) p.anim = p.sliding ? "slide" : p.gliding ? "glide" : (p.vy < -20 ? "jump" : "fall");
   else if (Math.abs(p.vx) > 12) p.anim = "run";
   else p.anim = "idle";
   if (p.animT > 0.1) { p.animT = 0; p.frame = (p.frame + 1) & 3; }
@@ -1402,6 +1542,9 @@ function tick(dt) {
     if (overlap(p, ber)) {
       ber.taken = true;
       S.berries++;
+      S.score.pickups++;
+      if (S.score.pickups % BERRIES_PER_LIFE === 0)
+        gainLife("The berries remember you. +1 spark.");
       SFX.berry();
       for (let i = 0; i < 7; i++) {
         const a = Math.random() * Math.PI * 2;
@@ -1433,6 +1576,7 @@ function tick(dt) {
   if (nearNpc) {
     if (!S.talk || S.talk.npc !== nearNpc) {
       S.talk = { npc: nearNpc, line: 0, t: 0 };
+      S.score.metNpcs[nearNpc.name] = true;
       SFX.talk();
     } else {
       S.talk.t += dt;
@@ -1458,6 +1602,7 @@ function tick(dt) {
     S.goalOpen = 0;
     S.score.berries += S.berries;
     S.score.total += S.berriesTotal;
+    if (S.lives < MAX_LIVES) S.lives++;
     SFX.clear();
     for (let i = 0; i < 22; i++) {
       const a = Math.random() * Math.PI * 2;
@@ -1515,6 +1660,7 @@ function draw() {
 
   if (S.mode === "title") { drawTitle(); blit(); return; }
   if (S.mode === "win") { drawWin(); blit(); return; }
+  if (S.mode === "gameover") { drawGameOver(); blit(); return; }
 
   let ox = 0, oy = 0;
   if (S.shakeT > 0) {
@@ -1588,6 +1734,9 @@ function draw() {
     g.fillStyle = C.ui;
     g.font = "9px monospace";
     g.fillText("Berries  " + S.berries + " / " + S.berriesTotal, W / 2, H / 2 + 8);
+    g.fillStyle = rgb(PAL.accent);
+    g.font = "8px monospace";
+    g.fillText("+1 spark", W / 2, H / 2 - 26);
     if (LEVELS[S.levelIdx].clearText && S.winT > 0.6) {
       g.fillStyle = C.uiDim;
       g.font = "8px monospace";
@@ -1834,6 +1983,28 @@ function drawNPCs() {
       g.fillStyle = C.eye; g.fillRect(x + 3, y + 7, 2, 1); g.fillRect(x + 7, y + 7, 2, 1);
       g.fillStyle = "#e8d0b0"; g.fillRect(x + 3, y + 10, 6, 3);
       g.fillStyle = C.berry; g.fillRect(x + 5, y + 11, 2, 1);
+    } else if (n.sprite === "grel") {
+      // Three pale pointy-eared friends — the first believers
+      const line = "#1a1a20";
+      const fig = (fx, fy, fw, fh, body) => {
+        fx = Math.round(fx); fy = Math.round(fy);
+        g.fillStyle = line;
+        g.fillRect(fx, fy, fw, fh);                       // outline
+        g.fillRect(fx + 1, fy - 4, 2, 5);                 // left ear spike
+        g.fillRect(fx + fw - 3, fy - 3, 2, 4);            // right ear spike
+        g.fillStyle = body;
+        g.fillRect(fx + 1, fy + 1, fw - 2, fh - 1);       // body fill
+        g.fillRect(fx + 1, fy - 3, 1, 3);                 // ear fill
+        g.fillRect(fx + fw - 3, fy - 2, 1, 2);
+        g.fillStyle = line;
+        g.fillRect(fx + fw / 2 - 2 | 0, fy + 4, 1, 2);    // dot eyes (tall)
+        g.fillRect(fx + fw / 2 + 1 | 0, fy + 4, 1, 2);
+      };
+      const b2 = Math.sin(S.time * 2 + n.ph + 2);
+      const b3 = Math.sin(S.time * 2 + n.ph + 4);
+      fig(x - 5, y + 4 + bob * 0.5, 8, 10, "#d4d4da");    // back left
+      fig(x + 9, y + 3 + b3 * 0.5, 8, 11, "#dcdce2");     // back right
+      fig(x + 1, y + b2 * 0.5, 10, 14, "#f2f2f6");        // front, tallest
     } else { // echo — a sporeling gone pale
       g.globalAlpha = 0.55 + Math.sin(S.time * 1.5 + n.ph) * 0.1;
       drawMap(g, SPRITES.idle1, x, Math.round(y + bob * 0.5), false, ECHO_PAL);
@@ -1853,17 +2024,19 @@ function drawTalk() {
   const npc = S.talk.npc;
   const full = npc.lines[S.talk.line];
   const shown = full.slice(0, Math.floor(S.talk.t / 0.035) + 1);
-  const bx = 12, bw = W - 24, bh = 30, by = H - bh - 6;
-  g.fillStyle = "rgba(6,10,16,0.85)";
+  const bx = 10, bw = W - 20, bh = 38, by = H - bh - 5;
+  g.fillStyle = "rgba(4,7,12,0.94)";
   g.fillRect(bx, by, bw, bh);
   g.fillStyle = rgb(PAL.accent);
   g.fillRect(bx, by, bw, 1);
-  g.font = "7px monospace";
+  g.fillRect(bx, by + bh - 1, bw, 1);
   g.textAlign = "left";
   g.fillStyle = C.title;
-  g.fillText(npc.name, bx + 5, by + 9);
-  g.fillStyle = C.ui;
-  const maxc = 58;
+  g.font = "bold 8px monospace";
+  g.fillText(npc.name, bx + 6, by + 10);
+  g.fillStyle = "#f6efdd";
+  g.font = "8px monospace";
+  const maxc = 56;
   let l1 = shown, l2 = "";
   if (shown.length > maxc) {
     let cut = shown.lastIndexOf(" ", maxc);
@@ -1871,11 +2044,11 @@ function drawTalk() {
     l1 = shown.slice(0, cut);
     l2 = shown.slice(cut + 1);
   }
-  g.fillText(l1, bx + 5, by + 19);
-  if (l2) g.fillText(l2, bx + 5, by + 27);
+  g.fillText(l1, bx + 6, by + 22);
+  if (l2) g.fillText(l2, bx + 6, by + 32);
   for (let i = 0; i < npc.lines.length; i++) {
     g.fillStyle = i === S.talk.line ? C.ui : "#3a4250";
-    g.fillRect(bx + bw - 6 - (npc.lines.length - 1 - i) * 5, by + bh - 5, 3, 2);
+    g.fillRect(bx + bw - 8 - (npc.lines.length - 1 - i) * 6, by + bh - 6, 4, 2);
   }
 }
 
@@ -1885,8 +2058,8 @@ function drawEnemies() {
     if (e.t === "slug") {
       const wob = Math.sin(S.time * 6 + e.ph);
       const hh = e.h + (wob > 0 ? 1 : 0);
-      const col = e.fast ? "#c05048" : rgb(mix(PAL.moss, [20, 20, 20], 0.3));
-      const hi = e.fast ? "#e88070" : rgb(PAL.mossHi);
+      const col = e.fast ? "#d85850" : rgb(mix(PAL.mossHi, [0, 0, 0], 0.2));
+      const hi = e.fast ? "#f09880" : rgb(mix(PAL.mossHi, [255, 255, 255], 0.35));
       g.fillStyle = col;
       g.fillRect(Math.round(e.x), Math.round(e.y + e.h - hh), e.w, hh);
       g.fillRect(Math.round(e.x + 1), Math.round(e.y + e.h - hh - 1), e.w - 2, 1);
@@ -1911,6 +2084,16 @@ function drawEnemies() {
     } else {
       const bob = Math.sin(S.time * 4 + e.ph);
       const cx = e.x + 4, cy = e.y + 4 + bob;
+      // Pulsing aura ring — reads as "pop me"
+      const ring = (S.time * 1.2 + e.ph) % 1;
+      const rr = 3 + ring * 6;
+      g.globalAlpha = (1 - ring) * 0.35;
+      g.fillStyle = "#ff82aa";
+      g.fillRect(Math.round(cx - rr), Math.round(cy - rr), Math.round(rr * 2), 1);
+      g.fillRect(Math.round(cx - rr), Math.round(cy + rr), Math.round(rr * 2), 1);
+      g.fillRect(Math.round(cx - rr), Math.round(cy - rr), 1, Math.round(rr * 2));
+      g.fillRect(Math.round(cx + rr), Math.round(cy - rr), 1, Math.round(rr * 2) + 1);
+      g.globalAlpha = 1;
       g.fillStyle = "#ff82aa";
       g.fillRect(Math.round(cx - 3), Math.round(cy - 1), 6, 2);
       g.fillRect(Math.round(cx - 1), Math.round(cy - 3), 2, 6);
@@ -1935,7 +2118,7 @@ function drawPlayer() {
   let map;
   if (p.anim === "run") map = SPRITES["run" + ((p.frame & 3) + 1)];
   else if (p.anim === "jump" || p.anim === "dash") map = SPRITES.jump;
-  else if (p.anim === "fall") map = SPRITES.fall;
+  else if (p.anim === "fall" || p.anim === "glide" || p.anim === "slide") map = SPRITES.fall;
   else map = (p.frame === 3) ? SPRITES.idle2 : SPRITES.idle1;
 
   g.save();
@@ -1950,6 +2133,28 @@ function drawPlayer() {
     g.globalAlpha = 1;
   }
   drawMap(g, map, -6, -7, p.facing < 0);
+  if (p.anim === "glide") {
+    // The cap inflates into a parasol
+    g.fillStyle = C.capLo;
+    g.fillRect(-8, -7, 16, 2);
+    g.fillStyle = C.cap;
+    g.fillRect(-8, -9, 16, 2);
+    g.fillRect(-7, -11, 14, 2);
+    g.fillRect(-5, -12, 10, 1);
+    g.fillStyle = C.capHi;
+    g.fillRect(-4, -11, 5, 2);
+    g.fillRect(-7, -9, 2, 1);
+    g.fillStyle = C.capSpot;
+    g.fillRect(3, -10, 2, 2);
+  }
+  if (p.anim === "slide") {
+    // Mycelial threads gripping the wall
+    g.fillStyle = rgb(PAL.mossHi);
+    const wx = p.wallDir > 0 ? 5 : -7;
+    g.fillRect(wx, -3, 2, 1);
+    g.fillRect(wx, 1, 2, 1);
+    g.fillRect(wx, 5, 2, 1);
+  }
   if (p.anim === "idle" && (p.frame & 1) === 0) {
     g.fillStyle = "#c4a878";
     g.fillRect(6, -9, 1, 1);
@@ -1995,9 +2200,10 @@ function collectLights() {
   for (const e of S.enemies) {
     if (e.t === "puff") out.push({ x: e.x + 5, y: e.y + 5, r: 14, a: 0.35, col: "232,224,208", ga: 0.05 });
     else if (e.t === "wisp") out.push({ x: e.x + 4, y: e.y + 4, r: 20, a: 0.55, col: "255,130,170", ga: 0.1 });
+    else out.push({ x: e.x + 6, y: e.y + 4, r: 12, a: 0.3, col: "224,232,180", ga: 0.04 });
   }
   for (const n of S.npcs)
-    out.push({ x: n.x + 6, y: n.y + 4, r: 28, a: 0.65, col: n.sprite === "echo" ? "184,216,248" : "240,200,120", ga: 0.07 });
+    out.push({ x: n.x + 6, y: n.y + 4, r: 28, a: 0.65, col: n.sprite === "echo" ? "184,216,248" : n.sprite === "grel" ? "240,240,246" : "240,200,120", ga: 0.07 });
   return out;
 }
 
@@ -2085,6 +2291,19 @@ function drawHUD() {
   g.textAlign = "left";
   g.fillText(S.berries + "/" + S.berriesTotal, 16, 13);
 
+  // Sparks (lives)
+  g.fillStyle = "rgba(8,12,18,0.55)";
+  g.fillRect(4, 18, 30, 12);
+  g.fillStyle = S.lives > 1 ? C.cap : C.berry;
+  g.fillRect(7, 21, 7, 3);
+  g.fillStyle = S.lives > 1 ? C.capHi : C.berryHi;
+  g.fillRect(8, 21, 3, 1);
+  g.fillStyle = C.bodySh;
+  g.fillRect(9, 24, 3, 3);
+  g.fillStyle = S.lives > 1 ? C.ui : C.berryHi;
+  g.font = "8px monospace";
+  g.fillText("x" + S.lives, 17, 27);
+
   const p = S.player;
   if (!p) return;
   g.fillStyle = "rgba(8,12,18,0.55)";
@@ -2104,16 +2323,37 @@ function drawHUD() {
 }
 
 function drawBanner() {
-  if (S.bannerT <= 0) return;
-  const a = clamp(Math.min(S.bannerT, 2.4 - S.bannerT) * 2, 0, 1);
-  g.globalAlpha = a;
-  g.fillStyle = "rgba(8,12,18,0.6)";
-  g.fillRect(W / 2 - 70, 24, 140, 18);
-  g.fillStyle = C.title;
-  g.font = "bold 10px monospace";
-  g.textAlign = "center";
-  g.fillText(LEVELS[S.levelIdx].name, W / 2, 36);
-  g.globalAlpha = 1;
+  if (S.bannerT > 0) {
+    const L = LEVELS[S.levelIdx];
+    const dur = L.unlockText ? 3.6 : 2.4;
+    const a = clamp(Math.min(S.bannerT, dur - S.bannerT) * 2, 0, 1);
+    g.globalAlpha = a;
+    g.fillStyle = "rgba(8,12,18,0.6)";
+    g.fillRect(W / 2 - 70, 24, 140, 18);
+    g.fillStyle = C.title;
+    g.font = "bold 10px monospace";
+    g.textAlign = "center";
+    g.fillText(L.name, W / 2, 36);
+    if (L.unlockText) {
+      g.fillStyle = "rgba(8,12,18,0.7)";
+      g.fillRect(W / 2 - 116, 44, 232, 12);
+      g.fillStyle = rgb(PAL.accent);
+      g.font = "7px monospace";
+      g.fillText(L.unlockText, W / 2, 52);
+    }
+    g.globalAlpha = 1;
+  }
+  if (S.hint && S.mode === "play") {
+    const a = clamp(Math.min(S.hint.t, 4 - S.hint.t) * 2.5, 0, 1);
+    g.globalAlpha = a;
+    g.fillStyle = "rgba(8,12,18,0.75)";
+    g.fillRect(W / 2 - 110, 24, 220, 13);
+    g.fillStyle = C.goalOpen;
+    g.font = "7px monospace";
+    g.textAlign = "center";
+    g.fillText(S.hint.text, W / 2, 33);
+    g.globalAlpha = 1;
+  }
 }
 
 function decorMush(x, y, s) {
@@ -2168,6 +2408,34 @@ function drawTitle() {
     : "Move WASD/Arrows/Stick   Jump Space/A   Dash Shift/J/X/RB", W / 2, 168);
 }
 
+function drawGameOver() {
+  g.drawImage(skyCv, 0, 0);
+  g.fillStyle = "rgba(4,6,10,0.6)";
+  g.fillRect(0, 0, W, H);
+  drawSpores("far");
+
+  g.fillStyle = C.wilt;
+  g.font = "bold 16px monospace";
+  g.textAlign = "center";
+  g.fillText("THE SPARK GOES OUT", W / 2, 58);
+
+  g.fillStyle = C.uiDim;
+  g.font = "8px monospace";
+  g.fillText("The dark keeps its maps.", W / 2, 80);
+  g.fillText("The Mother keeps waiting.", W / 2, 90);
+
+  g.fillStyle = C.ui;
+  g.font = "9px monospace";
+  g.fillText("Reached   " + LEVELS[S.levelIdx].name, W / 2, 112);
+  g.fillText("Freed     " + S.score.freed, W / 2, 124);
+
+  if ((Math.sin(S.time * 4) * 0.5 + 0.5) > 0.28) {
+    g.fillStyle = C.uiDim;
+    g.font = "8px monospace";
+    g.fillText("Jump to try again", W / 2, 150);
+  }
+}
+
 function drawWin() {
   g.drawImage(skyCv, 0, 0);
   g.drawImage(farCv, 0, 0);
@@ -2189,15 +2457,23 @@ function drawWin() {
   g.fillStyle = C.ui;
   g.font = "9px monospace";
   const m = Math.floor(S.score.time / 60), s = Math.floor(S.score.time % 60);
-  g.fillText("Berries    " + S.score.berries + " / " + S.score.total, W / 2, 100);
-  g.fillText("Freed      " + S.score.freed, W / 2, 112);
-  g.fillText("Deaths     " + S.score.deaths, W / 2, 124);
-  g.fillText("Time       " + m + ":" + (s < 10 ? "0" : "") + s, W / 2, 136);
+  const met = Object.keys(S.score.metNpcs).length;
+  g.fillText("Berries    " + S.score.berries + " / " + S.score.total, W / 2, 96);
+  g.fillText("Freed      " + S.score.freed, W / 2, 107);
+  g.fillText("Voices     " + met + " / " + TOTAL_NPCS, W / 2, 118);
+  g.fillText("Deaths     " + S.score.deaths, W / 2, 129);
+  g.fillText("Time       " + m + ":" + (s < 10 ? "0" : "") + s, W / 2, 140);
+
+  if (met < TOTAL_NPCS) {
+    g.fillStyle = C.uiDim;
+    g.font = "7px monospace";
+    g.fillText("Someone down there never got to say hello.", W / 2, 152);
+  }
 
   if ((Math.sin(S.time * 4) * 0.5 + 0.5) > 0.28) {
     g.fillStyle = C.uiDim;
     g.font = "8px monospace";
-    g.fillText("Jump for title", W / 2, 156);
+    g.fillText("Jump for title", W / 2, 166);
   }
 }
 
