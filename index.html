@@ -402,18 +402,20 @@ const MOD_NAMES = {
   brittle: "BRITTLE BLOOMS", restless: "RESTLESS", heavy: "HEAVY AIR",
   petal: "PETAL RUN",
 };
-function dailyMods() {
-  const s = dailySeedStr();
+function seededRand(str) {
   let h = 2166136261;
-  for (const ch of s) { h ^= ch.charCodeAt(0); h = Math.imul(h, 16777619); }
-  const rand = () => {
+  for (const ch of str) { h ^= ch.charCodeAt(0); h = Math.imul(h, 16777619); }
+  return () => {
     h = Math.imul(h ^ (h >>> 15), 2246822507);
     h = Math.imul(h ^ (h >>> 13), 3266489909);
     return ((h ^= h >>> 16) >>> 0) / 4294967296;
   };
+}
+function dailyMods() {
+  const rand = seededRand(dailySeedStr());
   const pool = ["mirror", "dim", "sparks2", "brittle", "restless", "heavy", "petal"];
   const mods = [];
-  while (mods.length < 2) {
+  while (mods.length < 3) {
     const m = pool[(rand() * pool.length) | 0];
     if (mods.includes(m)) continue;
     if ((m === "petal" && mods.includes("sparks2")) ||
@@ -437,11 +439,23 @@ function startDaily() {
   S.dailyMods = dailyMods();
   S.lives = dMod("petal") ? 1 : dMod("sparks2") ? 2 : START_LIVES;
   S.rec = []; S.ghost = null; S.ghostPos = null;
+  if (GHOST_CACHE.daily)
+    S.ghost = { frames: GHOST_CACHE.daily.frames, name: GHOST_CACHE.daily.name };
   loadLevel(0);
   S.mode = "play";
   S.hint = { text: "DAILY SPORE: " + S.dailyMods.map(m => MOD_NAMES[m]).join(" + "), t: 4.5 };
 }
 const LB_CACHE = { any: null, full: null, daily: null };
+const GHOST_CACHE = { any: null, daily: null };   // the reigning champions' echoes, prefetched
+
+function prefetchLeader(slot, list) {
+  const top = list && list[0];
+  if (!top || !top.has_ghost || !top.id) { GHOST_CACHE[slot] = null; return; }
+  if (GHOST_CACHE[slot] && GHOST_CACHE[slot].id === top.id) return;
+  fetchGhost(top.id).then(fr => {
+    if (fr) GHOST_CACHE[slot] = { id: top.id, frames: fr, name: String(top.name) };
+  });
+}
 let LB_HITS = [];   // clickable name rows, rebuilt each frame the panel draws
 let LB_PANEL = null; // the small panel's rect — click it to open the full board
 let BOARD_TABS = []; // tab rects on the full-board screen
@@ -465,11 +479,13 @@ async function lbFetch(cat) {
   } catch (e) { return null; }
 }
 
+let LB_DAY = null;   // which UTC day the daily cache was fetched for
 function lbRefresh() {
   if (!lbOn()) return;
-  lbFetch("any").then(d => { if (d) LB_CACHE.any = d; });
+  LB_DAY = dailySeedStr();
+  lbFetch("any").then(d => { if (d) { LB_CACHE.any = d; prefetchLeader("any", d); } });
   lbFetch("full").then(d => { if (d) LB_CACHE.full = d; });
-  lbFetch("daily-" + dailySeedStr()).then(d => { if (d) LB_CACHE.daily = d; });
+  lbFetch("daily-" + dailySeedStr()).then(d => { if (d) { LB_CACHE.daily = d; prefetchLeader("daily", d); } });
 }
 
 // Returns { ok, id } — the id makes "race my echo" challenge links possible
@@ -1305,6 +1321,21 @@ function loadLevel(idx) {
         ENEMY_SPAWNS.push({ t: "mine", x: px + 4, y: py + 4 });
       }
     }
+  }
+
+  // On dream nights the cave remembers more of its children — seeded surge,
+  // identical for everyone running today's spore
+  if (S.daily) {
+    const rand = seededRand(dailySeedStr() + ":" + idx);
+    const extra = [];
+    for (const sp of ENEMY_SPAWNS) {
+      if (rand() >= 0.55) continue;
+      const nx = sp.x + (rand() < 0.5 ? -12 : 12);
+      const tx = Math.floor((nx + 5) / TILE), ty = Math.floor((sp.y + 4) / TILE);
+      if (nx > 4 && nx < WORLD_W - 16 && !isSolid(tileAt(tx, ty)))
+        extra.push({ ...sp, x: nx });
+    }
+    ENEMY_SPAWNS.push(...extra);
   }
 
   // Flora on walkable ground + vines under ceilings
@@ -2509,6 +2540,8 @@ function tick(dt) {
   }
 
   if (S.mode === "title") {
+    // UTC midnight rolled over while idling — refetch today's dream
+    if (lbOn() && LB_DAY && LB_DAY !== dailySeedStr()) { LB_CACHE.daily = null; lbRefresh(); }
     if (just.KeyL && lbOn()) {
       S.boardFrom = "title"; S.mode = "board";
       clearJust();
@@ -2537,6 +2570,10 @@ function tick(dt) {
         S.ghost = S.pendingGhost;
         S.pendingGhost = null;
         S.hint = { text: "Racing " + (S.ghost.name || "an echo") + " — catch the pale one.", t: 4 };
+      } else if (GHOST_CACHE.any) {
+        // the reigning champion always runs beside you
+        S.ghost = { frames: GHOST_CACHE.any.frames, name: GHOST_CACHE.any.name };
+        S.hint = { text: S.ghost.name + " holds the record. Their echo runs with you.", t: 4 };
       } else {
         try {
           const pb = JSON.parse(localStorage.getItem("sd_pb") || "null");
@@ -3130,6 +3167,14 @@ function draw() {
   if (S.ghostPos && S.mode === "play") {
     g.globalAlpha = 0.45;
     drawMap(g, SPRITES.idle1, Math.round(S.ghostPos.x) - 1, Math.round(S.ghostPos.y) - 2, S.ghostPos.facing < 0, ECHO_PAL);
+    if (S.ghost && S.ghost.name) {
+      g.globalAlpha = 0.7;
+      g.font = "7px monospace";
+      g.textAlign = "center";
+      g.fillStyle = "#c0e0e8";
+      g.fillText(S.ghost.name, Math.round(S.ghostPos.x) + 5, Math.round(S.ghostPos.y) - 6);
+      g.textAlign = "left";
+    }
     g.globalAlpha = 1;
   }
   if (S.mode !== "dead") drawPlayer();
@@ -4406,8 +4451,9 @@ function drawTitle() {
       g.fillStyle = C.uiDim;
       g.fillText(dailySeedStr() + (S.pendingGhost ? "  · echo armed" : ""), 9, 115);
       g.fillStyle = rgb(PALS[0].accent);
-      g.fillText(MOD_NAMES[mods[0]], 9, 127);
-      g.fillText(MOD_NAMES[mods[1]], 9, 136);
+      g.fillText(MOD_NAMES[mods[0]], 9, 124);
+      g.fillText(MOD_NAMES[mods[1]], 9, 132);
+      g.fillText(MOD_NAMES[mods[2]], 9, 140);
       g.fillStyle = C.goalOpen;
       g.fillText("D / tap here — descend", 9, 151);
     } else {
@@ -4470,8 +4516,10 @@ function drawLbPanel(tall) {
   LB_HITS = [];
   LB_PANEL = null;
   if (!lbOn()) return;
-  const showFull = ((S.time / 6) | 0) % 2 === 1;
-  const list = showFull ? LB_CACHE.full : LB_CACHE.any;
+  // Win screen after a daily shows today's board; otherwise rotate the cycle
+  const cycle = tall ? (S.daily ? ["daily"] : ["any", "full"]) : ["any", "full", "daily"];
+  const slot = cycle[((S.time / 6) | 0) % cycle.length];
+  const list = LB_CACHE[slot];
   const px = tall ? W - 144 : W - 122;
   const pw = tall ? 140 : 118;
   const ph = tall ? H - 8 : 72;
@@ -4485,7 +4533,7 @@ function drawLbPanel(tall) {
   g.fillRect(px, 4, pw, 1);
   g.fillStyle = C.title;
   g.font = "bold 7px monospace";
-  g.fillText(showFull ? "FULL BLOOM 100%" : "FASTEST — ANY%", px + 5, 14);
+  g.fillText(slot === "daily" ? "☾ TODAY'S SPORE" : slot === "full" ? "FULL BLOOM 100%" : "FASTEST — ANY%", px + 5, 14);
   g.font = "7px monospace";
   if (!list || !list.length) {
     g.fillStyle = C.uiDim;
