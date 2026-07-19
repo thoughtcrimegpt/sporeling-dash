@@ -600,9 +600,13 @@ function submitScore() {
   let name = "";
   try { name = localStorage.getItem("sd_name") || ""; } catch (e) {}
   if (!name) name = "@";   // start them off with the handle prefix
-  name = window.prompt("Name or @handle for the leaderboard:", name) || "";
+  name = window.prompt(
+    "LEADERBOARD NAME — required. No name = you won't appear on the board.\n\n" +
+    "Want it clickable? Enter your EXACT X username with the @ (like @yourhandle) " +
+    "and the board links straight to your profile. Anything else shows as plain text.",
+    name) || "";
   name = name.trim().replace(/[^\w@.\- ]/g, "").slice(0, 20);
-  if (!name) return;
+  if (!name || name === "@") { S.lbMsg = "No name — not on the board. " + dashBtnName() + " to retry"; return; }
   try { localStorage.setItem("sd_name", name); } catch (e) {}
   const ms = Math.round(S.score.time * 1000);
   const met = Object.keys(S.score.metNpcs).length;
@@ -4712,14 +4716,16 @@ function drawWin() {
   if (S.lbConfirm) {
     // Are you sure?
     g.fillStyle = "rgba(4,7,12,0.94)";
-    g.fillRect(4, 148, 168, 28);
+    g.fillRect(4, 140, 168, 38);
     g.fillStyle = rgb(PALS[0].accent);
-    g.fillRect(4, 148, 168, 1);
+    g.fillRect(4, 140, 168, 1);
     g.fillStyle = C.ui;
     g.font = "7px monospace";
-    g.fillText("Submit to the public leaderboard?", 10, 159);
+    g.fillText("Submit to the public leaderboard?", 10, 151);
+    g.fillStyle = C.goalOpen;
+    g.fillText("Exact @handle = clickable X link", 10, 161);
     g.fillStyle = C.title;
-    g.fillText(dashBtnName() + " — yes    " + jumpBtnName() + " — no", 10, 170);
+    g.fillText(dashBtnName() + " — yes    " + jumpBtnName() + " — no", 10, 171);
   } else {
     if (lbOn()) {
       const blink = S.lbMsg || (Math.sin(S.time * 5) * 0.5 + 0.5) > 0.25;
