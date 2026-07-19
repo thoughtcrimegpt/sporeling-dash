@@ -494,6 +494,15 @@ const LEVELS = [
     }),
     clearText: "The roots remember your name now.",
     npcs: [{
+      c: 36, r: 3, name: "COMMANTHA", sprite: "dog",
+      lines: [
+        "Yes, a dog. No, I won't explain. The cave has room for all kinds.",
+        "I keep the smallest journal down here. One mouthful of words a day. No more.",
+        "Today's entry: 'The climber came through. Good grip. Would follow.'",
+        "Every entry ends with three scratches: 'who was MH.' Don't ask. The asking is the point.",
+        "Some down here call me something gentler. Only my pack knows it.",
+      ],
+    }, {
       c: 70, r: 11, name: "THE TWINS", sprite: "twins",
       lines: [
         "Ooh! A live one, sister. It's been ages.",
@@ -658,7 +667,7 @@ const ECHO_PAL = {
   O: "#5a7a8a", C: "#8ab0c0", H: "#c0e0e8", D: "#6a8ea0",
   B: "#d8e8ec", S: "#a8c0c8", E: "#3a505a", W: "#ffffff", R: "#b0ccd4",
 };
-const NPC_H = { keeper: 14, twins: 10, moth: 10, granny: 14, echo: 12, grel: 14 };
+const NPC_H = { keeper: 14, twins: 10, moth: 10, granny: 14, echo: 12, grel: 14, dog: 14 };
 
 // ── State ──────────────────────────────────────────────────────────────────
 let LEVEL = [], ROWS = 0, COLS = 0, WORLD_W = 0, WORLD_H = 0, PAL = PALS[0];
@@ -2014,6 +2023,30 @@ function drawNPCs() {
       g.fillStyle = C.eye; g.fillRect(x + 3, y + 7, 2, 1); g.fillRect(x + 7, y + 7, 2, 1);
       g.fillStyle = "#e8d0b0"; g.fillRect(x + 3, y + 10, 6, 3);
       g.fillStyle = C.berry; g.fillRect(x + 5, y + 11, 2, 1);
+    } else if (n.sprite === "dog") {
+      // German Shepherd, sitting profile — tan coat, black saddle and muzzle
+      const tan = "#c68a4e", tanDk = "#9a6634", blk = "#26201c";
+      const hb = bob * 0.4;
+      g.fillStyle = tan;
+      g.fillRect(x + 5, y + 6, 9, 6);                          // haunches
+      g.fillRect(x + 2, y + 4, 5, 10);                         // chest + front
+      g.fillStyle = blk;
+      g.fillRect(x + 6, y + 5, 8, 4);                          // saddle
+      g.fillRect(x + 13, y + 9, 3, 2);                         // tail
+      g.fillStyle = tanDk;
+      g.fillRect(x + 14, y + 10, 2, 2);                        // tail tip
+      g.fillRect(x + 3, y + 12, 2, 2);                         // front leg
+      g.fillRect(x + 9, y + 12, 2, 2);                         // hind paw
+      g.fillStyle = tan;
+      g.fillRect(x, Math.round(y + hb), 6, 5);                 // head
+      g.fillStyle = blk;
+      g.fillRect(x - 3, Math.round(y + 2 + hb), 4, 3);         // muzzle
+      g.fillRect(x + 1, Math.round(y - 4 + hb), 2, 5);         // ear
+      g.fillRect(x + 4, Math.round(y - 3 + hb), 2, 4);         // ear
+      g.fillStyle = tanDk;
+      g.fillRect(x + 2, Math.round(y - 3 + hb), 1, 2);         // inner ear
+      g.fillStyle = "#d8a040";
+      g.fillRect(x + 1, Math.round(y + 1 + hb), 1, 1);         // amber eye
     } else if (n.sprite === "grel") {
       // Three pale pointy-eared friends — the first believers
       const line = "#1a1a20";
