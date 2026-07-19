@@ -141,17 +141,33 @@ const mkCv = (w, h) => { const c = document.createElement("canvas"); c.width = w
 // ── Audio ──────────────────────────────────────────────────────────────────
 let AC = null, masterGain = null;
 function audioInit() {
-  if (AC) { if (AC.state === "suspended") AC.resume(); return; }
-  try {
-    AC = new (window.AudioContext || window.webkitAudioContext)();
-    masterGain = AC.createGain();
-    masterGain.gain.value = 0.32;
-    masterGain.connect(AC.destination);
-    startDrone();
-  } catch (e) { AC = null; }
+  if (!AC) {
+    try {
+      AC = new (window.AudioContext || window.webkitAudioContext)();
+      masterGain = AC.createGain();
+      masterGain.gain.value = 0.32;
+      masterGain.connect(AC.destination);
+      startDrone();
+    } catch (e) { AC = null; return; }
+  }
+  if (AC.state !== "running") {
+    AC.resume();
+    // iOS unlock: play a one-sample silent buffer inside the user gesture
+    try {
+      const b = AC.createBuffer(1, 1, 22050);
+      const src = AC.createBufferSource();
+      src.buffer = b;
+      src.connect(AC.destination);
+      src.start(0);
+    } catch (e) {}
+  }
 }
-addEventListener("keydown", audioInit);
-addEventListener("pointerdown", audioInit);
+// touchend is the gesture iOS reliably accepts for audio unlock
+["keydown", "pointerdown", "touchstart", "touchend", "click"].forEach(ev =>
+  addEventListener(ev, audioInit, { passive: true }));
+document.addEventListener("visibilitychange", () => {
+  if (!document.hidden && AC && AC.state === "suspended") AC.resume();
+});
 
 function startDrone() {
   const o1 = AC.createOscillator(), o2 = AC.createOscillator();
