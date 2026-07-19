@@ -1360,6 +1360,7 @@ function loadLevel(idx) {
       kind: L.boss, state: "intro", t: 0, pips: 3,
       arm: null, shots: [], bolts: [], lanes: [], windowHint: false,
       floorPulseT: 0, capFlash: 0,
+      grace: true,   // until the first successful hit, windows run 1.45x longer
     };
     if (L.boss === "unbloomed") {
       S.boss.x = 31.5 * TILE; S.boss.y = 6 * TILE; S.boss.homeY = 6 * TILE;
@@ -1801,6 +1802,11 @@ function burst(x, y, vx, vy, life, col, s) {
 }
 
 // ── Enemies ────────────────────────────────────────────────────────────────
+// What took you — named for the death label
+const ENEMY_NAMES = {
+  slug: "a slug", puff: "a spore puff", wisp: "a wisp",
+  skitter: "a skitter", spitter: "a spitter", mine: "a sporemine",
+};
 function spawnEnemies() {
   const sm = dMod("restless") ? 1.35 : 1;   // RESTLESS: everything hurries
   S.enemies = ENEMY_SPAWNS.map(sp => {
@@ -1935,7 +1941,7 @@ function updateEnemies(dt) {
     }
     const eb = { x: e.x + 2, y: e.y + 2, w: e.w - 4, h: e.h - 4 };
     const pb = { x: p.x + 2, y: p.y + 2, w: p.w - 4, h: p.h - 4 };
-    if (p.invuln <= 0 && overlap(pb, eb)) hurtPlayer(e.x + e.w / 2);
+    if (p.invuln <= 0 && overlap(pb, eb)) hurtPlayer(e.x + e.w / 2, ENEMY_NAMES[e.t] || "one of the stopped");
   }
   S.enemies = S.enemies.filter(e => !e.dead);
 
@@ -1944,7 +1950,7 @@ function updateEnemies(dt) {
     if (sh.grav) sh.vy += 620 * dt;
     sh.x += sh.vx * dt;
     sh.y += sh.vy * dt;
-    if (p.invuln <= 0 && overlap(p, sh)) { hurtPlayer(sh.x + 3); sh.dead = true; }
+    if (p.invuln <= 0 && overlap(p, sh)) { hurtPlayer(sh.x + 3, "a spore glob"); sh.dead = true; }
     if (!sh.ghost && isSolid(tileAt(Math.floor((sh.x + 3) / TILE), Math.floor((sh.y + 3) / TILE)))) {
       sh.dead = true;
       for (let i = 0; i < 3; i++)
@@ -2177,7 +2183,7 @@ function updateBarrow(dt) {
       burst(b.x - b.dir * half, floorY, -b.dir * 15, -8, 0.3, rgb(PAL.rockLo), 2);
     if (b.t > BARROW.CRAWL) { b.state = "remember"; b.t = 0; blip(880, 1175, 0.3, "sine", 0.13); }
   } else if (b.state === "remember") {
-    if (b.t > BARROW.REMEMBER[phase - 1]) { b.state = "spit"; b.t = 0; b.spitN = 0; b.spitT = 0.2; }
+    if (b.t > BARROW.REMEMBER[phase - 1] * (b.grace ? 1.45 : 1)) { b.state = "spit"; b.t = 0; b.spitN = 0; b.spitT = 0.2; }
   } else if (b.state === "spit") {
     b.spitT -= dt;
     if (b.spitT <= 0 && b.spitN < BARROW.GLOBS[phase - 1]) {
@@ -2202,6 +2208,7 @@ function updateBarrow(dt) {
   if (p.vy > 40 && overlap(p, head)) {
     if (b.state === "remember") {
       b.pips--;
+      b.grace = false;
       p.vy = -250; p.invuln = 1.5; p.canDash = true; p.spores = MAX_SPORES;
       S.shakeT = 0.2; S.shakeMag = 2.5;
       SFX.bossHit();
@@ -2219,11 +2226,11 @@ function updateBarrow(dt) {
       }
     } else if (p.invuln <= 0) {
       SFX.bossHorn();
-      hurtPlayer(b.x);
+      hurtPlayer(b.x, "the Barrow's crown, closed");
       p.vy = -200;
     }
   } else if (p.invuln <= 0 && overlap(p, body)) {
-    hurtPlayer(b.x);
+    hurtPlayer(b.x, "the Barrow's hide");
   }
 }
 
@@ -2246,7 +2253,7 @@ function updateChorus(dt) {
       wsp.y = b.y + Math.sin(wsp.ang) * CHORUS.ORBIT_R * 0.7 - 4;
     } else if (wsp.mode === "warn") {
       if (Math.random() < 0.6) burst(wsp.x + 4, wsp.y + 4, 0, 0, 0.2, "#fff0f6", 1);
-      if (wsp.t > CHORUS.DIVE_WARN) {
+      if (wsp.t > CHORUS.DIVE_WARN * (b.grace ? 1.45 : 1)) {
         wsp.mode = "dive"; wsp.t = 0;
         const tx = p.x + 1, ty = p.y + 1;
         const d = Math.hypot(tx - wsp.x, ty - wsp.y) || 1;
@@ -2275,7 +2282,7 @@ function updateChorus(dt) {
           burst(wsp.x + 4, wsp.y + 4, Math.cos(a) * 70, Math.sin(a) * 70, 0.4, "#ff82aa", 2);
         }
       } else if (p.invuln <= 0) {
-        hurtPlayer(wsp.x + 4);
+        hurtPlayer(wsp.x + 4, "a diving wisp");
       }
     }
   }
@@ -2310,6 +2317,7 @@ function updateChorus(dt) {
     if (overlap(p, core)) {
       if (p.dashing) {
         b.pips--;
+        b.grace = false;
         p.invuln = 1.5; p.spores = MAX_SPORES; p.canDash = true;
         S.shakeT = 0.2; S.shakeMag = 2.5;
         SFX.bossHit();
@@ -2322,17 +2330,17 @@ function updateChorus(dt) {
         b.state = "orbit"; b.t = 0;
         for (const wsp of b.wisps) { wsp.mode = "orbit"; wsp.t = 0; }
       } else if (p.invuln <= 0) {
-        hurtPlayer(b.x);
+        hurtPlayer(b.x, "the gathered chorus — dash through it");
       }
     }
-    if (b.t > CHORUS.GATHER[phase - 1]) {
+    if (b.t > CHORUS.GATHER[phase - 1] * (b.grace ? 1.45 : 1)) {
       b.state = "orbit"; b.t = 0;
       for (const wsp of b.wisps) { wsp.mode = "orbit"; wsp.t = 0; }
     }
   }
   if (b.state !== "gather" && b.state !== "defeated" && p.invuln <= 0 && !p.dashing &&
       overlap(p, { x: b.x - 10, y: b.y - 10, w: 20, h: 20 })) {
-    hurtPlayer(b.x);
+    hurtPlayer(b.x, "the chorus heart");
   }
 }
 
@@ -2423,7 +2431,7 @@ function updateBoss(dt) {
       b.windowHint = true;
       S.hint = { text: "Hold Jump — drift down onto the open crown.", t: 4 };
     }
-    if (b.t > BOSS.OPEN[3 - b.pips]) { b.state = "recover"; b.t = 0; b.capFlash = 0.4; }
+    if (b.t > BOSS.OPEN[3 - b.pips] * (b.grace ? 1.45 : 1)) { b.state = "recover"; b.t = 0; b.capFlash = 0.4; }
   } else if (b.state === "recover") {
     b.y += (b.homeY - b.y) * Math.min(1, dt * 3);
     if (b.t > BOSS.RECOVER) { b.state = "warn"; b.t = 0; SFX.bossWarn(); }
@@ -2440,7 +2448,7 @@ function updateBoss(dt) {
       a.x += a.dir * BOSS.SWEEP_V * dt;
       if (Math.random() < 0.4)
         burst(a.x + 14, a.y + a.h, (Math.random() - 0.5) * 30, 10, 0.3, rgb(PAL.mossHi), 1);
-      if (overlap(p, a)) hurtPlayer(a.x + 14);
+      if (overlap(p, a)) hurtPlayer(a.x + 14, "a root sweep");
       if (a.x < 1 * TILE || a.x > 61 * TILE) b.arm = null;
     }
   }
@@ -2458,7 +2466,7 @@ function updateBoss(dt) {
   }
   for (const sh of b.shots) {
     sh.y += BOSS.RAIN_V * dt;
-    if (overlap(p, sh)) { hurtPlayer(sh.x + 4); sh.dead = true; }
+    if (overlap(p, sh)) { hurtPlayer(sh.x + 4, "the spore rain"); sh.dead = true; }
     if (sh.y > 21 * TILE - 8) {
       sh.dead = true;
       for (let i = 0; i < 4; i++) burst(sh.x + 4, sh.y + 6, (Math.random() - 0.5) * 40, -20, 0.3, "#f06080", 1);
@@ -2472,7 +2480,7 @@ function updateBoss(dt) {
     bo.y += bo.vy * dt;
     if (Math.random() < 0.4)
       burst(bo.x + 4, bo.y + 4, (Math.random() - 0.5) * 15, (Math.random() - 0.5) * 15, 0.2, "#f06080", 1);
-    if (overlap(p, bo)) { hurtPlayer(bo.x + 4); bo.dead = true; }
+    if (overlap(p, bo)) { hurtPlayer(bo.x + 4, "an aimed bolt"); bo.dead = true; }
     if (isSolid(tileAt(Math.floor((bo.x + 4) / TILE), Math.floor((bo.y + 4) / TILE))) ||
         bo.x < -16 || bo.x > WORLD_W + 16 || bo.y < -16 || bo.y > WORLD_H + 16) {
       bo.dead = true;
@@ -2490,7 +2498,7 @@ function updateBoss(dt) {
       if (Math.random() < 0.5)
         burst(20 * TILE + Math.random() * 24 * TILE, 21 * TILE, 0, -30 - Math.random() * 40, 0.3, "#f06080", 1);
       if (p.grounded && p.x > 20 * TILE && p.x < 44 * TILE && p.y + p.h > 20.5 * TILE)
-        hurtPlayer(p.x + 5 + (Math.random() < 0.5 ? 30 : -30));
+        hurtPlayer(p.x + 5 + (Math.random() < 0.5 ? 30 : -30), "the burning floor");
     } else if (cyc > 1.6 && cyc <= 2.2 && Math.random() < 0.3) {
       burst(20 * TILE + Math.random() * 24 * TILE, 21 * TILE, 0, -15, 0.4, "#f0a060", 1);
     }
@@ -2501,16 +2509,17 @@ function updateBoss(dt) {
   const capBox = { x: b.x - BOSS.CAP_W / 2, y: b.y - BOSS.CAP_H, w: BOSS.CAP_W, h: BOSS.CAP_H + 6 };
   if (p.vy > 0 && overlap(p, capTop)) {
     if (b.state === "open") {
+      b.grace = false;
       bossLanded(b);
     } else if (p.invuln <= 0) {
       b.capFlash = 0.5;
       SFX.bossHorn();
-      hurtPlayer(p.x + 5 + (p.x + 5 < b.x ? 60 : -60));
+      hurtPlayer(p.x + 5 + (p.x + 5 < b.x ? 60 : -60), "the closed crown");
       p.vy = -220;
     }
   } else if (overlap(p, capBox)) {
     if (p.dashing) { endDash(p); p.vx = (p.x + 5 < b.x ? -1 : 1) * 140; p.vy = -100; }
-    else if (p.invuln <= 0) hurtPlayer(b.x);
+    else if (p.invuln <= 0) hurtPlayer(b.x, "the Unbloomed");
   }
 }
 
@@ -2590,10 +2599,10 @@ function gainLife(msg) {
 
 // Getting hit knocks you back and costs a spark. No checkpoint teleport —
 // unless it was your last spark, in which case the hit is the death.
-function hurtPlayer(sx) {
+function hurtPlayer(sx, cause) {
   const p = S.player;
   if (p.invuln > 0) return;
-  if (!(DEV && S.devInf) && S.lives <= 1) { killPlayer(); return; }   // the killing blow
+  if (!(DEV && S.devInf) && S.lives <= 1) { killPlayer(cause); return; }   // the killing blow
   if (!(DEV && S.devInf)) S.lives--;
   p.invuln = 1.2;
   p.vx = (p.x + p.w / 2 < sx ? -1 : 1) * 170;
@@ -2607,10 +2616,11 @@ function hurtPlayer(sx) {
   }
 }
 
-function killPlayer() {
+function killPlayer(cause) {
   const p = S.player;
   S.mode = "dead";
   S.deathT = 0;
+  S.deathCause = cause || "the dark";
   S.score.deaths++;
   fallenPost(S.levelIdx, p.x, p.y);
   if (!(DEV && S.devInf)) S.lives--;
@@ -3198,7 +3208,7 @@ function tick(dt) {
     }
   }
 
-  if (p.invuln <= 0 && hitSpike(p)) killPlayer();
+  if (p.invuln <= 0 && hitSpike(p)) killPlayer(p.y > WORLD_H + 8 ? "the long dark below" : "the spikes");
 
   updateParticles(dt);
 
@@ -3334,6 +3344,7 @@ function draw() {
   drawNPCs();
   drawEnemies();
   drawBoss();
+  drawStrikeMark();
   drawGoal();
   drawTrail();
   // The Stopped — faded where real players fell, swaying faintly
@@ -3367,6 +3378,17 @@ function draw() {
   drawLighting(ox, oy);
   drawForeground();
   if (S.mode !== "credits") drawHUD();
+  // What took you — brief, then gone; learning without a lecture
+  if (S.mode === "dead" && S.deathCause) {
+    g.textAlign = "center";
+    g.fillStyle = "rgba(4,6,10,0.7)";
+    const cw = ("taken by " + S.deathCause).length * 4.5 + 12;
+    g.fillRect(W / 2 - cw / 2, 52, cw, 13);
+    g.fillStyle = C.wilt;
+    g.font = "7px monospace";
+    g.fillText("taken by " + S.deathCause, W / 2, 61);
+    g.textAlign = "left";
+  }
   drawTalk();
   drawBanner();
   drawEndOverlay();
@@ -4050,6 +4072,34 @@ function drawChorus(b) {
     burst(b.x + (Math.random() - 0.5) * 60, b.y + (Math.random() - 0.5) * 40, 0, -15, 1.2, "#ff82aa", 1);
 }
 
+// A pulsing mint chevron over the weak point — but only until your first
+// successful hit (the grace window). After that the glow is the only tell.
+function drawStrikeMark() {
+  const b = S.boss;
+  if (!b || !b.grace) return;
+  let x = null, y = null;
+  if (b.kind === "barrow" && b.state === "remember") {
+    x = b.x + b.dir * (BARROW.W / 2 - 12); y = b.y - 18;
+  } else if (b.kind === "chorus" && b.state === "gather") {
+    x = b.x; y = b.y - 26;
+  } else if (b.kind === "unbloomed" && b.state === "open") {
+    x = b.x; y = b.y - BOSS.CAP_H - 20;
+  }
+  if (x === null) return;
+  const bob = Math.sin(S.time * 6) * 2.5;
+  const xx = Math.round(x), yy = Math.round(y + bob);
+  g.globalAlpha = 0.75 + Math.sin(S.time * 8) * 0.25;
+  g.fillStyle = "#aaf0c8";
+  for (let i = 0; i < 2; i++) {
+    const oy = yy - i * 7;
+    g.fillRect(xx - 4, oy - 4, 9, 2);
+    g.fillRect(xx - 3, oy - 2, 7, 2);
+    g.fillRect(xx - 2, oy, 5, 2);
+    g.fillRect(xx - 1, oy + 2, 3, 2);
+  }
+  g.globalAlpha = 1;
+}
+
 function drawBoss() {
   const b = S.boss;
   if (!b) return;
@@ -4685,6 +4735,11 @@ function drawGameOver() {
   g.font = "9px monospace";
   g.fillText("Reached   " + LEVELS[S.levelIdx].name, W / 2, 112);
   g.fillText("Freed     " + S.score.freed, W / 2, 124);
+  if (S.deathCause) {
+    g.fillStyle = C.wilt;
+    g.font = "8px monospace";
+    g.fillText("Taken by " + S.deathCause, W / 2, 137);
+  }
 
   if ((Math.sin(S.time * 4) * 0.5 + 0.5) > 0.28) {
     g.fillStyle = C.uiDim;
