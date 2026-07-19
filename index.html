@@ -249,7 +249,7 @@ const CHORUS = {
   ORBIT_R: 68, ORBIT: 2.0,
   DIVERS: [2, 3, 4],
   DIVE_WARN: 0.5, DIVE_V: 230,
-  GATHER: [1.9, 1.45, 1.15],      // core-open window per phase
+  GATHER: [2.4, 1.45, 1.15],      // core-open window per phase (long first — learn it)
   N_WISPS: 7,
 };
 const rgb = c => "rgb(" + c[0] + "," + c[1] + "," + c[2] + ")";
@@ -982,10 +982,9 @@ const LEVELS = [
     map: buildLevel(40, 22, ({ set, rect }) => {
       rect(0, 0, 39, 1);
       rect(0, 0, 0, 21); rect(39, 0, 39, 21);
-      rect(0, 19, 39, 21);
-      rect(6, 14, 10, 14); rect(29, 14, 33, 14);              // side risers
-      rect(17, 9, 22, 9);                                     // the pulpit
-      set(4, 18, "P");
+      rect(0, 14, 39, 21);                                    // raised floor — the whole fight fits on screen
+      rect(17, 12, 22, 12);                                   // the pulpit, right under the heart
+      set(4, 13, "P");
       set(8, 13, "B"); set(31, 13, "B");
     }),
     clearText: "The song has words again.",
@@ -1158,7 +1157,7 @@ function loadLevel(idx) {
       S.boss.x = 24 * TILE; S.boss.y = 13 * TILE - BARROW.H; S.boss.dir = 1;
       S.boss.spitN = 0; S.boss.spitT = 0;
     } else if (L.boss === "chorus") {
-      S.boss.x = 20 * TILE; S.boss.y = 8 * TILE;
+      S.boss.x = 20 * TILE; S.boss.y = 10 * TILE;
       S.boss.wisps = [];
     }
   }
@@ -1892,7 +1891,7 @@ function bossVanquished(b) {
   }
   S.bossDoor = b.kind === "barrow"
     ? { x: 44 * TILE + 6, y: 13 * TILE - 48, w: 22, h: 48 }
-    : { x: 36 * TILE + 6, y: 19 * TILE - 48, w: 22, h: 48 };
+    : { x: 36 * TILE + 6, y: 14 * TILE - 48, w: 22, h: 48 };
   SFX.check();
   S.hint = { text: "The way onward has opened.", t: 3.5 };
 }
@@ -1997,7 +1996,7 @@ function updateChorus(dt) {
       wsp.x += wsp.vx * dt;
       wsp.y += wsp.vy * dt;
       if (Math.random() < 0.5) burst(wsp.x + 4, wsp.y + 4, 0, 0, 0.25, "#ff82aa", 1);
-      if (wsp.t > 0.7 || wsp.x < 16 || wsp.x > WORLD_W - 24 || wsp.y > 19 * TILE - 10 || wsp.y < 2 * TILE) {
+      if (wsp.t > 0.7 || wsp.x < 16 || wsp.x > WORLD_W - 24 || wsp.y > 14 * TILE - 10 || wsp.y < 2 * TILE) {
         wsp.mode = "return"; wsp.t = 0;
       }
     } else if (wsp.mode === "return") {
@@ -2037,10 +2036,8 @@ function updateChorus(dt) {
       b.state = "gather"; b.t = 0;
       blip(880, 1320, 0.35, "sine", 0.15);
       for (const wsp of b.wisps) { wsp.dead = false; wsp.mode = "gathered"; wsp.t = 0; }
-      if (!b.gatherHint) {
-        b.gatherHint = true;
-        S.hint = { text: "The chorus is one — dash through its heart.", t: 3.5 };
-      }
+      // teach at the exact actionable moment, every window until the first hit
+      if (b.pips === 3) S.hint = { text: "NOW — dash through the heart!", t: 2.2 };
     }
   } else if (b.state === "gather") {
     for (const wsp of b.wisps) {
@@ -3583,7 +3580,7 @@ function drawChorus(b) {
     const r = (gathered ? 14 : 8) * pulse;
     const cx = Math.round(b.x), cy = Math.round(b.y);
     g.globalAlpha = gathered ? 0.9 : 0.5;
-    g.fillStyle = gathered ? rgb(PAL.accent) : "#ff82aa";
+    g.fillStyle = gathered ? "#aaf0c8" : "#ff82aa";   // mint = strike now, everywhere in this game
     g.fillRect(Math.round(cx - r), Math.round(cy - r / 2), Math.round(r * 2), Math.round(r));
     g.fillRect(Math.round(cx - r / 2), Math.round(cy - r), Math.round(r), Math.round(r * 2));
     g.fillStyle = "#fff0f6";
@@ -3594,9 +3591,24 @@ function drawChorus(b) {
       const ring = (S.time * 2) % 1;
       const rr = 16 + ring * 14;
       g.globalAlpha = (1 - ring) * 0.5;
-      g.fillStyle = rgb(PAL.accent);
+      g.fillStyle = "#aaf0c8";
       g.fillRect(cx - rr, cy - 1, rr * 2, 2);
       g.fillRect(cx - 1, cy - rr, 2, rr * 2);
+      g.globalAlpha = 1;
+      // chevrons collapsing inward: hit this, now
+      const adv = (S.time * 2.5) % 1;
+      const dist = 40 - adv * 18;
+      g.globalAlpha = 0.9 - adv * 0.5;
+      g.fillStyle = "#aaf0c8";
+      for (const [dx2, dy2] of [[-1, 0], [1, 0], [0, -1], [0, 1]]) {
+        const ax2 = cx + dx2 * dist, ay2 = cy + dy2 * dist;
+        g.beginPath();
+        g.moveTo(ax2 - dx2 * 6 - dy2 * 5, ay2 - dy2 * 6 - dx2 * 5);
+        g.lineTo(ax2, ay2);
+        g.lineTo(ax2 - dx2 * 6 + dy2 * 5, ay2 - dy2 * 6 + dx2 * 5);
+        g.closePath();
+        g.fill();
+      }
       g.globalAlpha = 1;
     }
   }
@@ -3872,7 +3884,7 @@ function collectLights() {
         out.push({ x: b.x + b.dir * 20, y: b.y, r: 30, a: 0.85, col: rgbs(PAL.accent), ga: 0.14 });
     } else if (b.kind === "chorus") {
       const gath = b.state === "gather";
-      out.push({ x: b.x, y: b.y, r: gath ? 52 : 30, a: gath ? 0.9 : 0.5, col: "255,164,205", ga: gath ? 0.16 : 0.08 });
+      out.push({ x: b.x, y: b.y, r: gath ? 52 : 30, a: gath ? 0.9 : 0.5, col: gath ? "170,240,200" : "255,164,205", ga: gath ? 0.16 : 0.08 });
       for (const wsp of b.wisps || [])
         if (!wsp.dead) out.push({ x: wsp.x + 4, y: wsp.y + 4, r: 14, a: 0.45, col: "255,164,205", ga: 0.05 });
     } else if (b.state === "defeated") {
