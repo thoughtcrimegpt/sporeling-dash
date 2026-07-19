@@ -1772,5 +1772,15 @@ S.mode = "title";
 requestAnimationFrame(frame);
 })();
 </script>
+<script>
+// Analytics only on the deployed site — local plays don't count
+if (location.hostname.endsWith("github.io")) {
+  const s = document.createElement("script");
+  s.dataset.goatcounter = "https://thoughtcrimegpt.goatcounter.com/count";
+  s.async = true;
+  s.src = "https://gc.zgo.at/count.js";
+  document.head.appendChild(s);
+}
+</script>
 </body>
 </html>
