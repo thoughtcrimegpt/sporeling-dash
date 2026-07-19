@@ -19,19 +19,21 @@
     font-family: monospace; -webkit-user-select: none; user-select: none; }
   #touch[hidden] { display: none; }
   #stick, #btnJump, #btnDash, #btnPause { pointer-events: auto; touch-action: none; }
-  #stick { position: fixed; left: 18px; bottom: 22px; width: 108px; height: 108px;
+  #stick { position: fixed; left: 14px; bottom: 16px; width: 128px; height: 128px;
     border-radius: 50%; background: rgba(232,224,208,0.07); border: 2px solid rgba(232,224,208,0.22); }
-  #nub { position: absolute; left: 34px; top: 34px; width: 36px; height: 36px; border-radius: 50%;
-    background: rgba(240,200,120,0.4); border: 2px solid rgba(240,200,120,0.65); }
-  #btnJump, #btnDash { position: fixed; width: 66px; height: 66px; border-radius: 50%;
+  #nub { position: absolute; left: 42px; top: 42px; width: 44px; height: 44px; border-radius: 50%;
+    background: rgba(240,200,120,0.4); border: 2px solid rgba(240,200,120,0.65);
+    transition: transform 0.03s linear; }
+  #btnJump, #btnDash { position: fixed; width: 78px; height: 78px; border-radius: 50%;
     display: flex; align-items: center; justify-content: center;
-    font-size: 17px; font-weight: bold; }
-  #btnJump { right: 22px; bottom: 78px; color: rgba(144,232,176,0.85);
+    font-size: 19px; font-weight: bold;
+    transition: transform 0.05s ease, background 0.05s ease; }
+  #btnJump { right: 18px; bottom: 88px; color: rgba(144,232,176,0.85);
     background: rgba(144,232,176,0.12); border: 2px solid rgba(144,232,176,0.45); }
-  #btnDash { right: 100px; bottom: 20px; color: rgba(240,168,136,0.85);
+  #btnDash { right: 108px; bottom: 16px; color: rgba(240,168,136,0.85);
     background: rgba(240,168,136,0.12); border: 2px solid rgba(240,168,136,0.45); }
-  #btnJump.pressed { background: rgba(144,232,176,0.35); }
-  #btnDash.pressed { background: rgba(240,168,136,0.35); }
+  #btnJump.pressed { background: rgba(144,232,176,0.4); transform: scale(0.92); }
+  #btnDash.pressed { background: rgba(240,168,136,0.4); transform: scale(0.92); }
   #btnPause { position: fixed; top: 10px; right: 10px; width: 36px; height: 28px;
     border-radius: 6px; display: flex; align-items: center; justify-content: center;
     color: rgba(232,224,208,0.6); font-size: 11px;
@@ -102,6 +104,16 @@ const JUMP_V = -295;
 const JUMP_CUT = 0.4;
 const COYOTE = 0.12;
 const JUMP_BUF = 0.12;
+const DASH_BUF = 0.1;      // press dash a hair early and it fires when re-armed
+
+// Camera feel — show where you're going, don't chase where you've been
+const CAM_LOOK = 32;        // px ahead of facing (was 14 — under one tile)
+const CAM_LOOK_EASE = 2.2;  // slow swing = no whip on turnarounds
+const CAM_LOOK_DELAY = 0.25; // facing must be held this long before the look reverses
+const CAM_X_EASE = 8;
+const CAM_DEAD_Y = 26;      // small hops inside this band don't move the screen
+const CAM_UP_EASE = 3.2;    // gentle rise
+const CAM_DOWN_EASE = 11;   // hard catch-up when falling, so landings stay visible
 const LEDGE_ASSIST = 5;    // px of automatic step-up onto ledges
 const CORNER_NUDGE = 4;    // px of ceiling-corner forgiveness
 
@@ -808,10 +820,17 @@ function setupTouch() {
     let dx = (t.clientX - cx) / (r.width / 2), dy = (t.clientY - cy) / (r.height / 2);
     const len = Math.hypot(dx, dy);
     if (len > 1) { dx /= len; dy /= len; }
-    const dead = 0.25;
-    TOUCH.ax = Math.abs(dx) < dead ? 0 : (dx - Math.sign(dx) * dead) / (1 - dead);
-    TOUCH.ay = Math.abs(dy) < dead ? 0 : (dy - Math.sign(dy) * dead) / (1 - dead);
-    nub.style.transform = "translate(" + (dx * 30).toFixed(0) + "px," + (dy * 30).toFixed(0) + "px)";
+    // Snap to 8-way intent past a small dead zone — full commitment, like keys.
+    // Analog drift made movement mushy and dash aims unreliable on phones.
+    const dead = 0.16;
+    if (len < dead) {
+      TOUCH.ax = 0; TOUCH.ay = 0;
+    } else {
+      const oct = Math.round(Math.atan2(dy, dx) / (Math.PI / 4));
+      TOUCH.ax = Math.round(Math.cos(oct * Math.PI / 4));
+      TOUCH.ay = Math.round(Math.sin(oct * Math.PI / 4));
+    }
+    nub.style.transform = "translate(" + (dx * 34).toFixed(0) + "px," + (dy * 34).toFixed(0) + "px)";
   }
   stick.addEventListener("touchstart", e => {
     e.preventDefault();
@@ -840,6 +859,7 @@ function setupTouch() {
       e.preventDefault();
       TOUCH[prop] = true;
       el.classList.add("pressed");
+      if (navigator.vibrate) navigator.vibrate(10);
     }, { passive: false });
     const up = e => {
       e.preventDefault();
@@ -1274,7 +1294,7 @@ const S = {
   endT: 0, endBeat: 0, reunion: null, creditsT: 0, glow: 0, endBoom: false,
   goal: null, player: null,
   spawn: { x: 0, y: 0 }, checkPt: { x: 0, y: 0 },
-  camX: 0, camY: 0,
+  camX: 0, camY: 0, camLook: 0, lookFace: 1, lookHoldT: 0,
   shakeT: 0, shakeMag: 0, freezeT: 0,
   deathT: 0, winT: 0, goalOpen: 0, time: 0, bannerT: 0,
   pauseSel: 0, pauseAy: 0,
@@ -1301,7 +1321,7 @@ function makePlayer(x, y) {
   return {
     x, y, w: 10, h: 10,
     vx: 0, vy: 0, facing: 1,
-    grounded: false, coyote: 0, jumpBuf: 0,
+    grounded: false, coyote: 0, jumpBuf: 0, dashBuf: 0,
     canDash: true, spores: MAX_SPORES, dashing: false, dashT: 0, dashDX: 0, dashDY: 0,
     grip: GRIP_TIME, wallDir: 0, wallCoyote: 0, wjLock: 0, gliding: false, sliding: false,
     anim: "idle", animT: 0, frame: 0,
@@ -1482,6 +1502,7 @@ function loadLevel(idx) {
   bakeTerrain();
 
   S.player = makePlayer(S.spawn.x, S.spawn.y);
+  S.camLook = 0;
   S.camX = clamp(S.player.x - W / 2, 0, Math.max(0, WORLD_W - W));
   S.camY = clamp(S.player.y - H / 2, 0, Math.max(0, WORLD_H - H));
 }
@@ -2101,6 +2122,7 @@ function exitSecret() {
   const p = S.player;
   p.x = 5.5 * TILE; p.y = 4 * TILE - p.h;   // east end of the ledge, outside the crack
   p.vx = 0; p.vy = 0; p.invuln = 1;
+  S.camLook = 0;
   S.camX = clamp(p.x - W / 2, 0, Math.max(0, WORLD_W - W));
   S.camY = clamp(p.y - H / 2, 0, Math.max(0, WORLD_H - H));
   S.mode = "play";
@@ -2607,7 +2629,7 @@ function respawn() {
   p.dashing = false; p.dashT = 0;
   p.canDash = true; p.spores = MAX_SPORES; p.grounded = false;
   p.grip = GRIP_TIME; p.wallCoyote = 0; p.wjLock = 0; p.gliding = false; p.sliding = false;
-  p.coyote = 0; p.jumpBuf = 0;
+  p.coyote = 0; p.jumpBuf = 0; p.dashBuf = 0;
   p.invuln = 0.5;
   S.blooms = [];
   spawnEnemies();
@@ -2979,7 +3001,9 @@ function tick(dt) {
   if (inp.jumpEdge) p.jumpBuf = JUMP_BUF;
   else p.jumpBuf = Math.max(0, p.jumpBuf - dt);
 
-  if (!p.dashing && p.canDash && inp.dashEdge) doDash(p, inp.ax, inp.ay);
+  if (inp.dashEdge) p.dashBuf = DASH_BUF;
+  else p.dashBuf = Math.max(0, (p.dashBuf || 0) - dt);
+  if (!p.dashing && p.canDash && p.dashBuf > 0) { p.dashBuf = 0; doDash(p, inp.ax, inp.ay); }
 
   if (p.dashing) {
     p.dashT -= dt;
@@ -3178,11 +3202,21 @@ function tick(dt) {
 
   updateParticles(dt);
 
-  // Camera: smooth follow with facing lookahead
-  const tcx = p.x + p.w / 2 - W / 2 + p.facing * 14;
-  const tcy = p.y + p.h / 2 - H / 2 - 10;
-  S.camX += (tcx - S.camX) * Math.min(1, 8 * dt);
-  S.camY += (tcy - S.camY) * Math.min(1, 6 * dt);
+  // Camera: eased lookahead toward travel direction, vertical dead zone so
+  // jumps don't bounce the screen, fast downward catch-up so landings read
+  if (p.facing === S.lookFace) S.lookHoldT += dt;
+  else { S.lookFace = p.facing; S.lookHoldT = 0; }
+  if (S.lookHoldT > CAM_LOOK_DELAY)
+    S.camLook += (p.facing * CAM_LOOK - S.camLook) * Math.min(1, CAM_LOOK_EASE * dt);
+  const tcx = p.x + p.w / 2 - W / 2 + S.camLook;
+  S.camX += (tcx - S.camX) * Math.min(1, CAM_X_EASE * dt);
+  const pcy = p.y + p.h / 2 - 10;
+  const ccy = S.camY + H / 2;
+  let tyc = ccy;
+  if (pcy < ccy - CAM_DEAD_Y) tyc = pcy + CAM_DEAD_Y;
+  else if (pcy > ccy + CAM_DEAD_Y) tyc = pcy - CAM_DEAD_Y;
+  const vEase = p.vy > 60 ? CAM_DOWN_EASE : CAM_UP_EASE;
+  S.camY += (tyc - H / 2 - S.camY) * Math.min(1, vEase * dt);
   S.camX = clamp(S.camX, 0, Math.max(0, WORLD_W - W));
   S.camY = clamp(S.camY, 0, Math.max(0, WORLD_H - H));
 
