@@ -388,10 +388,65 @@ const LB = {
   key: "sb_publishable_TRsn9kUJMD0xJ_MrPKNh0w_9sr9raSw",
 };
 const lbOn = () => !!(LB.url && LB.key);
-const LB_CACHE = { any: null, full: null };
+
+// ── The Daily Spore — the cave is the Mother's dream, and she dreams
+// differently every night. Same seed for everyone, resets at UTC midnight.
+function dailySeedStr() {
+  const d = new Date();
+  return d.getUTCFullYear() + "-" +
+    String(d.getUTCMonth() + 1).padStart(2, "0") + "-" +
+    String(d.getUTCDate()).padStart(2, "0");
+}
+const MOD_NAMES = {
+  mirror: "MIRRORED", dim: "DIM", sparks2: "TWO SPARKS",
+  brittle: "BRITTLE BLOOMS", restless: "RESTLESS", heavy: "HEAVY AIR",
+  petal: "PETAL RUN",
+};
+function dailyMods() {
+  const s = dailySeedStr();
+  let h = 2166136261;
+  for (const ch of s) { h ^= ch.charCodeAt(0); h = Math.imul(h, 16777619); }
+  const rand = () => {
+    h = Math.imul(h ^ (h >>> 15), 2246822507);
+    h = Math.imul(h ^ (h >>> 13), 3266489909);
+    return ((h ^= h >>> 16) >>> 0) / 4294967296;
+  };
+  const pool = ["mirror", "dim", "sparks2", "brittle", "restless", "heavy", "petal"];
+  const mods = [];
+  while (mods.length < 2) {
+    const m = pool[(rand() * pool.length) | 0];
+    if (mods.includes(m)) continue;
+    if ((m === "petal" && mods.includes("sparks2")) ||
+        (m === "sparks2" && mods.includes("petal"))) continue;
+    mods.push(m);
+  }
+  return mods;
+}
+const dMod = m => S.daily && S.dailyMods && S.dailyMods.includes(m);
+
+// The Mother must be woken once before she'll dream for you
+const dailyUnlocked = () => {
+  try { return localStorage.getItem("sd_beaten") === "1"; } catch (e) { return false; }
+};
+
+function startDaily() {
+  if (!dailyUnlocked()) return;
+  S.score = { berries: 0, total: 0, deaths: 0, time: 0, freed: 0, pickups: 0, secretMemory: false, metNpcs: {} };
+  S.wispHinted = false; S.hint = null;
+  S.daily = true;
+  S.dailyMods = dailyMods();
+  S.lives = dMod("petal") ? 1 : dMod("sparks2") ? 2 : START_LIVES;
+  S.rec = []; S.ghost = null; S.ghostPos = null;
+  loadLevel(0);
+  S.mode = "play";
+  S.hint = { text: "DAILY SPORE: " + S.dailyMods.map(m => MOD_NAMES[m]).join(" + "), t: 4.5 };
+}
+const LB_CACHE = { any: null, full: null, daily: null };
 let LB_HITS = [];   // clickable name rows, rebuilt each frame the panel draws
 let LB_PANEL = null; // the small panel's rect — click it to open the full board
 let BOARD_TABS = []; // tab rects on the full-board screen
+let RACE_HITS = []; // ▸ race-this-echo zones on the full board
+let DAILY_PANEL = null; // the title's daily-spore card
 
 const fmtMs = ms => {
   const t = Math.max(0, Math.round(ms / 100) / 10);
@@ -403,7 +458,7 @@ const fmtMs = ms => {
 async function lbFetch(cat) {
   try {
     const r = await fetch(LB.url + "/rest/v1/scores?category=eq." + cat +
-      "&select=name,time_ms&order=time_ms.asc&limit=15", {
+      "&select=name,time_ms,id,has_ghost&order=time_ms.asc&limit=15", {
       headers: { apikey: LB.key, Authorization: "Bearer " + LB.key },
     });
     return r.ok ? await r.json() : null;
@@ -414,20 +469,26 @@ function lbRefresh() {
   if (!lbOn()) return;
   lbFetch("any").then(d => { if (d) LB_CACHE.any = d; });
   lbFetch("full").then(d => { if (d) LB_CACHE.full = d; });
+  lbFetch("daily-" + dailySeedStr()).then(d => { if (d) LB_CACHE.daily = d; });
 }
 
-async function lbPost(name, cat, ms) {
+// Returns { ok, id } — the id makes "race my echo" challenge links possible
+async function lbPost(name, cat, ms, ghost) {
   try {
+    const body = { name, category: cat, time_ms: ms };
+    if (ghost) { body.ghost = ghost; body.has_ghost = true; }
     const r = await fetch(LB.url + "/rest/v1/scores", {
       method: "POST",
       headers: {
         apikey: LB.key, Authorization: "Bearer " + LB.key,
-        "Content-Type": "application/json", Prefer: "return=minimal",
+        "Content-Type": "application/json", Prefer: "return=representation",
       },
-      body: JSON.stringify({ name, category: cat, time_ms: ms }),
+      body: JSON.stringify(body),
     });
-    return r.ok;
-  } catch (e) { return false; }
+    if (!r.ok) return { ok: false, id: null };
+    const j = await r.json();
+    return { ok: true, id: j[0] ? j[0].id : null };
+  } catch (e) { return { ok: false, id: null }; }
 }
 
 // Where do you stand? Count faster runs, add one.
@@ -465,9 +526,11 @@ function buildShareCard(name, cat, ms, rank) {
   c2.fillStyle = "#f0c878";
   c2.font = "bold 34px monospace";
   c2.fillText("SPORELING DASH", 320, 50);
-  c2.fillStyle = cat === "full" ? "#f098b8" : "#90e8b0";
+  const isDaily = cat.indexOf("daily-") === 0;
+  c2.fillStyle = isDaily ? "#f0c878" : cat === "full" ? "#f098b8" : "#90e8b0";
   c2.font = "bold 18px monospace";
-  c2.fillText(cat === "full" ? "★ FULL BLOOM — 100% ★" : "ANY% CLEAR", 320, 80);
+  c2.fillText(isDaily ? "☾ DAILY SPORE — " + cat.slice(6) + " ☽"
+    : cat === "full" ? "★ FULL BLOOM — 100% ★" : "ANY% CLEAR", 320, 80);
   c2.save();
   c2.translate(320 - 36, 100);
   c2.scale(6, 6);
@@ -484,7 +547,11 @@ function buildShareCard(name, cat, ms, rank) {
   c2.font = "15px monospace";
   c2.fillText(name + "  ·  " + S.score.berries + "/" + S.score.total + " berries  ·  " +
     met + "/" + TOTAL_NPCS + " voices  ·  " + S.score.deaths + " deaths", 320, 292);
-  if (S.score.secretMemory) {
+  if (isDaily && S.dailyMods) {
+    c2.fillStyle = "#90e8b0";
+    c2.font = "13px monospace";
+    c2.fillText(S.dailyMods.map(m => MOD_NAMES[m]).join("  +  "), 320, 316);
+  } else if (S.score.secretMemory) {
     c2.fillStyle = "#dee6c8";
     c2.font = "13px monospace";
     c2.fillText("— found the place the maps forgot —", 320, 316);
@@ -523,20 +590,45 @@ function submitScore() {
   try { localStorage.setItem("sd_name", name); } catch (e) {}
   const ms = Math.round(S.score.time * 1000);
   const met = Object.keys(S.score.metNpcs).length;
-  const full = S.score.berries === S.score.total && S.score.secretMemory && met === TOTAL_NPCS;
+  const full = !S.daily && S.score.berries === S.score.total && S.score.secretMemory && met === TOTAL_NPCS;
+  // this run's echo rides along with the score
+  let ghost = null;
+  try {
+    const j = JSON.stringify(S.rec);
+    if (j.length > 20 && j.length < 150000) ghost = j;
+  } catch (e) {}
   S.score.lbDone = true;
   S.lbMsg = "Submitting...";
-  Promise.all([lbPost(name, "any", ms), full ? lbPost(name, "full", ms) : Promise.resolve(true)])
-    .then(res => {
-      S.lbMsg = res[0] && res[1] ? (full ? "On both boards — FULL BLOOM!" : "On the board — any%") : "Submit failed, try again later";
-      if (!res[0]) S.score.lbDone = false;
+  const gameUrl = "https://thoughtcrimegpt.github.io/sporeling-dash/";
+
+  if (S.daily) {
+    const cat = "daily-" + dailySeedStr();
+    lbPost(name, cat, ms, ghost).then(res => {
+      S.lbMsg = res.ok ? "On today's board!" : "Submit failed, try again later";
+      if (!res.ok) { S.score.lbDone = false; return; }
       lbRefresh();
-      if (res[0]) {
+      lbRank(cat, ms).then(rank => {
+        const modTxt = (S.dailyMods || []).map(m => MOD_NAMES[m]).join(" + ");
+        const link = res.id ? gameUrl + "?race=" + res.id : gameUrl;
+        const tweet = fmtMs(ms) + " — " + (rank ? "#" + rank + " " : "") +
+          "on today's DAILY SPORE (" + modTxt + ") 🍄 race my echo: " + link;
+        showShare(buildShareCard(name, cat, ms, rank), tweet);
+      });
+    });
+    return;
+  }
+
+  Promise.all([lbPost(name, "any", ms, ghost), full ? lbPost(name, "full", ms, null) : Promise.resolve({ ok: true, id: null })])
+    .then(res => {
+      S.lbMsg = res[0].ok && res[1].ok ? (full ? "On both boards — FULL BLOOM!" : "On the board — any%") : "Submit failed, try again later";
+      if (!res[0].ok) S.score.lbDone = false;
+      lbRefresh();
+      if (res[0].ok) {
         const cat = full ? "full" : "any";
         lbRank(cat, ms).then(rank => {
+          const link = res[0].id && ghost ? gameUrl + "?race=" + res[0].id : gameUrl;
           const tweet = fmtMs(ms) + " — " + (rank ? "#" + rank + " " : "") +
-            "on the Sporeling Dash " + (full ? "100%" : "any%") + " leaderboard 🍄 " +
-            "https://thoughtcrimegpt.github.io/sporeling-dash/";
+            "on the Sporeling Dash " + (full ? "100%" : "any%") + " leaderboard 🍄 race my echo: " + link;
           showShare(buildShareCard(name, cat, ms, rank), tweet);
         });
       }
@@ -1099,6 +1191,8 @@ const S = {
   hint: null, wispHinted: false,
   devLevel: 0, devInf: false, devAx: 0, devAy: 0,
   boardTab: "any", boardAx: 0, boardFrom: "title",
+  daily: false, dailyMods: null,
+  rec: [], ghost: null, ghostPos: null, pendingGhost: null,
   jumpHeldForCut: false,
   lives: START_LIVES,
   score: { berries: 0, total: 0, deaths: 0, time: 0, freed: 0, pickups: 0, secretMemory: false, metNpcs: {} },
@@ -1127,7 +1221,8 @@ function makePlayer(x, y) {
 function loadLevel(idx) {
   S.levelIdx = idx;
   const L = LEVELS[idx];
-  LEVEL = L.map;
+  // MIRRORED daily: the whole cave flips — maps, residents, shelves
+  LEVEL = dMod("mirror") ? L.map.map(r => r.split("").reverse().join("")) : L.map;
   ROWS = LEVEL.length; COLS = LEVEL[0].length;
   WORLD_W = COLS * TILE; WORLD_H = ROWS * TILE;
   PAL = PALS[L.pal];
@@ -1139,12 +1234,16 @@ function loadLevel(idx) {
   S.bannerT = L.unlockText ? 3.6 : 2.4;
   SPIKES = []; STATIC_LIGHTS = []; DECOR = []; SPORES = []; ENEMY_SPAWNS = [];
   S.memoryObj = null; S.boss = null; S.bossDoor = null;
-  S.movers = (L.movers || []).map(m => ({
-    x: m.c0 * TILE, w: (m.c1 - m.c0 + 1) * TILE,
-    yA: m.rA * TILE, yB: m.rB * TILE,
-    period: m.period, phase: m.phase || 0, shift: 0,
-    y: m.rA * TILE,
-  }));
+  S.movers = (L.movers || []).map(m => {
+    const c0 = dMod("mirror") ? COLS - 1 - m.c1 : m.c0;
+    const c1 = dMod("mirror") ? COLS - 1 - m.c0 : m.c1;
+    return {
+      x: c0 * TILE, w: (c1 - c0 + 1) * TILE,
+      yA: m.rA * TILE, yB: m.rB * TILE,
+      period: m.period, phase: m.phase || 0, shift: 0,
+      y: m.rA * TILE,
+    };
+  });
   if (L.boss) {
     S.boss = {
       kind: L.boss, state: "intro", t: 0, pips: 3,
@@ -1164,7 +1263,7 @@ function loadLevel(idx) {
   S.talk = null;
   S.npcs = (L.npcs || []).map(n => ({
     ...n,
-    x: n.c * TILE + 2,
+    x: (dMod("mirror") ? COLS - 1 - n.c : n.c) * TILE + 2,
     y: (n.r + 1) * TILE - NPC_H[n.sprite],
     ph: Math.random() * 6,
   }));
@@ -1504,7 +1603,7 @@ function onGround(p) {
 }
 
 const wallsUnlocked = () => S.levelIdx >= WALL_LEVEL;
-const glideUnlocked = () => S.levelIdx >= GLIDE_LEVEL;
+const glideUnlocked = () => S.levelIdx >= GLIDE_LEVEL && !dMod("heavy");
 
 // -1 = wall on the left, 1 = wall on the right, 0 = none (real tiles only)
 function touchingWallDir(p) {
@@ -1543,13 +1642,14 @@ function burst(x, y, vx, vy, life, col, s) {
 
 // ── Enemies ────────────────────────────────────────────────────────────────
 function spawnEnemies() {
+  const sm = dMod("restless") ? 1.35 : 1;   // RESTLESS: everything hurries
   S.enemies = ENEMY_SPAWNS.map(sp => {
     if (sp.t === "slug")
-      return { t: "slug", x: sp.x, y: sp.y, w: 12, h: 8, dir: 1, speed: sp.fast ? 44 : 22, fast: sp.fast, ph: Math.random() * 6, pauseT: 0 };
+      return { t: "slug", x: sp.x, y: sp.y, w: 12, h: 8, dir: 1, speed: (sp.fast ? 44 : 22) * sm, fast: sp.fast, ph: Math.random() * 6, pauseT: 0 };
     if (sp.t === "puff")
       return { t: "puff", cx: sp.x, cy: sp.y, x: sp.x, y: sp.y, w: 10, h: 10, ph: Math.random() * 6 };
     if (sp.t === "skitter")
-      return { t: "skitter", x: sp.x, y: sp.y, w: 12, h: 6, dir: Math.random() < 0.5 ? -1 : 1, speed: 165, ph: Math.random() * 6, pauseT: 0 };
+      return { t: "skitter", x: sp.x, y: sp.y, w: 12, h: 6, dir: Math.random() < 0.5 ? -1 : 1, speed: 165 * sm, ph: Math.random() * 6, pauseT: 0 };
     if (sp.t === "spitter")
       return { t: "spitter", x: sp.x, y: sp.y, w: 12, h: 12, cd: 1 + Math.random(), ph: Math.random() * 6 };
     if (sp.t === "mine")
@@ -1650,8 +1750,9 @@ function updateEnemies(dt) {
       }
       // Wisps hang back while someone living is speaking
       if (d < 110 && d > 4 && !S.talk) {
-        e.x += dx / d * 30 * dt;
-        e.y += dy / d * 30 * dt;
+        const wv = dMod("restless") ? 40 : 30;
+        e.x += dx / d * wv * dt;
+        e.y += dy / d * wv * dt;
       } else {
         e.x += (e.hx - e.x) * dt * 0.6;
         e.y += (e.hy - e.y + Math.sin(S.time * 2 + e.ph) * 8) * dt * 0.6;
@@ -1742,7 +1843,7 @@ function spawnBloom(p) {
   }
   const bx = Math.round(p.x + p.w / 2 - BLOOM_W / 2);
   const by = Math.round(p.y + p.h);
-  S.blooms.push({ x: bx, y: by, w: BLOOM_W, h: BLOOM_H, life: BLOOM_LIFE, age: 0 });
+  S.blooms.push({ x: bx, y: by, w: BLOOM_W, h: BLOOM_H, life: BLOOM_LIFE * (dMod("brittle") ? 0.5 : 1), age: 0 });
   SFX.bloom();
   for (let i = 0; i < 10; i++) {
     const a = Math.random() * Math.PI * 2;
@@ -2253,7 +2354,46 @@ function updateBoss(dt) {
 }
 
 // ── Ending: freed flower → reunion → credits ───────────────────────────────
+// The ghost of a better run, interpolated on the run clock
+function updateGhost() {
+  S.ghostPos = null;
+  const gh = S.ghost;
+  if (!gh || !gh.frames || !gh.frames.length) return;
+  const t = S.score.time / 0.2;
+  const i = Math.min(gh.frames.length - 1, Math.floor(t));
+  const j = Math.min(gh.frames.length - 1, i + 1);
+  const a = gh.frames[i], b2 = gh.frames[j];
+  if (!a || a[0] !== S.levelIdx) return;   // the echo is in another chamber
+  const f = t - i;
+  const sameLvl = b2 && b2[0] === a[0];
+  S.ghostPos = {
+    x: a[1] + ((sameLvl ? b2[1] : a[1]) - a[1]) * f,
+    y: a[2] + ((sameLvl ? b2[2] : a[2]) - a[2]) * f,
+    facing: a[3],
+  };
+}
+
+async function fetchGhost(id) {
+  try {
+    const r = await fetch(LB.url + "/rest/v1/scores?id=eq." + id + "&select=ghost", {
+      headers: { apikey: LB.key, Authorization: "Bearer " + LB.key },
+    });
+    if (!r.ok) return null;
+    const j = await r.json();
+    return j[0] && j[0].ghost ? JSON.parse(j[0].ghost) : null;
+  } catch (e) { return null; }
+}
+
 function startEnding() {
+  try { localStorage.setItem("sd_beaten", "1"); } catch (e) {}
+  // remember your best echo
+  try {
+    if (!S.daily) {
+      const pb = JSON.parse(localStorage.getItem("sd_pb") || "null");
+      if (!pb || S.score.time < pb.t)
+        localStorage.setItem("sd_pb", JSON.stringify({ t: S.score.time, frames: S.rec }));
+    }
+  } catch (e) {}
   S.mode = "freed";
   S.endT = 0; S.endBeat = 0;
   S.glow = 0; S.endBoom = false;
@@ -2358,8 +2498,10 @@ function tick(dt) {
   S.time += dt;
 
   if (S.mode === "board") {
-    if (inp.ax > 0.5 && S.boardAx <= 0.5) { S.boardTab = S.boardTab === "any" ? "full" : "any"; SFX.talk(); }
-    if (inp.ax < -0.5 && S.boardAx >= -0.5) { S.boardTab = S.boardTab === "any" ? "full" : "any"; SFX.talk(); }
+    const tabOrder = ["any", "full", "daily"];
+    const ti = tabOrder.indexOf(S.boardTab);
+    if (inp.ax > 0.5 && S.boardAx <= 0.5) { S.boardTab = tabOrder[(ti + 1) % 3]; SFX.talk(); }
+    if (inp.ax < -0.5 && S.boardAx >= -0.5) { S.boardTab = tabOrder[(ti + 2) % 3]; SFX.talk(); }
     S.boardAx = inp.ax;
     if (inp.jumpEdge || inp.pauseEdge) S.mode = S.boardFrom || "title";
     clearJust();
@@ -2378,10 +2520,32 @@ function tick(dt) {
       if ((inp.ay < -0.5 && S.devAy >= -0.5) || (inp.ay > 0.5 && S.devAy <= 0.5)) { S.devInf = !S.devInf; SFX.talk(); }
       S.devAx = inp.ax; S.devAy = inp.ay;
     }
+    if (just.KeyD && lbOn() && dailyUnlocked()) {
+      startDaily();
+      clearJust();
+      return;
+    }
     if (inp.startEdge || inp.jumpEdge || inp.dashEdge) {
       S.score = { berries: 0, total: 0, deaths: 0, time: 0, freed: 0, pickups: 0, secretMemory: false, metNpcs: {} };
       S.lives = START_LIVES;
       S.wispHinted = false; S.hint = null;
+      S.daily = false; S.dailyMods = null;
+      S.rec = [];
+      // arm an echo to race: a challenge link's ghost, or your own best run
+      S.ghost = null; S.ghostPos = null;
+      if (S.pendingGhost) {
+        S.ghost = S.pendingGhost;
+        S.pendingGhost = null;
+        S.hint = { text: "Racing " + (S.ghost.name || "an echo") + " — catch the pale one.", t: 4 };
+      } else {
+        try {
+          const pb = JSON.parse(localStorage.getItem("sd_pb") || "null");
+          if (pb && pb.frames) {
+            S.ghost = { frames: pb.frames, name: "your echo" };
+            S.hint = { text: "Your best echo runs beside you (" + fmtMs(pb.t * 1000) + ").", t: 3.5 };
+          }
+        } catch (e) {}
+      }
       loadLevel(DEV ? S.devLevel : 0);
       S.mode = "play";
     }
@@ -2549,11 +2713,11 @@ function tick(dt) {
     else if (S.mode === "pause") S.mode = "play";
   }
   if (S.mode === "pause") {
-    const nOpts = DEV ? 4 : 3;
+    const nOpts = DEV ? 5 : 4;
     if (inp.ay < -0.5 && S.pauseAy >= -0.5) { S.pauseSel = (S.pauseSel + nOpts - 1) % nOpts; SFX.talk(); }
     if (inp.ay > 0.5 && S.pauseAy <= 0.5) { S.pauseSel = (S.pauseSel + 1) % nOpts; SFX.talk(); }
     S.pauseAy = inp.ay;
-    if (DEV && S.pauseSel === 3) {
+    if (DEV && S.pauseSel === 4) {
       if (inp.ax > 0.5 && S.devAx <= 0.5) { S.devLevel = (S.devLevel + 1) % LEVELS.length; SFX.talk(); }
       if (inp.ax < -0.5 && S.devAx >= -0.5) { S.devLevel = (S.devLevel + LEVELS.length - 1) % LEVELS.length; SFX.talk(); }
     }
@@ -2569,8 +2733,13 @@ function tick(dt) {
         S.score = { berries: 0, total: 0, deaths: 0, time: 0, freed: 0, pickups: 0, secretMemory: false, metNpcs: {} };
         S.lives = START_LIVES;
         S.wispHinted = false; S.hint = null;
+        S.daily = false; S.dailyMods = null;
+        S.rec = []; S.ghost = null; S.ghostPos = null;
         loadLevel(0);
         S.mode = "play";
+      } else if (S.pauseSel === 3) {
+        S.talk = null;
+        S.mode = "title";
       } else {
         loadLevel(S.devLevel);
         S.mode = "play";
@@ -2596,6 +2765,11 @@ function tick(dt) {
   }
 
   S.score.time += dt;
+  // echo recording (5Hz on the run clock) + ghost playback
+  while (S.score.time >= S.rec.length * 0.2) {
+    S.rec.push([S.levelIdx, Math.round(S.player.x), Math.round(S.player.y), S.player.facing]);
+  }
+  updateGhost();
   if (S.bannerT > 0) S.bannerT -= dt;
   if (S.hint) { S.hint.t -= dt; if (S.hint.t <= 0) S.hint = null; }
 
@@ -2767,7 +2941,7 @@ function tick(dt) {
 
   // The crack in the map (Spire) and the quiet way back out
   if (S.secretCd > 0) S.secretCd -= dt;
-  if (S.levelIdx === 2 && S.secretCd <= 0 && p.y + p.h < 5 * TILE && p.x < 64) { enterSecret(); clearJust(); return; }
+  if (S.levelIdx === 2 && !S.daily && S.secretCd <= 0 && p.y + p.h < 5 * TILE && p.x < 64) { enterSecret(); clearJust(); return; }
   if (LEVELS[S.levelIdx].secret && p.x > 21 * TILE) { exitSecret(); clearJust(); return; }
 
   // The First Map
@@ -2880,8 +3054,13 @@ function lbUiHitAt(e) {
   if (S.mode === "board") {
     for (const t of BOARD_TABS)
       if (p2.x >= t.x && p2.x <= t.x + t.w && p2.y >= t.y && p2.y <= t.y + t.h) return { tab: t.tab };
+    for (const rh of RACE_HITS)
+      if (p2.x >= rh.x && p2.x <= rh.x + rh.w && p2.y >= rh.y - 7 && p2.y <= rh.y + 3) return { race: rh };
     return null;
   }
+  if (S.mode === "title" && DAILY_PANEL &&
+      p2.x >= DAILY_PANEL.x && p2.x <= DAILY_PANEL.x + DAILY_PANEL.w &&
+      p2.y >= DAILY_PANEL.y && p2.y <= DAILY_PANEL.y + DAILY_PANEL.h) return { daily: true };
   if ((S.mode === "title" || S.mode === "win") && LB_PANEL &&
       p2.x >= LB_PANEL.x && p2.x <= LB_PANEL.x + LB_PANEL.w &&
       p2.y >= LB_PANEL.y && p2.y <= LB_PANEL.y + LB_PANEL.h) return { open: true };
@@ -2893,6 +3072,17 @@ canvas.addEventListener("click", e => {
   const u = lbUiHitAt(e);
   if (!u) return;
   if (u.tab) { S.boardTab = u.tab; SFX.talk(); }
+  else if (u.race) {
+    SFX.check();
+    fetchGhost(u.race.id).then(fr => {
+      if (fr) {
+        S.pendingGhost = { frames: fr, name: u.race.name };
+        S.mode = "title";
+        SFX.oneUp();
+      }
+    });
+  }
+  else if (u.daily && lbOn()) { startDaily(); }
   else if (u.open && lbOn()) { S.boardFrom = S.mode; S.mode = "board"; SFX.talk(); }
 });
 canvas.addEventListener("mousemove", e => {
@@ -2937,6 +3127,11 @@ function draw() {
   drawBoss();
   drawGoal();
   drawTrail();
+  if (S.ghostPos && S.mode === "play") {
+    g.globalAlpha = 0.45;
+    drawMap(g, SPRITES.idle1, Math.round(S.ghostPos.x) - 1, Math.round(S.ghostPos.y) - 2, S.ghostPos.facing < 0, ECHO_PAL);
+    g.globalAlpha = 1;
+  }
   if (S.mode !== "dead") drawPlayer();
   drawParticles();
   g.restore();
@@ -2959,13 +3154,13 @@ function draw() {
     g.font = "8px monospace";
     g.fillText(LEVELS[S.levelIdx].name, W / 2, 70);
 
-    const opts = ["RESUME", "RESTART CHAMBER", "NEW GAME"];
+    const opts = ["RESUME", "RESTART CHAMBER", "NEW GAME", "TITLE SCREEN"];
     if (DEV) opts.push("◄ " + (S.devLevel + 1) + ". " + LEVELS[S.devLevel].name + " ►");
     g.font = "9px monospace";
     for (let i = 0; i < opts.length; i++) {
-      const oy = 90 + i * 15;
+      const oy = 86 + i * 14;
       const sel = i === S.pauseSel;
-      g.fillStyle = i === 3 ? (sel ? C.goalOpen : "#6a5060") : (sel ? C.title : C.uiDim);
+      g.fillStyle = i === 4 ? (sel ? C.goalOpen : "#6a5060") : (sel ? C.title : C.uiDim);
       g.fillText(opts[i], W / 2, oy);
       if (sel) {
         const bx = W / 2 - opts[i].length * 2.8 - 14;
@@ -3916,16 +4111,17 @@ function drawLighting(ox, oy) {
 
   dctx.globalCompositeOperation = "source-over";
   dctx.clearRect(0, 0, lw, lh);
-  dctx.fillStyle = "rgba(3,6,13,0.52)";
+  dctx.fillStyle = dMod("dim") ? "rgba(2,4,9,0.78)" : "rgba(3,6,13,0.52)";
   dctx.fillRect(0, 0, lw, lh);
   dctx.globalCompositeOperation = "destination-out";
 
   gctx.globalCompositeOperation = "source-over";
   gctx.clearRect(0, 0, lw, lh);
 
+  const dimR = dMod("dim") ? 0.6 : 1;
   for (const L of lights) {
     const sx = (L.x - S.camX + ox) / LSC, sy = (L.y - S.camY + oy) / LSC;
-    const r = L.r / LSC;
+    const r = L.r * dimR / LSC;
     if (sx < -r || sx > lw + r || sy < -r || sy > lh + r) continue;
     ringCircle(dctx, sx, sy, r, L.a, "rgba(255,255,255,");
     if (L.ga) ringCircle(gctx, sx, sy, r, L.ga * 2.2, "rgba(" + L.col + ",");
@@ -4192,6 +4388,38 @@ function drawTitle() {
 
   drawLbPanel();
 
+  // Today's dream
+  DAILY_PANEL = null;
+  if (lbOn()) {
+    g.textAlign = "left";
+    g.fillStyle = "rgba(8,12,18,0.82)";
+    g.fillRect(4, 96, 134, 62);
+    g.fillStyle = C.goalOpen;
+    g.fillRect(4, 96, 134, 1);
+    g.fillStyle = C.title;
+    g.font = "bold 7px monospace";
+    g.fillText("☾ DAILY SPORE", 9, 106);
+    g.font = "7px monospace";
+    if (dailyUnlocked()) {
+      DAILY_PANEL = { x: 4, y: 96, w: 134, h: 62 };
+      const mods = dailyMods();
+      g.fillStyle = C.uiDim;
+      g.fillText(dailySeedStr() + (S.pendingGhost ? "  · echo armed" : ""), 9, 115);
+      g.fillStyle = rgb(PALS[0].accent);
+      g.fillText(MOD_NAMES[mods[0]], 9, 127);
+      g.fillText(MOD_NAMES[mods[1]], 9, 136);
+      g.fillStyle = C.goalOpen;
+      g.fillText("D / tap here — descend", 9, 151);
+    } else {
+      g.fillStyle = C.uiDim;
+      g.fillText("the cave dreams a new", 9, 118);
+      g.fillText("descent every night...", 9, 127);
+      g.fillStyle = "#6a5060";
+      g.fillText("🔒 wake the Mother first", 9, 145);
+    }
+    g.textAlign = "center";
+  }
+
   if (DEV) {
     g.textAlign = "left";
     g.fillStyle = "rgba(8,12,18,0.8)";
@@ -4304,10 +4532,10 @@ function drawBoard() {
   g.fillText("LEADERBOARD", W / 2, 20);
 
   // tabs
-  const tabs = [["any", "ANY%"], ["full", "FULL BLOOM 100%"]];
-  let tx = W / 2 - 92;
-  for (const [tab, label] of tabs) {
-    const tw = tab === "any" ? 60 : 124;
+  RACE_HITS = [];
+  const tabs = [["any", "ANY%", 48], ["full", "FULL 100%", 80], ["daily", "TODAY'S SPORE", 106]];
+  let tx = W / 2 - 125;
+  for (const [tab, label, tw] of tabs) {
     const active = S.boardTab === tab;
     g.fillStyle = active ? rgb(PALS[0].accent) : "rgba(30,38,50,0.9)";
     g.fillRect(tx, 27, tw, 13);
@@ -4330,10 +4558,16 @@ function drawBoard() {
       const nm = String(list[i].name);
       g.fillStyle = i === 0 ? rgb(PALS[0].accent) : C.ui;
       g.fillText((i + 1 < 10 ? " " : "") + (i + 1), 16, ry);
-      g.fillText(nm, 34, ry);
+      if (list[i].has_ghost && list[i].id) {
+        g.fillStyle = "#aaf0c8";
+        g.fillText("▸", 27, ry);
+        RACE_HITS.push({ x: 14, y: ry, w: 18, id: list[i].id, name: nm });
+      }
+      g.fillStyle = i === 0 ? rgb(PALS[0].accent) : C.ui;
+      g.fillText(nm, 36, ry);
       if (nm[0] === "@") {
-        g.fillRect(34, ry + 1, Math.min(nm.length * 4.8, 170) | 0, 1);
-        LB_HITS.push({ x: 34, y: ry, w: 180, name: nm });
+        g.fillRect(36, ry + 1, Math.min(nm.length * 4.8, 170) | 0, 1);
+        LB_HITS.push({ x: 36, y: ry, w: 178, name: nm });
       }
       g.textAlign = "right";
       g.fillText(fmtMs(list[i].time_ms), W - 18, ry);
@@ -4344,7 +4578,7 @@ function drawBoard() {
   g.textAlign = "center";
   g.fillStyle = C.uiDim;
   g.font = "7px monospace";
-  g.fillText("◄ ► switch board   ·   " + jumpBtnName() + " — back   ·   @names open X", W / 2, H - 11);
+  g.fillText("◄ ► switch   ·   ▸ race that echo   ·   " + jumpBtnName() + " — back", W / 2, H - 11);
 }
 
 function drawWin() {
@@ -4433,6 +4667,12 @@ function frame(nowMs) {
 
 setupTouch();
 lbRefresh();
+// a challenge link arms the challenger's echo
+try {
+  const raceId = new URLSearchParams(location.search).get("race");
+  if (raceId && lbOn())
+    fetchGhost(raceId).then(fr => { if (fr) S.pendingGhost = { frames: fr, name: "the challenger" }; });
+} catch (e) {}
 loadLevel(0);
 S.mode = "title";
 requestAnimationFrame(frame);
