@@ -87,6 +87,7 @@ const BLOOM_WILT = 0.45;
 const BLOOM_W = 24;
 const BLOOM_H = 8;
 const MAX_BLOOMS = 3;
+const MAX_SPORES = 4;   // blooms per airtime; solid ground refills
 
 const SHAKE_MAG = 2.5;
 const SHAKE_TIME = 0.14;
@@ -528,7 +529,7 @@ function makePlayer(x, y) {
     x, y, w: 10, h: 10,
     vx: 0, vy: 0, facing: 1,
     grounded: false, coyote: 0, jumpBuf: 0,
-    canDash: true, dashing: false, dashT: 0, dashDX: 0, dashDY: 0,
+    canDash: true, spores: MAX_SPORES, dashing: false, dashT: 0, dashDX: 0, dashDY: 0,
     anim: "idle", animT: 0, frame: 0,
     squish: 1, squishT: 0, invuln: 0,
   };
@@ -820,7 +821,7 @@ function moveAxis(p, dx, dy) {
       if (lift > 0 && lift <= LEDGE_ASSIST && p.vy >= -30 &&
           !solidBlocked(p.x, r.y - p.h, p.w, p.h)) {
         p.y = r.y - p.h;
-        p.grounded = true; p.canDash = true; p.coyote = COYOTE;
+        p.grounded = true; p.canDash = true; p.spores = MAX_SPORES; p.coyote = COYOTE;
         continue;
       }
       p.x = dx > 0 ? r.x - p.w : r.x + r.w;
@@ -838,7 +839,9 @@ function moveAxis(p, dx, dy) {
         p.y = r.y - p.h;
         p.vy = 0;
         p.grounded = true;
-        p.canDash = true;
+        // Only REAL ground refreshes the dash and refills spores — landing on
+        // your own bloom does not; you must jump off it to keep chaining
+        if (!r.oneWay) { p.canDash = true; p.spores = MAX_SPORES; }
         p.coyote = COYOTE;
         if (p.dashing) endDash(p);
       } else {
@@ -858,6 +861,15 @@ function onGround(p) {
   const probe = { x: p.x + 1, y: p.y + p.h, w: p.w - 2, h: 2 };
   for (const r of solidsNear(probe.x, probe.y, probe.w, probe.h)) {
     if (r.oneWay && r.y < p.y + p.h - 1) continue;
+    if (overlap(probe, r)) return true;
+  }
+  return false;
+}
+
+function onRealGround(p) {
+  const probe = { x: p.x + 1, y: p.y + p.h, w: p.w - 2, h: 2 };
+  for (const r of solidsNear(probe.x, probe.y, probe.w, probe.h)) {
+    if (r.oneWay) continue;
     if (overlap(probe, r)) return true;
   }
   return false;
@@ -900,8 +912,18 @@ function endDash(p) {
   p.dashT = 0;
   p.vx *= 0.3;
   p.vy *= 0.3;
-  // The bloom sprouts where the dash ENDS — ground you can chain from
-  if (!p.grounded && !onGround(p)) spawnBloom(p);
+  // The bloom sprouts where the dash ENDS — if you have spores left
+  if (!p.grounded && !onGround(p)) {
+    if (p.spores > 0) { p.spores--; spawnBloom(p); }
+    else failBloom(p);
+  }
+}
+
+function failBloom(p) {
+  blip(240, 90, 0.15, "triangle", 0.1);
+  for (let i = 0; i < 6; i++) {
+    burst(p.x + p.w / 2, p.y + p.h, (Math.random() - 0.5) * 60, 10 + Math.random() * 30, 0.35, C.wilt, 1 + (Math.random() * 2 | 0));
+  }
 }
 
 function dir8(x, y, facing) {
@@ -937,6 +959,7 @@ function doJump(p) {
   p.vy = JUMP_V;
   p.grounded = false;
   p.coyote = 0;
+  p.canDash = true;   // jumping (incl. off a bloom) is what re-arms the dash
   p.jumpBuf = 0;
   p.squish = 1.28;
   p.squishT = 0.1;
@@ -965,7 +988,7 @@ function respawn() {
   p.x = S.checkPt.x; p.y = S.checkPt.y;
   p.vx = 0; p.vy = 0;
   p.dashing = false; p.dashT = 0;
-  p.canDash = true; p.grounded = false;
+  p.canDash = true; p.spores = MAX_SPORES; p.grounded = false;
   p.coyote = 0; p.jumpBuf = 0;
   p.invuln = 0.5;
   S.blooms = [];
@@ -1060,7 +1083,7 @@ function tick(dt) {
 
   if (p.grounded) {
     p.coyote = COYOTE;
-    if (!p.dashing) p.canDash = true;
+    if (!p.dashing && onRealGround(p)) { p.canDash = true; p.spores = MAX_SPORES; }
     if (!wasGrounded) {
       p.squish = 0.72; p.squishT = 0.12;
       SFX.land();
@@ -1651,7 +1674,7 @@ function drawHUD() {
   const p = S.player;
   if (!p) return;
   g.fillStyle = "rgba(8,12,18,0.55)";
-  g.fillRect(W - 38, 4, 34, 12);
+  g.fillRect(W - 38, 4, 34, 19);
   g.fillStyle = (p.canDash || p.grounded) ? C.bloomHi : C.uiDim;
   g.fillRect(W - 34, 7, 8, 5);
   g.fillStyle = (p.canDash || p.grounded) ? C.bloomStem : "#445";
@@ -1659,6 +1682,11 @@ function drawHUD() {
   g.fillStyle = C.uiDim;
   g.font = "7px monospace";
   g.fillText(p.canDash || p.dashing ? "DASH" : "...", W - 24, 13);
+  // Spore pips — blooms left this airtime
+  for (let i = 0; i < MAX_SPORES; i++) {
+    g.fillStyle = i < p.spores ? rgb(PAL.accent) : "#3a4250";
+    g.fillRect(W - 34 + i * 8, 16, 5, 4);
+  }
 }
 
 function drawBanner() {
@@ -1708,7 +1736,7 @@ function drawTitle() {
   g.font = "8px monospace";
   g.fillText("Dash in the air — a bloom sprouts where you land.", W / 2, 60);
   g.fillStyle = C.uiDim;
-  g.fillText("Landing on a bloom refreshes your dash. Chain them.", W / 2, 70);
+  g.fillText("Jump off it to chain. Solid ground restores spores.", W / 2, 70);
 
   if ((Math.sin(S.time * 4) * 0.5 + 0.5) > 0.28) {
     g.fillStyle = C.ui;
