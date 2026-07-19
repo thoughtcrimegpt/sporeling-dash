@@ -639,6 +639,7 @@ const S = {
   camX: 0, camY: 0,
   shakeT: 0, shakeMag: 0, freezeT: 0,
   deathT: 0, winT: 0, goalOpen: 0, time: 0, bannerT: 0,
+  pauseSel: 0, pauseAy: 0,
   jumpHeldForCut: false,
   score: { berries: 0, total: 0, deaths: 0, time: 0, freed: 0 },
 };
@@ -1266,10 +1267,29 @@ function tick(dt) {
   }
 
   if (inp.pauseEdge) {
-    if (S.mode === "play") S.mode = "pause";
+    if (S.mode === "play") { S.mode = "pause"; S.pauseSel = 0; S.pauseAy = 0; }
     else if (S.mode === "pause") S.mode = "play";
   }
-  if (S.mode === "pause") { clearJust(); return; }
+  if (S.mode === "pause") {
+    if (inp.ay < -0.5 && S.pauseAy >= -0.5) { S.pauseSel = (S.pauseSel + 2) % 3; SFX.talk(); }
+    if (inp.ay > 0.5 && S.pauseAy <= 0.5) { S.pauseSel = (S.pauseSel + 1) % 3; SFX.talk(); }
+    S.pauseAy = inp.ay;
+    if (inp.jumpEdge || inp.dashEdge) {
+      SFX.berry();
+      if (S.pauseSel === 0) {
+        S.mode = "play";
+      } else if (S.pauseSel === 1) {
+        loadLevel(S.levelIdx);
+        S.mode = "play";
+      } else {
+        S.score = { berries: 0, total: 0, deaths: 0, time: 0, freed: 0 };
+        loadLevel(0);
+        S.mode = "play";
+      }
+    }
+    clearJust();
+    return;
+  }
 
   if (S.mode === "dead") {
     S.deathT += dt;
@@ -1527,15 +1547,34 @@ function draw() {
   drawBanner();
 
   if (S.mode === "pause") {
-    g.fillStyle = "rgba(5,8,12,0.58)";
+    g.fillStyle = "rgba(5,8,12,0.7)";
     g.fillRect(0, 0, W, H);
     g.fillStyle = C.ui;
     g.font = "bold 12px monospace";
     g.textAlign = "center";
-    g.fillText("PAUSED", W / 2, H / 2 - 2);
+    g.fillText("PAUSED", W / 2, 56);
     g.fillStyle = C.uiDim;
     g.font = "8px monospace";
-    g.fillText(LEVELS[S.levelIdx].name, W / 2, H / 2 + 12);
+    g.fillText(LEVELS[S.levelIdx].name, W / 2, 70);
+
+    const opts = ["RESUME", "RESTART CHAMBER", "NEW GAME"];
+    g.font = "9px monospace";
+    for (let i = 0; i < opts.length; i++) {
+      const oy = 94 + i * 16;
+      const sel = i === S.pauseSel;
+      g.fillStyle = sel ? C.title : C.uiDim;
+      g.fillText(opts[i], W / 2, oy);
+      if (sel) {
+        const bx = W / 2 - opts[i].length * 2.8 - 14;
+        g.fillStyle = C.cap;
+        g.fillRect(bx, oy - 7, 6, 3);
+        g.fillStyle = C.bloomStem;
+        g.fillRect(bx + 2, oy - 4, 2, 3);
+      }
+    }
+    g.fillStyle = C.uiDim;
+    g.font = "7px monospace";
+    g.fillText("Move to choose   Jump to select", W / 2, 150);
   }
 
   if (S.mode === "clear") {
