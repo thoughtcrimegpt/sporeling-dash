@@ -2,21 +2,55 @@
 <html lang="en">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
 <meta name="description" content="Sporeling Dash — dash, bloom a platform, chain across the void. A tiny fungal platformer.">
 <title>Sporeling Dash</title>
 <style>
   * { margin: 0; padding: 0; box-sizing: border-box; }
   html, body { width: 100%; height: 100%; background: #0a0c10; overflow: hidden; }
+  body { display: flex; align-items: center; justify-content: center; touch-action: none; overscroll-behavior: none; }
   canvas {
-    display: block; margin: 0 auto;
+    display: block;
     image-rendering: pixelated; image-rendering: crisp-edges;
     background: #0a0c10;
   }
+  /* Touch controls — shown only on touch devices */
+  #touch { position: fixed; inset: 0; z-index: 4; pointer-events: none;
+    font-family: monospace; -webkit-user-select: none; user-select: none; }
+  #touch[hidden] { display: none; }
+  #stick, #btnJump, #btnDash, #btnPause { pointer-events: auto; touch-action: none; }
+  #stick { position: fixed; left: 18px; bottom: 22px; width: 108px; height: 108px;
+    border-radius: 50%; background: rgba(232,224,208,0.07); border: 2px solid rgba(232,224,208,0.22); }
+  #nub { position: absolute; left: 34px; top: 34px; width: 36px; height: 36px; border-radius: 50%;
+    background: rgba(240,200,120,0.4); border: 2px solid rgba(240,200,120,0.65); }
+  #btnJump, #btnDash { position: fixed; width: 66px; height: 66px; border-radius: 50%;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 17px; font-weight: bold; }
+  #btnJump { right: 22px; bottom: 78px; color: rgba(144,232,176,0.85);
+    background: rgba(144,232,176,0.12); border: 2px solid rgba(144,232,176,0.45); }
+  #btnDash { right: 100px; bottom: 20px; color: rgba(240,168,136,0.85);
+    background: rgba(240,168,136,0.12); border: 2px solid rgba(240,168,136,0.45); }
+  #btnJump.pressed { background: rgba(144,232,176,0.35); }
+  #btnDash.pressed { background: rgba(240,168,136,0.35); }
+  #btnPause { position: fixed; top: 10px; right: 10px; width: 36px; height: 28px;
+    border-radius: 6px; display: flex; align-items: center; justify-content: center;
+    color: rgba(232,224,208,0.6); font-size: 11px;
+    background: rgba(8,12,18,0.5); border: 1px solid rgba(232,224,208,0.25); }
+  #rotateHint { display: none; position: fixed; top: 8px; left: 50%; transform: translateX(-50%);
+    color: #e8e0d0; font: 10px monospace; background: rgba(8,12,18,0.75);
+    padding: 6px 10px; border-radius: 6px; z-index: 5; pointer-events: none; }
+  @media (pointer: coarse) and (orientation: portrait) { #rotateHint { display: block; } }
 </style>
 </head>
 <body>
 <canvas id="game"></canvas>
+<div id="touch" hidden>
+  <div id="stick"><div id="nub"></div></div>
+  <div id="btnJump">A</div>
+  <div id="btnDash">X</div>
+  <div id="btnPause">&#10074;&#10074;</div>
+</div>
+<div id="rotateHint">Rotate your phone for a bigger view</div>
 <script>
 (() => {
 "use strict";
@@ -178,6 +212,8 @@ const SFX = {
 const keys = Object.create(null);
 const just = Object.create(null);
 const padPrev = { jump: false, dash: false, pause: false };
+const TOUCH = { active: false, ax: 0, ay: 0, jump: false, dash: false, pause: false };
+const touchPrev = { jump: false, dash: false, pause: false };
 
 addEventListener("keydown", e => {
   if (!keys[e.code]) just[e.code] = true;
@@ -243,12 +279,91 @@ function readInput() {
     padPrev.jump = jumpDown; padPrev.dash = dashDown; padPrev.pause = pauseDown;
   }
 
+  if (TOUCH.active) {
+    if (TOUCH.ax || TOUCH.ay) { ax = TOUCH.ax; ay = TOUCH.ay; }
+    if (TOUCH.jump) jumpDown = true;
+    if (TOUCH.dash) dashDown = true;
+    if (TOUCH.pause) pauseDown = true;
+    if (TOUCH.jump && !touchPrev.jump) { jumpEdge = true; startEdge = true; }
+    if (TOUCH.dash && !touchPrev.dash) dashEdge = true;
+    if (TOUCH.pause && !touchPrev.pause) pauseEdge = true;
+    touchPrev.jump = TOUCH.jump; touchPrev.dash = TOUCH.dash; touchPrev.pause = TOUCH.pause;
+  }
+
   const len = Math.hypot(ax, ay);
   if (len > 1) { ax /= len; ay /= len; }
   return { ax, ay, jumpDown, jumpEdge, dashEdge, pauseEdge, startEdge };
 }
 
 function clearJust() { for (const k in just) delete just[k]; }
+
+// Touch controls — virtual stick + buttons, shown only once a touch device is detected
+function setupTouch() {
+  const root = document.getElementById("touch");
+  const stick = document.getElementById("stick");
+  const nub = document.getElementById("nub");
+
+  function enable() {
+    if (TOUCH.active) return;
+    TOUCH.active = true;
+    root.hidden = false;
+    resize();
+  }
+  if (matchMedia("(pointer: coarse)").matches) enable();
+  addEventListener("touchstart", enable, { passive: true });
+
+  let stickId = null;
+  function setStick(t) {
+    const r = stick.getBoundingClientRect();
+    const cx = r.left + r.width / 2, cy = r.top + r.height / 2;
+    let dx = (t.clientX - cx) / (r.width / 2), dy = (t.clientY - cy) / (r.height / 2);
+    const len = Math.hypot(dx, dy);
+    if (len > 1) { dx /= len; dy /= len; }
+    const dead = 0.25;
+    TOUCH.ax = Math.abs(dx) < dead ? 0 : (dx - Math.sign(dx) * dead) / (1 - dead);
+    TOUCH.ay = Math.abs(dy) < dead ? 0 : (dy - Math.sign(dy) * dead) / (1 - dead);
+    nub.style.transform = "translate(" + (dx * 30).toFixed(0) + "px," + (dy * 30).toFixed(0) + "px)";
+  }
+  stick.addEventListener("touchstart", e => {
+    e.preventDefault();
+    stickId = e.changedTouches[0].identifier;
+    setStick(e.changedTouches[0]);
+  }, { passive: false });
+  stick.addEventListener("touchmove", e => {
+    e.preventDefault();
+    for (const t of e.changedTouches) if (t.identifier === stickId) setStick(t);
+  }, { passive: false });
+  const stickEnd = e => {
+    for (const t of e.changedTouches) {
+      if (t.identifier === stickId) {
+        stickId = null;
+        TOUCH.ax = 0; TOUCH.ay = 0;
+        nub.style.transform = "";
+      }
+    }
+  };
+  stick.addEventListener("touchend", stickEnd);
+  stick.addEventListener("touchcancel", stickEnd);
+
+  function bindBtn(id, prop) {
+    const el = document.getElementById(id);
+    el.addEventListener("touchstart", e => {
+      e.preventDefault();
+      TOUCH[prop] = true;
+      el.classList.add("pressed");
+    }, { passive: false });
+    const up = e => {
+      e.preventDefault();
+      TOUCH[prop] = false;
+      el.classList.remove("pressed");
+    };
+    el.addEventListener("touchend", up, { passive: false });
+    el.addEventListener("touchcancel", up, { passive: false });
+  }
+  bindBtn("btnJump", "jump");
+  bindBtn("btnDash", "dash");
+  bindBtn("btnPause", "pause");
+}
 
 // ── Levels ─────────────────────────────────────────────────────────────────
 // . empty  # solid  S spike (auto-oriented)  P start  C checkpoint  B berry  G goal
@@ -1080,11 +1195,14 @@ const g = buf.getContext("2d");
 let scale = 1;
 
 function resize() {
-  scale = Math.max(1, Math.floor(Math.min(innerWidth / W, innerHeight / H)));
-  canvas.width = W * scale;
-  canvas.height = H * scale;
-  canvas.style.width = (W * scale) + "px";
-  canvas.style.height = (H * scale) + "px";
+  const raw = Math.min(innerWidth / W, innerHeight / H);
+  // Touch devices get fractional scaling so the game fills the screen;
+  // desktop stays integer-scaled for crisp pixels
+  scale = TOUCH.active ? Math.max(1, raw) : Math.max(1, Math.floor(raw));
+  canvas.width = Math.round(W * scale);
+  canvas.height = Math.round(H * scale);
+  canvas.style.width = canvas.width + "px";
+  canvas.style.height = canvas.height + "px";
   ctx.imageSmoothingEnabled = false;
 }
 addEventListener("resize", resize);
@@ -1093,7 +1211,7 @@ resize();
 function blit() {
   ctx.imageSmoothingEnabled = false;
   ctx.clearRect(0, 0, canvas.width, canvas.height);
-  ctx.drawImage(buf, 0, 0, W, H, 0, 0, W * scale, H * scale);
+  ctx.drawImage(buf, 0, 0, W, H, 0, 0, canvas.width, canvas.height);
 }
 
 function draw() {
@@ -1584,7 +1702,9 @@ function drawTitle() {
 
   g.fillStyle = C.uiDim;
   g.font = "7px monospace";
-  g.fillText("Move WASD/Arrows/Stick   Jump Space/A   Dash Shift/J/X/RB", W / 2, 168);
+  g.fillText(TOUCH.active
+    ? "Stick to move + aim   A Jump   X Dash"
+    : "Move WASD/Arrows/Stick   Jump Space/A   Dash Shift/J/X/RB", W / 2, 168);
 }
 
 function drawWin() {
@@ -1630,6 +1750,7 @@ function frame(nowMs) {
   requestAnimationFrame(frame);
 }
 
+setupTouch();
 loadLevel(0);
 S.mode = "title";
 requestAnimationFrame(frame);
