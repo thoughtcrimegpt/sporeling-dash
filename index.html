@@ -370,6 +370,150 @@ function whoosh(dur, vol, freq) {
   src.start(t);
 }
 
+// ── Music — a small procedural score. One motif, many moods. ───────────────
+// Hollow Knight rules: felt more than heard. Everything sits far below the
+// SFX, through its own lowpass, on top of the cave's standing drone.
+let MUS = null;
+let musicOn = true;
+try { musicOn = localStorage.getItem("sd_music") !== "0"; } catch (e) {}
+const MUS_VOL = 0.8;
+
+// scale = semitone steps; deg indexes it (wraps up octaves); root = semis from C
+const MUS_TRACKS = {
+  // the overworld lullaby — bright, patient, a little sleepy
+  dream: {
+    bpm: 76, root: 0, scale: [0, 2, 4, 7, 9],
+    bassWave: "sine", leadWave: "triangle", bassOct: -1, leadOct: 1,
+    bv: 0.12, lv: 0.11, pv: 0,
+    bass: [[0, 0, 8], [8, 3, 8], [16, 0, 8], [24, 3, 8]],
+    lead: [[0, 0, 2], [2, 1, 2], [4, 2, 2], [6, 3, 2], [10, 2, 4],
+           [16, 2, 2], [18, 3, 2], [20, 4, 2], [22, 3, 2], [26, 1, 6]],
+    pad: [],
+  },
+  // under the roots — the same song, minor and lower
+  roots: {
+    bpm: 66, root: -3, scale: [0, 3, 5, 7, 10],
+    bassWave: "sine", leadWave: "triangle", bassOct: -1, leadOct: 0,
+    bv: 0.12, lv: 0.1, pv: 0.055,
+    bass: [[0, 0, 16], [16, 2, 16]],
+    lead: [[4, 4, 2], [8, 3, 2], [12, 2, 4], [24, 0, 6]],
+    pad: [[0, [0, 2], 32]],
+  },
+  // the gardens — quicker, sparkly, still gentle
+  garden: {
+    bpm: 88, root: 0, scale: [0, 2, 4, 7, 9],
+    bassWave: "sine", leadWave: "triangle", bassOct: -1, leadOct: 1,
+    bv: 0.11, lv: 0.1, pv: 0,
+    bass: [[0, 0, 4], [4, 3, 4], [8, 4, 4], [12, 3, 4], [16, 0, 4], [20, 3, 4], [24, 4, 4], [28, 3, 4]],
+    lead: [[0, 2, 2], [3, 3, 2], [6, 4, 2], [8, 3, 2], [11, 2, 2], [14, 1, 2],
+           [16, 2, 2], [19, 3, 2], [22, 4, 2], [24, 5, 2], [27, 4, 2], [30, 3, 2]],
+    pad: [],
+  },
+  // the gauntlets — a low pulse and not much else; the dark leans in
+  skitter: {
+    bpm: 104, root: 4, scale: [0, 1, 5, 7, 10],
+    bassWave: "triangle", leadWave: "triangle", bassOct: -1, leadOct: 1,
+    bv: 0.12, lv: 0.08, pv: 0,
+    bass: [[0, 0, 2], [2, 0, 2], [4, 0, 2], [6, 0, 2], [8, 0, 2], [10, 0, 2], [12, 1, 2], [14, 0, 2],
+           [16, 0, 2], [18, 0, 2], [20, 0, 2], [22, 0, 2], [24, 0, 2], [26, 0, 2], [28, 1, 2], [30, 0, 2]],
+    lead: [[6, 3, 1], [14, 4, 1], [22, 3, 1], [30, 1, 2]],
+    pad: [],
+  },
+  // boss halls — slow chords breathing in the dark
+  brood: {
+    bpm: 56, root: 2, scale: [0, 3, 5, 7, 10],
+    bassWave: "sine", leadWave: "triangle", bassOct: -1, leadOct: 0,
+    bv: 0.13, lv: 0.09, pv: 0.06,
+    bass: [[0, 0, 16], [16, 0, 16]],
+    lead: [[0, 4, 4], [8, 3, 4], [16, 2, 8], [28, 0, 4]],
+    pad: [[0, [0, 2, 4], 16], [16, [0, 2, 3], 16]],
+  },
+  // the throat — deep, slow, a three-note sigh
+  throat: {
+    bpm: 48, root: 0, scale: [0, 3, 5, 7, 8],
+    bassWave: "sine", leadWave: "sine", bassOct: -2, leadOct: 0,
+    bv: 0.15, lv: 0.1, pv: 0.05,
+    bass: [[0, 0, 16], [16, 0, 16]],
+    lead: [[8, 2, 4], [12, 1, 4], [16, 0, 8]],
+    pad: [[0, [0, 2], 32]],
+  },
+  // the margins — a music box remembering the main theme, barely
+  margin: {
+    bpm: 62, root: 0, scale: [0, 2, 4, 7, 9],
+    bassWave: "sine", leadWave: "triangle", bassOct: 0, leadOct: 2,
+    bv: 0, lv: 0.09, pv: 0,
+    bass: [],
+    lead: [[0, 0, 2], [4, 1, 2], [8, 2, 2], [20, 3, 4], [26, 2, 6]],
+    pad: [],
+  },
+};
+const LEVEL_MUSIC = ["dream", "roots", "roots", "garden", "skitter", "brood", "garden", "skitter", "brood", "throat", "throat", "margin"];
+
+function musicWanted() {
+  if (!musicOn) return null;
+  const m = S.mode;
+  if (m === "freed" || m === "credits" || m === "gameover") return null;
+  if (m === "title" || m === "notes" || m === "board") return "dream";
+  return LEVEL_MUSIC[S.levelIdx] || "dream";
+}
+
+function mfreq(trk, deg, oct) {
+  const s = trk.scale;
+  const d = ((deg % s.length) + s.length) % s.length;
+  const semis = trk.root + s[d] + 12 * Math.floor(deg / s.length);
+  return 130.81 * Math.pow(2, semis / 12 + oct);
+}
+
+function mnote(t, freq, dur, wave, vol, att) {
+  const o = AC.createOscillator(), gn = AC.createGain();
+  o.type = wave;
+  o.frequency.value = freq;
+  gn.gain.setValueAtTime(0.0001, t);
+  gn.gain.linearRampToValueAtTime(vol, t + (att || 0.02));
+  gn.gain.exponentialRampToValueAtTime(0.0001, t + dur);
+  o.connect(gn); gn.connect(MUS.out);
+  o.start(t); o.stop(t + dur + 0.05);
+}
+
+function musicTick() {
+  if (!AC || AC.state !== "running") return;
+  if (!MUS) {
+    const out = AC.createGain();
+    out.gain.value = 0;
+    const lp = AC.createBiquadFilter();
+    lp.type = "lowpass"; lp.frequency.value = 1700; lp.Q.value = 0.5;
+    out.connect(lp); lp.connect(masterGain);
+    MUS = { out, cur: null, step: 0, nextT: 0 };
+  }
+  const want = musicWanted();
+  if (want !== MUS.cur) {
+    const t = AC.currentTime;
+    MUS.out.gain.cancelScheduledValues(t);
+    MUS.out.gain.setValueAtTime(MUS.out.gain.value, t);
+    MUS.out.gain.linearRampToValueAtTime(0, t + 1.1);
+    MUS.cur = want;
+    MUS.step = 0;
+    MUS.nextT = t + 1.2;
+    if (want) MUS.out.gain.linearRampToValueAtTime(MUS_VOL, t + 2.4);
+    return;
+  }
+  if (!MUS.cur) return;
+  const trk = MUS_TRACKS[MUS.cur];
+  const sd = 60 / trk.bpm / 4;
+  if (MUS.nextT < AC.currentTime) MUS.nextT = AC.currentTime + 0.05;
+  while (MUS.nextT < AC.currentTime + 0.8) {
+    const st = MUS.step, t = MUS.nextT;
+    for (const e of trk.bass) if (e[0] === st) mnote(t, mfreq(trk, e[1], trk.bassOct), sd * e[2] * 0.95, trk.bassWave, trk.bv, 0.03);
+    for (const e of trk.lead) if (e[0] === st) mnote(t, mfreq(trk, e[1], trk.leadOct), sd * e[2] * 0.95, trk.leadWave, trk.lv, 0.015);
+    for (const e of trk.pad) if (e[0] === st)
+      for (const dg of e[1]) mnote(t, mfreq(trk, dg, 0), sd * e[2], "sine", trk.pv, sd * e[2] * 0.3);
+    MUS.step = (MUS.step + 1) % 32;
+    MUS.nextT += sd;
+  }
+}
+setInterval(musicTick, 180);
+
+let OOF_I = 0;
 const SFX = {
   jump()  { blip(330, 660, 0.12, "square", 0.16); },
   land()  { blip(150, 90, 0.08, "triangle", 0.14); whoosh(0.05, 0.05, 400); },
@@ -381,6 +525,17 @@ const SFX = {
   talk()  { blip(700, 520, 0.05, "sine", 0.05); },
   oneUp() { [660, 880, 1175].forEach((f, i) => blip(f, f, 0.11, "triangle", 0.15, i * 0.07)); },
   hurt()  { blip(300, 140, 0.16, "square", 0.13); },
+  // The sporeling has a voice, and it is small — rotating little hurt noises
+  oof() {
+    const v = [
+      () => { blip(540, 300, 0.1, "triangle", 0.15); blip(340, 240, 0.08, "triangle", 0.1, 0.07); },  // "oof"
+      () => { blip(760, 500, 0.09, "triangle", 0.14); },                                              // "eep"
+      () => { blip(420, 250, 0.13, "sine", 0.15); blip(280, 200, 0.06, "sine", 0.09, 0.09); },        // "wuh"
+      () => { blip(600, 380, 0.07, "triangle", 0.13); blip(500, 300, 0.07, "triangle", 0.1, 0.06); }, // "ah-uh"
+    ];
+    OOF_I = (OOF_I + 1) % v.length;
+    v[OOF_I]();
+  },
   bossWarn() { blip(90, 70, 0.5, "sine", 0.22); blip(180, 140, 0.5, "sine", 0.1); },
   bossHit()  { [523, 784, 1047].forEach((f, i) => blip(f, f, 0.2, "triangle", 0.2, i * 0.06)); whoosh(0.3, 0.15, 500); },
   bossHorn() { blip(220, 90, 0.25, "sawtooth", 0.16); },
@@ -443,11 +598,21 @@ const dailyUnlocked = () => {
   try { return localStorage.getItem("sd_beaten") === "1"; } catch (e) { return false; }
 };
 
+// Furthest chamber ever reached by playing — unlocks CONTINUE/PRACTICE starts.
+// The secret chamber doesn't count.
+const reachGet = () => {
+  try { return Math.min(10, parseInt(localStorage.getItem("sd_reach") || "0", 10) || 0); } catch (e) { return 0; }
+};
+const reachSet = idx => {
+  try { if (idx > reachGet()) localStorage.setItem("sd_reach", String(idx)); } catch (e) {}
+};
+
 function startDaily() {
   if (!dailyUnlocked()) return;
   S.score = { berries: 0, total: 0, deaths: 0, time: 0, freed: 0, pickups: 0, secretMemory: false, metNpcs: {} };
   S.wispHinted = false; S.hint = null;
   S.daily = true;
+  S.practice = false;
   S.dailyMods = dailyMods();
   S.lives = dMod("petal") ? 1 : dMod("sparks2") ? 2 : START_LIVES;
   S.rec = []; S.ghost = null; S.ghostPos = null;
@@ -468,6 +633,61 @@ function prefetchLeader(slot, list) {
     if (fr) GHOST_CACHE[slot] = { id: top.id, frames: fr, name: String(top.name) };
   });
 }
+// ── Patch notes — the cave remembers its own growth. Newest first. ─────────
+const PATCH_NOTES = [
+  { v: "V3.7 — THE CAVE FORGIVES", lines: [
+    "· The cave hums now: quiet music, a different mood for every depth (M mutes)",
+    "· Continue & practice from the title — pick any chamber you've reached",
+    "· Full runs still start from the top; only they touch the board",
+    "· NEW MOVE — the down-slam: dash straight down, ride it to the ground, boom",
+    "· The sporeling now squeaks when hurt. Four squeaks. They rotate",
+    "· The Swallow's bottom teeth got filed down a little",
+    "· Grel found a better seat. The margins hold a new scribble",
+  ]},
+  { v: "V3.6 — THE TEACHING PATCH", lines: [
+    "· Every death names what took you, briefly",
+    "· Bosses teach once: longer first windows, a mint mark on the weak point",
+    "· Land one hit and the training wheels vanish mid-fight",
+  ]},
+  { v: "V3.5 — THE FEEL PATCH", lines: [
+    "· Camera looks ~2 tiles ahead of your facing; quick taps no longer swing the screen",
+    "· Vertical dead zone: jumps don't bounce the camera; falling snaps it down fast",
+    "· Dash presses now buffer 0.1s — press early, it fires the instant it re-arms",
+    "· Mobile: bigger stick with crisp 8-way snap, bigger buttons, press haptics",
+  ]},
+  { v: "V3.4 — THE STOPPED", lines: [
+    "· Where a real player falls, a faded sporeling now stands in everyone's cave",
+    "· Posted anonymously (position only). Dash through them to set them free",
+  ]},
+  { v: "V3.3 — THE SWALLOW", lines: [
+    "· New chamber: a long vertical drop lined with teeth, before the Mother's Throat",
+    "· Controller menu support: Y = daily spore, Select = leaderboard",
+    "· Daily surge reworked: extra enemies spawn apart and come back wrong",
+    "· Leaderboard wiped for the longer route",
+  ]},
+  { v: "V3.2 — THE CHAMPION RUNS BESIDE YOU", lines: [
+    "· The #1 echo auto-races every run, name overhead — no clicks",
+    "· Dailies race the daily champion. Dethrone them and everyone races you",
+    "· Dailies hardened: 3 modifiers a night; boards refresh at UTC midnight",
+  ]},
+  { v: "V3.1 — THE DAILY SPORE & SPORE ECHOES", lines: [
+    "· A remixed descent every night, same dream for everyone, own dated board",
+    "· Every run records an echo; race any ▸ echo, your PB, or a ?race= challenge link",
+  ]},
+  { v: "V3 — THE DEEP CHAMBERS", lines: [
+    "· Three new chambers, two new bosses, three new enemies",
+    "· Share cards, clickable @names, the full-board screen",
+  ]},
+  { v: "V2 — THE MOTHER'S THROAT", lines: [
+    "· The Unbloomed finale, the hidden Undrawn Map, live leaderboards",
+  ]},
+  { v: "V1 — FIRST BLOOM", lines: [
+    "· Eleven... no. Six chambers, one frightened guardian, and a dash that blooms",
+  ]},
+];
+const NOTES_TOTAL = PATCH_NOTES.reduce((a, b) => a + 13 + b.lines.length * 9 + 8, 0);
+let NOTES_HIT = null;   // the title's notes link rect
+
 let LB_HITS = [];   // clickable name rows, rebuilt each frame the panel draws
 let LB_PANEL = null; // the small panel's rect — click it to open the full board
 let BOARD_TABS = []; // tab rects on the full-board screen
@@ -642,6 +862,7 @@ const jumpBtnName = () => gp() ? "A" : TOUCH.active ? "the A button" : "SPACE";
 
 function submitScore() {
   if (!lbOn()) { S.lbMsg = "Leaderboard offline"; return; }
+  if (S.practice) { S.lbMsg = "Practice run — the board only takes full runs"; return; }
   if (S.score.lbDone) { S.lbMsg = "Already submitted"; return; }
   let name = "";
   try { name = localStorage.getItem("sd_name") || ""; } catch (e) {}
@@ -920,14 +1141,6 @@ const LEVELS = [
         "Some of them just stopped. You'll see them pacing. Don't judge them — it's a long way down.",
         "...what others? Hm? I said nothing.",
       ],
-    }, {
-      c: 23, r: 12, name: "GREL", sprite: "grel",
-      lines: [
-        "Oh! Down here! Everyone falls in eventually. Best seat in the cave.",
-        "We believed first, you know. Before the spores even settled.",
-        "Every time you bloom, somewhere in the dark a stranger cheers. That's us.",
-        "Go on then. We'll be watching. We're always watching.",
-      ],
     }],
   },
   {
@@ -1175,8 +1388,8 @@ const LEVELS = [
       rect(13, 24, 26, 24); for (let c = 13; c <= 26; c++) set(c, 23, "S");
       rect(1, 33, 12, 33); for (let c = 1; c <= 12; c++) set(c, 32, "S");
       rect(13, 42, 26, 42); for (let c = 13; c <= 26; c++) set(c, 41, "S");
-      rect(8, 50, 19, 50); for (let c = 8; c <= 19; c++) set(c, 49, "S");
-      rect(6, 57, 21, 57); for (let c = 6; c <= 21; c++) set(c, 56, "S");
+      rect(10, 50, 17, 50); for (let c = 10; c <= 17; c++) set(c, 49, "S");
+      rect(9, 57, 18, 57); for (let c = 9; c <= 18; c++) set(c, 56, "S");
       // Molars jutting from the walls
       set(1, 18, "S"); set(26, 28, "S"); set(1, 46, "S"); set(26, 54, "S");
       // Two berries hanging on the crossing lines — hit the drift or miss them
@@ -1186,6 +1399,16 @@ const LEVELS = [
     }),
     clearText: "Swallowed is not the same as gone.",
     unlockText: "Open your cap — hold Jump, fall soft, drift between the teeth.",
+    // Grel waited nine chambers for a pit worthy of him
+    npcs: [{
+      c: 7, r: 63, name: "GREL", sprite: "grel",
+      lines: [
+        "Oh! Down here! Everyone falls in eventually. Best seat in the cave.",
+        "We believed first, you know. Before the spores even settled.",
+        "Every time you bloom, somewhere in the dark a stranger cheers. That's us.",
+        "Go on then. We'll be watching. We're always watching.",
+      ],
+    }],
   },
   {
     name: "THE MOTHER'S THROAT", pal: 5, boss: "unbloomed",
@@ -1300,8 +1523,9 @@ const S = {
   pauseSel: 0, pauseAy: 0,
   hint: null, wispHinted: false,
   devLevel: 0, devInf: false, devAx: 0, devAy: 0,
-  boardTab: "any", boardAx: 0, boardFrom: "title",
+  boardTab: "any", boardAx: 0, boardFrom: "title", notesY: 0,
   daily: false, dailyMods: null,
+  practice: false, pracSel: 0,
   rec: [], ghost: null, ghostPos: null, pendingGhost: null,
   fallen: [], stoppedHint: false,
   jumpHeldForCut: false,
@@ -2023,12 +2247,45 @@ function endDash(p) {
   if (!p.dashing) return;
   p.dashing = false;
   p.dashT = 0;
+  if (p.slamDash) {
+    p.slamDash = false;
+    if (onGround(p)) { doSlam(p); return; }
+  }
   p.vx *= 0.3;
   p.vy *= 0.3;
   // The bloom sprouts where the dash ENDS — if you have spores left
   if (!p.grounded && !onGround(p)) {
     if (p.spores > 0) { p.spores--; spawnBloom(p); }
     else failBloom(p);
+  }
+}
+
+// Down-slam: a straight-down dash rides all the way to the ground and hits
+// like a landing meteor — no bloom, just impact: dust shocks out along the
+// ground both ways, sparks kick up, and anything close gets popped.
+function doSlam(p) {
+  p.vx = 0; p.vy = 0;
+  p.grounded = true;
+  S.shakeT = 0.22; S.shakeMag = 3.2;
+  S.freezeT = 0.04;
+  blip(90, 40, 0.25, "square", 0.18);
+  blip(200, 60, 0.12, "sawtooth", 0.1);
+  whoosh(0.25, 0.1, 300);
+  // dust shockwave racing out along the ground, both directions
+  for (let i = 0; i < 14; i++) {
+    const dir = i % 2 ? 1 : -1;
+    const sp = 80 + Math.random() * 140;
+    burst(p.x + 5 + dir * (2 + Math.random() * 6), p.y + p.h - 1,
+      dir * sp, -8 - Math.random() * 22, 0.45, rgb(PAL.rockHi), 2);
+  }
+  // sparks straight up from the impact
+  for (let i = 0; i < 10; i++) {
+    burst(p.x + 5, p.y + p.h - 2, (Math.random() - 0.5) * 70, -60 - Math.random() * 100, 0.4,
+      i & 1 ? "#f0c878" : rgb(PAL.accent), 2);
+  }
+  for (const e of S.enemies) {
+    if (!e.dead && Math.abs(e.x + e.w / 2 - (p.x + 5)) < 46 && Math.abs(e.y + e.h / 2 - (p.y + 6)) < 30)
+      killEnemy(e, true);
   }
 }
 
@@ -2055,7 +2312,9 @@ function doDash(p, ax, ay) {
   const d = dir8(ax, ay, p.facing);
   SFX.dash();
   p.dashing = true;
-  p.dashT = DASH_TIME;
+  // A pure-down dash becomes a slam: it rides until it finds the ground
+  p.slamDash = d.dy > 0.9 && d.dx === 0;
+  p.dashT = p.slamDash ? 0.7 : DASH_TIME;
   p.dashDX = d.dx; p.dashDY = d.dy;
   p.canDash = false;
   p.vx = d.dx * DASH_SPEED;
@@ -2139,6 +2398,7 @@ function chamberClear() {
   S.mode = "clear";
   S.winT = 0;
   S.goalOpen = 0;
+  if (!S.daily && S.levelIdx + 1 < LEVELS.length - 1) reachSet(S.levelIdx + 1);
   S.score.berries += S.berries;
   S.score.total += S.berriesTotal;
   if (S.lives < MAX_LIVES) S.lives++;
@@ -2555,10 +2815,10 @@ async function fetchGhost(id) {
 }
 
 function startEnding() {
-  try { localStorage.setItem("sd_beaten", "1"); } catch (e) {}
+  try { if (!S.practice) localStorage.setItem("sd_beaten", "1"); } catch (e) {}
   // remember your best echo
   try {
-    if (!S.daily) {
+    if (!S.daily && !S.practice) {
       const pb = JSON.parse(localStorage.getItem("sd_pb") || "null");
       if (!pb || S.score.time < pb.t)
         localStorage.setItem("sd_pb", JSON.stringify({ t: S.score.time, frames: S.rec }));
@@ -2611,6 +2871,7 @@ function hurtPlayer(sx, cause) {
   p.dashing = false; p.dashT = 0;
   S.shakeT = 0.12; S.shakeMag = 2;
   SFX.hurt();
+  SFX.oof();
   for (let i = 0; i < 8; i++) {
     burst(p.x + 5, p.y + 5, (Math.random() - 0.5) * 90, -20 - Math.random() * 40, 0.35, C.berryHi, 1);
   }
@@ -2696,6 +2957,11 @@ function updateParticles(dt) {
 function tick(dt) {
   const inp = readInput();
   S.time += dt;
+  if (just.KeyM) {
+    musicOn = !musicOn;
+    try { localStorage.setItem("sd_music", musicOn ? "1" : "0"); } catch (e) {}
+    S.hint = { text: musicOn ? "♪ music on" : "♪ music off", t: 1.4 };
+  }
 
   if (S.mode === "board") {
     const tabOrder = ["any", "full", "daily"];
@@ -2708,9 +2974,21 @@ function tick(dt) {
     return;
   }
 
+  if (S.mode === "notes") {
+    S.notesY = clamp(S.notesY + inp.ay * 130 * dt, 0, Math.max(0, NOTES_TOTAL - (H - 58)));
+    if (inp.jumpEdge || inp.pauseEdge) S.mode = "title";
+    clearJust();
+    return;
+  }
+
   if (S.mode === "title") {
     // UTC midnight rolled over while idling — refetch today's dream
     if (lbOn() && LB_DAY && LB_DAY !== dailySeedStr()) { LB_CACHE.daily = null; lbRefresh(); }
+    if (just.KeyN) {
+      S.mode = "notes"; S.notesY = 0;
+      clearJust();
+      return;
+    }
     if (inp.boardEdge && lbOn()) {
       S.boardFrom = "title"; S.mode = "board";
       clearJust();
@@ -2721,6 +2999,15 @@ function tick(dt) {
       if (inp.ax < -0.5 && S.devAx >= -0.5) { S.devLevel = (S.devLevel + LEVELS.length - 1) % LEVELS.length; SFX.talk(); }
       if ((inp.ay < -0.5 && S.devAy >= -0.5) || (inp.ay > 0.5 && S.devAy <= 0.5)) { S.devInf = !S.devInf; SFX.talk(); }
       S.devAx = inp.ax; S.devAy = inp.ay;
+    } else {
+      // One selector: 0 = full run, 1..reach = practice that chamber
+      const reach = reachGet();
+      if (S.pracSel > reach) S.pracSel = 0;
+      if (reach > 0) {
+        if (inp.ax > 0.5 && S.devAx <= 0.5) { S.pracSel = (S.pracSel + 1) % (reach + 1); SFX.talk(); }
+        if (inp.ax < -0.5 && S.devAx >= -0.5) { S.pracSel = (S.pracSel + reach) % (reach + 1); SFX.talk(); }
+      }
+      S.devAx = inp.ax;
     }
     if (inp.dailyEdge && lbOn() && dailyUnlocked()) {
       startDaily();
@@ -2732,10 +3019,14 @@ function tick(dt) {
       S.lives = START_LIVES;
       S.wispHinted = false; S.hint = null;
       S.daily = false; S.dailyMods = null;
+      S.practice = !DEV && S.pracSel > 0;
       S.rec = [];
       // arm an echo to race: a challenge link's ghost, or your own best run
       S.ghost = null; S.ghostPos = null;
-      if (S.pendingGhost) {
+      if (S.practice) {
+        // practice starts mid-cave — echoes would run out of sync
+        S.hint = { text: "PRACTICE — " + LEVELS[S.pracSel].name + ". Full runs start from the top.", t: 4 };
+      } else if (S.pendingGhost) {
         S.ghost = S.pendingGhost;
         S.pendingGhost = null;
         S.hint = { text: "Racing " + (S.ghost.name || "an echo") + " — catch the pale one.", t: 4 };
@@ -2752,7 +3043,7 @@ function tick(dt) {
           }
         } catch (e) {}
       }
-      loadLevel(DEV ? S.devLevel : 0);
+      loadLevel(DEV ? S.devLevel : S.practice ? S.pracSel : 0);
       S.mode = "play";
     }
     clearJust();
@@ -2940,6 +3231,7 @@ function tick(dt) {
         S.lives = START_LIVES;
         S.wispHinted = false; S.hint = null;
         S.daily = false; S.dailyMods = null;
+        S.practice = false;
         S.rec = []; S.ghost = null; S.ghostPos = null;
         loadLevel(0);
         S.mode = "play";
@@ -3280,6 +3572,9 @@ function lbUiHitAt(e) {
   if (S.mode === "title" && DAILY_PANEL &&
       p2.x >= DAILY_PANEL.x && p2.x <= DAILY_PANEL.x + DAILY_PANEL.w &&
       p2.y >= DAILY_PANEL.y && p2.y <= DAILY_PANEL.y + DAILY_PANEL.h) return { daily: true };
+  if (S.mode === "title" && NOTES_HIT &&
+      p2.x >= NOTES_HIT.x && p2.x <= NOTES_HIT.x + NOTES_HIT.w &&
+      p2.y >= NOTES_HIT.y && p2.y <= NOTES_HIT.y + NOTES_HIT.h) return { notes: true };
   if ((S.mode === "title" || S.mode === "win") && LB_PANEL &&
       p2.x >= LB_PANEL.x && p2.x <= LB_PANEL.x + LB_PANEL.w &&
       p2.y >= LB_PANEL.y && p2.y <= LB_PANEL.y + LB_PANEL.h) return { open: true };
@@ -3302,6 +3597,7 @@ canvas.addEventListener("click", e => {
     });
   }
   else if (u.daily && lbOn()) { startDaily(); }
+  else if (u.notes) { S.mode = "notes"; S.notesY = 0; SFX.talk(); }
   else if (u.open && lbOn()) { S.boardFrom = S.mode; S.mode = "board"; SFX.talk(); }
 });
 canvas.addEventListener("mousemove", e => {
@@ -3319,6 +3615,7 @@ function draw() {
 
   if (S.mode === "title") { drawTitle(); blit(); return; }
   if (S.mode === "board") { drawBoard(); blit(); return; }
+  if (S.mode === "notes") { drawNotes(); blit(); return; }
   if (S.mode === "win") { drawWin(); blit(); return; }
   if (S.mode === "gameover") { drawGameOver(); blit(); return; }
 
@@ -3335,6 +3632,7 @@ function draw() {
   g.translate(Math.round(-S.camX + ox), Math.round(-S.camY + oy));
   g.drawImage(terrainCv, 0, 0);
   drawDecor();
+  drawOke();
   drawBlooms();
   drawCheckpoints();
   drawBerries();
@@ -3378,15 +3676,15 @@ function draw() {
   drawLighting(ox, oy);
   drawForeground();
   if (S.mode !== "credits") drawHUD();
-  // What took you — brief, then gone; learning without a lecture
+  // What took you — big and legible, only during the death pause
   if (S.mode === "dead" && S.deathCause) {
     g.textAlign = "center";
-    g.fillStyle = "rgba(4,6,10,0.7)";
-    const cw = ("taken by " + S.deathCause).length * 4.5 + 12;
-    g.fillRect(W / 2 - cw / 2, 52, cw, 13);
-    g.fillStyle = C.wilt;
-    g.font = "7px monospace";
-    g.fillText("taken by " + S.deathCause, W / 2, 61);
+    g.fillStyle = "rgba(4,6,10,0.82)";
+    const cw = ("taken by " + S.deathCause).length * 5.2 + 14;
+    g.fillRect(W / 2 - cw / 2, 48, cw, 16);
+    g.fillStyle = "#f0b0a0";
+    g.font = "bold 8px monospace";
+    g.fillText("taken by " + S.deathCause, W / 2, 59);
     g.textAlign = "left";
   }
   drawTalk();
@@ -4446,6 +4744,30 @@ function drawForeground() {
   }
 }
 
+// Scratched into the margin, where the map keeps what it loves
+function drawOke() {
+  if (S.levelIdx !== 11) return;
+  const fx = 280, fy = 46;
+  g.globalAlpha = 0.32;
+  g.fillStyle = "#c8bca4";
+  g.fillRect(fx, fy, 34, 1); g.fillRect(fx, fy + 27, 34, 1);   // a scratched frame
+  g.fillRect(fx, fy, 1, 28); g.fillRect(fx + 33, fy, 1, 28);
+  g.fillRect(fx + 10, fy + 5, 14, 13);                          // the round head
+  g.fillRect(fx + 6, fy + 9, 4, 12);                            // droopy ears
+  g.fillRect(fx + 24, fy + 9, 4, 12);
+  g.globalAlpha = 0.5;
+  g.fillStyle = "#2a2420";
+  g.fillRect(fx + 13, fy + 9, 2, 2); g.fillRect(fx + 19, fy + 9, 2, 2);
+  g.fillRect(fx + 15, fy + 13, 4, 3);                           // the happy mouth
+  g.globalAlpha = 0.4;
+  g.fillStyle = "#c8bca4";
+  g.font = "7px monospace";
+  g.textAlign = "center";
+  g.fillText("you and oke dog", fx + 17, fy + 38);
+  g.textAlign = "left";
+  g.globalAlpha = 1;
+}
+
 function drawHUD() {
   g.fillStyle = "rgba(8,12,18,0.55)";
   g.fillRect(4, 4, 46, 12);
@@ -4657,12 +4979,24 @@ function drawTitle() {
     g.font = "9px monospace";
     g.fillText("Press " + jumpBtnName() + " to start", W / 2, 148);
   }
+  if (!DEV && reachGet() > 0) {
+    g.fillStyle = S.pracSel > 0 ? rgb(PALS[0].accent) : C.uiDim;
+    g.font = "7px monospace";
+    g.fillText("◄ ► " + (S.pracSel > 0 ? "PRACTICE: " + LEVELS[S.pracSel].name : "FULL RUN — from the top"), W / 2, 159);
+  }
+  // the cave's own memory
+  NOTES_HIT = { x: W - 64, y: 80, w: 58, h: 12 };
+  g.textAlign = "right";
+  g.fillStyle = C.uiDim;
+  g.font = "7px monospace";
+  g.fillText(TOUCH.active ? "✎ NOTES — tap" : "✎ NOTES — N", W - 8, 89);
+  g.textAlign = "center";
 
   g.fillStyle = C.uiDim;
   g.font = "7px monospace";
   g.fillText(TOUCH.active
     ? "Stick to move + aim   A Jump   X Dash"
-    : "Move WASD/Arrows/Stick   Jump Space/A   Dash Shift/J/X/RB", W / 2, 168);
+    : "Move WASD/Arrows/Stick   Jump Space/A   Dash Shift/J/X/RB   M music", W / 2, 168);
 
   drawLbPanel();
 
@@ -4736,8 +5070,8 @@ function drawGameOver() {
   g.fillText("Reached   " + LEVELS[S.levelIdx].name, W / 2, 112);
   g.fillText("Freed     " + S.score.freed, W / 2, 124);
   if (S.deathCause) {
-    g.fillStyle = C.wilt;
-    g.font = "8px monospace";
+    g.fillStyle = "#f0b0a0";
+    g.font = "bold 9px monospace";
     g.fillText("Taken by " + S.deathCause, W / 2, 137);
   }
 
@@ -4797,6 +5131,41 @@ function drawLbPanel(tall) {
   g.font = "7px monospace";
   g.fillText(gp() ? "▸ full board · SELECT" : TOUCH.active ? "▸ full board · tap" : "▸ full board · L", px + 5, 4 + ph - 5);
   g.textAlign = "center";
+}
+
+// Patch notes — the cave's own memory, scrollable
+function drawNotes() {
+  g.drawImage(skyCv, 0, 0);
+  drawSpores("far");
+  g.fillStyle = "rgba(6,9,14,0.92)";
+  g.fillRect(8, 6, W - 16, H - 12);
+  g.fillStyle = rgb(PALS[0].accent);
+  g.fillRect(8, 6, W - 16, 1);
+  g.textAlign = "center";
+  g.fillStyle = C.title;
+  g.font = "bold 10px monospace";
+  g.fillText("PATCH NOTES", W / 2, 20);
+  g.save();
+  g.beginPath();
+  g.rect(10, 26, W - 20, H - 44);
+  g.clip();
+  g.textAlign = "left";
+  let y = 38 - S.notesY;
+  for (const blk of PATCH_NOTES) {
+    g.fillStyle = rgb(PALS[0].accent);
+    g.font = "bold 8px monospace";
+    g.fillText(blk.v, 16, y);
+    y += 13;
+    g.fillStyle = C.uiDim;
+    g.font = "7px monospace";
+    for (const ln of blk.lines) { g.fillText(ln, 18, y); y += 9; }
+    y += 8;
+  }
+  g.restore();
+  g.textAlign = "center";
+  g.fillStyle = C.uiDim;
+  g.font = "7px monospace";
+  g.fillText("▲ ▼ scroll   ·   " + jumpBtnName() + " — back", W / 2, H - 11);
 }
 
 // The full leaderboard screen — complete names, tab between the two boards
@@ -4898,6 +5267,11 @@ function drawWin() {
   g.fillText("Memory    " + (S.score.secretMemory ? "1" : "0") + " / 1", 10, 123);
   g.fillText("Deaths    " + S.score.deaths, 10, 134);
   g.fillText("Time      " + m + ":" + (s < 10 ? "0" : "") + s, 10, 145);
+  if (S.practice) {
+    g.fillStyle = C.uiDim;
+    g.font = "7px monospace";
+    g.fillText("PRACTICE RUN — the board only takes full runs", 10, 155);
+  }
 
   if (S.lbConfirm) {
     // Are you sure?
