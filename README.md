@@ -2,7 +2,9 @@
 
 A tiny fungal platformer in a single HTML file.
 
-The Mother Bloom has gone quiet. Dash in mid-air and a mushroom platform blooms where you land — jump off it to chain across the void before it wilts. Five chambers, strange residents, and the things the previous sporelings became.
+The Mother Bloom has gone quiet. Dash in mid-air and a mushroom platform blooms where you land — jump off it to chain across the void before it wilts. Six chambers, strange residents, the things the previous sporelings became, and a frightened guardian at the bottom of it all.
+
+Wall-cling, spore-glide, a lives system, a secret somewhere off the map, and **live leaderboards** — any% and full completion. Submit your time from the victory screen.
 
 **Play:** https://thoughtcrimegpt.github.io/sporeling-dash/
 

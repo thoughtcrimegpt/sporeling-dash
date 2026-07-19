@@ -151,7 +151,33 @@ const PALS = [
     far: [38, 20, 40], mid: [54, 30, 54], fog: [190, 100, 150],
     spike: [150, 100, 130], spikeHi: [210, 150, 180],
   },
+  { // The Mother's Throat — deepest crimson-black, mint safelight
+    skyT: [12, 6, 14], skyB: [40, 14, 28],
+    rock: [52, 32, 50], rockHi: [80, 50, 74], rockLo: [30, 18, 32],
+    moss: [110, 50, 74], mossHi: [170, 84, 110],
+    accent: [170, 240, 200],
+    far: [28, 14, 28], mid: [42, 22, 40], fog: [150, 80, 120],
+    spike: [150, 90, 100], spikeHi: [210, 140, 150],
+  },
+  { // The Undrawn Map — deep blue, old moss, pale map-ink
+    skyT: [8, 12, 26], skyB: [22, 32, 52],
+    rock: [40, 50, 70], rockHi: [62, 76, 100], rockLo: [24, 30, 44],
+    moss: [70, 96, 88], mossHi: [116, 150, 132],
+    accent: [222, 230, 200],
+    far: [18, 24, 40], mid: [28, 36, 54], fog: [120, 150, 160],
+    spike: [110, 110, 130], spikeHi: [170, 170, 190],
+  },
 ];
+const tri = u => { u = ((u % 1) + 1) % 1; return u < 0.5 ? u * 2 : 2 - u * 2; };
+
+// Boss tuning — The Unbloomed
+const BOSS = {
+  WARN: 0.7, RECOVER: 1.0, RISE: 0.8,
+  OPEN: [1.7, 1.35, 1.1],         // landing window per phase (pips 3/2/1)
+  ATTACK: 2.2,
+  SWEEP_V: 240, RAIN_V: 85, BOLT_V: 150,
+  CAP_W: 76, CAP_H: 26,
+};
 const rgb = c => "rgb(" + c[0] + "," + c[1] + "," + c[2] + ")";
 const rgbs = c => c[0] + "," + c[1] + "," + c[2];
 const mix = (a, b, t) => [a[0] + (b[0] - a[0]) * t | 0, a[1] + (b[1] - a[1]) * t | 0, a[2] + (b[2] - a[2]) * t | 0];
@@ -204,16 +230,28 @@ document.addEventListener("visibilitychange", () => {
 });
 
 function startDrone() {
-  const o1 = AC.createOscillator(), o2 = AC.createOscillator();
-  const gDr = AC.createGain();
-  o1.type = "sine"; o2.type = "sine";
-  o1.frequency.value = 55; o2.frequency.value = 82.5;
-  gDr.gain.value = 0.05;
+  const voice = (freq, gain) => {
+    const o = AC.createOscillator(), gn = AC.createGain();
+    o.type = "sine"; o.frequency.value = freq;
+    gn.gain.value = gain;
+    o.connect(gn); gn.connect(masterGain);
+    o.start();
+    return gn;
+  };
+  const mid = voice(55, 0.045);
+  voice(82.5, 0.03);
+  // Unsettling sub-bass: a deep detuned pair that slowly beats against
+  // itself, breathing on an even slower cycle
+  const sub1 = voice(31, 0.12);
+  const sub2 = voice(32.3, 0.1);
   const lfo = AC.createOscillator(), lfoG = AC.createGain();
-  lfo.frequency.value = 0.09; lfoG.gain.value = 0.022;
-  lfo.connect(lfoG); lfoG.connect(gDr.gain);
-  o1.connect(gDr); o2.connect(gDr); gDr.connect(masterGain);
-  o1.start(); o2.start(); lfo.start();
+  lfo.frequency.value = 0.05; lfoG.gain.value = 0.06;
+  lfo.connect(lfoG); lfoG.connect(sub1.gain); lfoG.connect(sub2.gain);
+  lfo.start();
+  const lfo2 = AC.createOscillator(), lfo2G = AC.createGain();
+  lfo2.frequency.value = 0.09; lfo2G.gain.value = 0.02;
+  lfo2.connect(lfo2G); lfo2G.connect(mid.gain);
+  lfo2.start();
 }
 
 function blip(freq, endFreq, dur, type, vol, delay) {
@@ -256,12 +294,90 @@ const SFX = {
   stomp() { blip(300, 620, 0.12, "square", 0.15); blip(180, 120, 0.08, "triangle", 0.1); },
   talk()  { blip(700, 520, 0.05, "sine", 0.05); },
   oneUp() { [660, 880, 1175].forEach((f, i) => blip(f, f, 0.11, "triangle", 0.15, i * 0.07)); },
+  hurt()  { blip(300, 140, 0.16, "square", 0.13); },
+  bossWarn() { blip(90, 70, 0.5, "sine", 0.22); blip(180, 140, 0.5, "sine", 0.1); },
+  bossHit()  { [523, 784, 1047].forEach((f, i) => blip(f, f, 0.2, "triangle", 0.2, i * 0.06)); whoosh(0.3, 0.15, 500); },
+  bossHorn() { blip(220, 90, 0.25, "sawtooth", 0.16); },
   gameOver() { [392, 311, 233, 155].forEach((f, i) => blip(f, f * 0.9, 0.3, "sawtooth", 0.12, i * 0.22)); whoosh(0.8, 0.08, 180); },
   pop()   { blip(600, 150, 0.12, "square", 0.14); whoosh(0.08, 0.08, 900); },
   death() { blip(400, 60, 0.4, "sawtooth", 0.18); whoosh(0.25, 0.13, 250); },
   clear() { [523, 659, 784, 1047].forEach((f, i) => blip(f, f, 0.16, "triangle", 0.16, i * 0.09)); },
   win()   { [392, 523, 659, 784, 1047, 1319].forEach((f, i) => blip(f, f, 0.2, "triangle", 0.15, i * 0.11)); },
 };
+
+// ── Live leaderboard (Supabase REST) ───────────────────────────────────────
+// Fill in LB.url + LB.key to enable. Empty = leaderboard hidden, game unaffected.
+// Table "scores": id, created_at, name text, category text, time_ms int8.
+// RLS: allow anon INSERT and SELECT only.
+const LB = {
+  url: "https://kqodzsghumdqgpovlosq.supabase.co",
+  key: "sb_publishable_TRsn9kUJMD0xJ_MrPKNh0w_9sr9raSw",
+};
+const lbOn = () => !!(LB.url && LB.key);
+const LB_CACHE = { any: null, full: null };
+
+const fmtMs = ms => {
+  const t = Math.max(0, Math.round(ms / 100) / 10);
+  const m = Math.floor(t / 60);
+  const s2 = t - m * 60;
+  return m + ":" + (s2 < 10 ? "0" : "") + s2.toFixed(1);
+};
+
+async function lbFetch(cat) {
+  try {
+    const r = await fetch(LB.url + "/rest/v1/scores?category=eq." + cat +
+      "&select=name,time_ms&order=time_ms.asc&limit=6", {
+      headers: { apikey: LB.key, Authorization: "Bearer " + LB.key },
+    });
+    return r.ok ? await r.json() : null;
+  } catch (e) { return null; }
+}
+
+function lbRefresh() {
+  if (!lbOn()) return;
+  lbFetch("any").then(d => { if (d) LB_CACHE.any = d; });
+  lbFetch("full").then(d => { if (d) LB_CACHE.full = d; });
+}
+
+async function lbPost(name, cat, ms) {
+  try {
+    const r = await fetch(LB.url + "/rest/v1/scores", {
+      method: "POST",
+      headers: {
+        apikey: LB.key, Authorization: "Bearer " + LB.key,
+        "Content-Type": "application/json", Prefer: "return=minimal",
+      },
+      body: JSON.stringify({ name, category: cat, time_ms: ms }),
+    });
+    return r.ok;
+  } catch (e) { return false; }
+}
+
+// Name the real button for whatever the player is holding
+const dashBtnName = () => gp() ? "X" : TOUCH.active ? "the X button" : "SHIFT";
+const jumpBtnName = () => gp() ? "A" : TOUCH.active ? "the A button" : "SPACE";
+
+function submitScore() {
+  if (!lbOn()) { S.lbMsg = "Leaderboard offline"; return; }
+  if (S.score.lbDone) { S.lbMsg = "Already submitted"; return; }
+  let name = "";
+  try { name = localStorage.getItem("sd_name") || ""; } catch (e) {}
+  name = window.prompt("Name or @handle for the leaderboard:", name) || "";
+  name = name.trim().replace(/[^\w@.\- ]/g, "").slice(0, 20);
+  if (!name) return;
+  try { localStorage.setItem("sd_name", name); } catch (e) {}
+  const ms = Math.round(S.score.time * 1000);
+  const met = Object.keys(S.score.metNpcs).length;
+  const full = S.score.berries === S.score.total && S.score.secretMemory && met === TOTAL_NPCS;
+  S.score.lbDone = true;
+  S.lbMsg = "Submitting...";
+  Promise.all([lbPost(name, "any", ms), full ? lbPost(name, "full", ms) : Promise.resolve(true)])
+    .then(res => {
+      S.lbMsg = res[0] && res[1] ? (full ? "On both boards — FULL BLOOM!" : "On the board — any%") : "Submit failed, try again later";
+      if (!res[0]) S.score.lbDone = false;
+      lbRefresh();
+    });
+}
 
 // ── Input ──────────────────────────────────────────────────────────────────
 const keys = Object.create(null);
@@ -436,7 +552,7 @@ function buildLevel(w, h, fn) {
 const LEVELS = [
   {
     name: "THE HOLLOW", pal: 0,
-    map: buildLevel(72, 14, ({ set, rect, seg }) => {
+    map: buildLevel(96, 14, ({ set, rect, seg }) => {
       seg(0, 9, 10); seg(10, 13, 9); seg(14, 21, 8);
       seg(22, 24, 13); seg(25, 25, 12); seg(26, 26, 10);       // safe pit + stairs out
       seg(27, 33, 8);
@@ -444,10 +560,17 @@ const LEVELS = [
       seg(44, 52, 8);
       seg(53, 63, 13);
       for (let c = 54; c <= 62; c++) set(c, 12, "S");           // spike pit — the test
-      seg(64, 71, 8);
-      set(2, 9, "P"); set(28, 7, "C"); set(68, 6, "G");
-      set(5, 9, "B"); set(7, 9, "B"); set(19, 7, "B"); set(31, 7, "B");
-      set(45, 7, "B"); set(47, 4, "B"); set(65, 7, "B");
+      seg(64, 70, 8); set(66, 7, "C");
+      // The Splinters: single-tile stones over spikes — precision hops + one chain
+      seg(71, 84, 13);
+      for (let c = 72; c <= 83; c++) set(c, 12, "S");
+      rect(73, 9, 73, 9); rect(76, 7, 76, 7); rect(79, 9, 79, 9); rect(82, 6, 82, 6);
+      seg(85, 95, 8);
+      set(2, 9, "P"); set(28, 7, "C"); set(91, 6, "G");
+      set(5, 9, "B"); set(19, 7, "B"); set(31, 7, "B");
+      set(45, 7, "B"); set(47, 4, "B"); set(65, 7, "B"); set(88, 7, "B");
+      set(76, 4, "B");                                        // above the splinters
+      set(58, 11, "B");                                       // skim the spike pit mid-dash — grind bait
     }),
     clearText: "Far above, a single leaf uncurls.",
     npcs: [{
@@ -471,7 +594,7 @@ const LEVELS = [
   },
   {
     name: "ROTROOT CHASM", pal: 1,
-    map: buildLevel(96, 16, ({ set, rect, seg }) => {
+    map: buildLevel(120, 16, ({ set, rect, seg }) => {
       seg(0, 7, 12);
       seg(8, 20, 15); for (let c = 8; c <= 20; c++) set(c, 14, "S");
       seg(21, 28, 12);
@@ -484,14 +607,22 @@ const LEVELS = [
       seg(73, 88, 15); for (let c = 73; c <= 88; c++) set(c, 14, "S");
       rect(78, 11, 79, 15); set(78, 10, "S"); set(79, 10, "S"); // spike pillars
       rect(84, 11, 85, 15); set(84, 10, "S"); set(85, 10, "S");
-      seg(89, 95, 12);
-      set(2, 11, "P"); set(23, 11, "C"); set(41, 11, "C"); set(92, 10, "G");
-      set(5, 11, "B"); set(13, 8, "B"); set(16, 9, "B"); set(34, 3, "B");
-      set(55, 8, "B"); set(68, 11, "B"); set(91, 11, "B");
+      seg(89, 95, 12); set(91, 11, "C");
+      // The Rootspires: one-tile pillar tops over spikes, rising and falling
+      seg(96, 110, 15); for (let c = 97; c <= 109; c++) set(c, 14, "S");
+      rect(98, 11, 98, 14); rect(101, 9, 101, 14); rect(104, 11, 104, 14); rect(107, 8, 107, 14);
+      seg(111, 119, 12);
+      set(2, 11, "P"); set(23, 11, "C"); set(41, 11, "C"); set(115, 10, "G");
+      set(5, 11, "B"); set(8, 4, "B"); set(16, 9, "B"); set(34, 3, "B");
+      set(55, 8, "B"); set(68, 11, "B"); set(90, 11, "B"); set(113, 11, "B");
+      set(101, 8, "B");                                       // atop the tallest spire
+      set(103, 5, "f");
       set(29, 3, "B");                                        // atop the tall wall — bloom-climb prize
       set(25, 11, "e"); set(43, 11, "e");                     // first slugs
       set(51, 11, "f"); set(60, 11, "f");                     // chasm puffballs
+      set(51, 3, "B");                                        // high above the chasm — ride the shelf
     }),
+    movers: [{ c0: 50, c1: 52, rA: 13, rB: 6, period: 3.4, phase: 0 }],
     clearText: "The roots remember your name now.",
     npcs: [{
       c: 36, r: 3, name: "COMMANTHA", sprite: "dog",
@@ -514,28 +645,32 @@ const LEVELS = [
   },
   {
     name: "THE SPIRE", pal: 2,
-    map: buildLevel(30, 44, ({ set, rect, seg }) => {
-      rect(0, 0, 0, 43); rect(29, 0, 29, 43); rect(1, 42, 28, 43); // shaft walls + floor
-      rect(8, 37, 14, 37);
-      rect(18, 32, 24, 32);
-      rect(4, 27, 10, 27);
-      rect(14, 22, 20, 22);
-      rect(1, 18, 12, 18);                                      // spiked overhang — climb the gap
-      for (let c = 3; c <= 12; c++) set(c, 19, "S");
-      rect(22, 14, 27, 14);
-      rect(8, 9, 14, 9);
-      rect(12, 4, 18, 4);
-      set(1, 35, "S"); set(28, 30, "S"); set(1, 25, "S"); set(28, 12, "S");
-      set(3, 41, "P"); set(16, 21, "C"); set(15, 2, "G");
-      set(26, 41, "B"); set(7, 26, "B"); set(25, 13, "B"); set(11, 8, "B");
-      set(1, 7, "B");                                         // left-wall alcove — demands wall-cling loops
-      set(24, 13, "e");
-      set(11, 34, "f"); set(16, 29, "f");
+    map: buildLevel(30, 56, ({ set, rect, seg }) => {
+      rect(0, 0, 0, 55); rect(29, 0, 29, 55); rect(1, 54, 28, 55); // shaft walls + floor
+      rect(8, 49, 14, 49);
+      rect(20, 44, 23, 44);                                     // narrowed — commit to the jump
+      rect(5, 39, 8, 39);
+      rect(14, 34, 20, 34);
+      rect(1, 30, 12, 30);                                      // spiked overhang — climb the gap
+      for (let c = 3; c <= 12; c++) set(c, 31, "S");
+      rect(22, 26, 27, 26);
+      rect(8, 21, 14, 21);
+      rect(12, 16, 18, 16);
+      set(1, 47, "S"); set(28, 42, "S"); set(1, 37, "S"); set(28, 24, "S");
+      set(28, 18, "S"); set(1, 10, "S");                        // the upper shaft bites back
+      set(3, 53, "P"); set(16, 33, "C"); set(15, 14, "G");
+      set(26, 53, "B"); set(7, 38, "B"); set(25, 25, "B"); set(11, 20, "B");
+      set(1, 19, "B");                                        // left-wall alcove — demands wall-cling loops
+      set(24, 25, "e");
+      set(11, 46, "f"); set(16, 41, "f");
+      // Above the goal: 12 rows of "empty" dark shaft. Keep climbing the left
+      // wall and a bare ledge waits at the top — the crack in the map.
+      rect(1, 4, 6, 4);
     }),
     clearText: "Forty-two maps. Yours goes further.",
     unlockText: "NEW — Press into walls to cling. Jump to kick away.",
     npcs: [{
-      c: 19, r: 21, name: "THE CARTOGRAPHER", sprite: "moth",
+      c: 19, r: 33, name: "THE CARTOGRAPHER", sprite: "moth",
       lines: [
         "Hush — I'm mapping. Climb slower, you're smearing the ink.",
         "Your threads have thickened since the Hollow. The walls will hold you now. Briefly.",
@@ -546,7 +681,7 @@ const LEVELS = [
   },
   {
     name: "MYCEL GARDENS", pal: 3,
-    map: buildLevel(104, 18, ({ set, rect, seg }) => {
+    map: buildLevel(128, 18, ({ set, rect, seg }) => {
       seg(0, 7, 12);
       seg(8, 11, 13); seg(12, 15, 14);                        // descending steps
       seg(16, 23, 14);
@@ -559,16 +694,24 @@ const LEVELS = [
       rect(71, 7, 84, 8); for (let c = 72; c <= 83; c++) set(c, 9, "S"); // spiked-ceiling corridor
       seg(71, 84, 14);
       seg(85, 88, 12); seg(89, 95, 10);
-      seg(96, 103, 10);
-      set(2, 11, "P"); set(34, 12, "C"); set(66, 12, "C"); set(100, 8, "G");
-      set(5, 11, "B"); set(28, 11, "B"); set(37, 12, "B"); set(43, 8, "B");
+      seg(96, 102, 10); set(99, 9, "C");
+      // The Drift: scattered stones over spikes — glide is the way
+      seg(103, 118, 17); for (let c = 104; c <= 117; c++) set(c, 16, "S");
+      rect(105, 12, 106, 12); rect(109, 9, 109, 9); rect(112, 12, 113, 12); rect(116, 8, 116, 8);
+      seg(119, 127, 10);
+      set(77, 9, "."); set(77, 8, "B");                       // one-tile gap in the spiked ceiling — thread it
+      set(109, 6, "B"); set(121, 9, "B"); set(111, 11, "f");
+      set(2, 11, "P"); set(34, 12, "C"); set(66, 12, "C"); set(123, 8, "G");
+      set(5, 11, "B"); set(28, 11, "B"); set(43, 8, "B");
       set(48, 5, "B"); set(91, 9, "B");
       set(57, 14, "B");                                       // deep in the spike chasm — glide dip
       set(10, 12, "e"); set(20, 13, "e"); set(45, 12, "e");
       set(44, 8, "e"); set(50, 5, "E");                       // fast slug debuts
       set(75, 13, "e"); set(80, 13, "e");
       set(27, 12, "f"); set(56, 11, "f"); set(60, 13, "f"); set(94, 7, "f");
+      set(27, 7, "B");                                        // shelf-ride prize over the first chasm
     }),
+    movers: [{ c0: 26, c1: 28, rA: 15, rB: 10, period: 3.2, phase: 0 }],
     clearText: "The garden hums as you pass. Politely.",
     unlockText: "NEW — Hold Jump while falling to open your cap.",
     npcs: [{
@@ -586,8 +729,8 @@ const LEVELS = [
     name: "THE BLOOMHEART", pal: 4,
     map: buildLevel(56, 34, ({ set, rect, seg }) => {
       rect(0, 0, 0, 33); rect(55, 0, 55, 33); rect(1, 31, 54, 33); // chamber walls + floor
-      for (let c = 26; c <= 29; c++) set(c, 30, "S");
-      rect(32, 27, 38, 27);
+      for (let c = 26; c <= 31; c++) set(c, 30, "S");
+      rect(34, 27, 37, 27);                                     // narrowed first ledge
       rect(42, 24, 48, 24);
       rect(20, 20, 28, 20);
       rect(8, 16, 14, 16);
@@ -596,9 +739,13 @@ const LEVELS = [
       rect(36, 9, 42, 9);
       rect(24, 5, 30, 5);
       rect(12, 3, 20, 3);
+      rect(32, 4, 32, 10); rect(35, 4, 35, 10);               // grip practice: twin walls before the throat
+      set(33, 5, "B");
       set(3, 30, "P"); set(45, 23, "C"); set(39, 8, "C"); set(16, 1, "G");
       set(50, 30, "B"); set(11, 15, "B"); set(49, 12, "B"); set(27, 4, "B"); set(52, 28, "B");
       set(54, 18, "B");                                       // right-wall shaft — cling on the skip route
+      set(50, 6, "B");                                        // high in the open shaft — spore-limited chain
+      set(54, 15, "S"); set(54, 25, "S");                       // the skip route bites
       set(12, 30, "e"); set(20, 30, "E"); set(24, 19, "E");
       set(35, 24, "f"); set(17, 13, "f");
       set(40, 19, "w"); set(34, 11, "w"); set(20, 4, "w");
@@ -612,6 +759,27 @@ const LEVELS = [
         "Set them free, and go up. She's been waiting for one of us.",
       ],
     }],
+  },
+  {
+    name: "THE MOTHER'S THROAT", pal: 5, boss: true,
+    movers: [
+      { c0: 24, c1: 27, rA: 18, rB: 6, period: 3.2, phase: 0 },   // elevators flank the boss
+      { c0: 36, c1: 39, rA: 18, rB: 6, period: 3.2, phase: 0.5 },
+    ],
+    map: buildLevel(64, 24, ({ set, rect }) => {
+      rect(0, 0, 0, 23); rect(63, 0, 63, 23);                 // shaft walls
+      rect(1, 21, 62, 23);                                    // arena floor
+      set(4, 20, "P");
+    }),
+  },
+  {
+    name: "THE UNDRAWN MAP", pal: 6, secret: true,
+    map: buildLevel(24, 14, ({ set, rect }) => {
+      rect(0, 0, 23, 0); rect(0, 0, 0, 13); rect(23, 0, 23, 13);
+      rect(0, 12, 23, 13);
+      rect(4, 9, 7, 9); rect(16, 9, 19, 9);                   // quiet terraces
+      set(2, 10, "P"); set(11, 11, "M");
+    }),
   },
 ];
 
@@ -672,6 +840,17 @@ const NPC_H = { keeper: 14, twins: 10, moth: 10, granny: 14, echo: 12, grel: 14,
 // ── State ──────────────────────────────────────────────────────────────────
 let LEVEL = [], ROWS = 0, COLS = 0, WORLD_W = 0, WORLD_H = 0, PAL = PALS[0];
 let DECOR = [], SPORES = [], SPIKES = [], STATIC_LIGHTS = [], ENEMY_SPAWNS = [];
+const REUNION_SPRITES = { "BARNABY": "keeper", "GREL": "grel", "COMMANTHA": "dog", "THE TWINS": "twins", "THE CARTOGRAPHER": "moth", "GRANNY MOREL": "granny", "THE ECHO": "echo" };
+const REUNION_LINES = {
+  "BARNABY": "I told you to dash bold. Never thought you'd carry the dark home with you.",
+  "GREL": "Everyone falls in eventually. You found the way back up.",
+  "COMMANTHA": "Final entry: 'The climber reached the top. Good grip. Would follow anywhere.'",
+  "THE TWINS": "Ooh, sister — look. The garden is breathing again.",
+  "THE CARTOGRAPHER": "No end drawn. Just an opening.",
+  "GRANNY MOREL": "Eat a berry, dear. You've earned the sweet part.",
+  "THE ECHO": "Oh. You came back for the ones who didn't.",
+};
+const CARTOGRAPHER_SECRET_LINE = "You found the margin. That's where the map was hiding.";
 let terrainCv = null, skyCv = null, farCv = null, midCv = null;
 
 const S = {
@@ -679,6 +858,8 @@ const S = {
   berries: 0, berriesTotal: 0,
   berryList: [], checkpoints: [], blooms: [], particles: [], trail: [], enemies: [],
   npcs: [], talk: null,
+  movers: [], boss: null, memoryObj: null, memoryBeat: 0, spireSave: null, secretCd: 0,
+  endT: 0, endBeat: 0, reunion: null, creditsT: 0, glow: 0, endBoom: false,
   goal: null, player: null,
   spawn: { x: 0, y: 0 }, checkPt: { x: 0, y: 0 },
   camX: 0, camY: 0,
@@ -689,7 +870,7 @@ const S = {
   devLevel: 0, devInf: false, devAx: 0, devAy: 0,
   jumpHeldForCut: false,
   lives: START_LIVES,
-  score: { berries: 0, total: 0, deaths: 0, time: 0, freed: 0, pickups: 0, metNpcs: {} },
+  score: { berries: 0, total: 0, deaths: 0, time: 0, freed: 0, pickups: 0, secretMemory: false, metNpcs: {} },
 };
 const TOTAL_NPCS = LEVELS.reduce((a, L) => a + (L.npcs ? L.npcs.length : 0), 0);
 
@@ -726,6 +907,21 @@ function loadLevel(idx) {
   S.shakeT = 0; S.freezeT = 0; S.jumpHeldForCut = false;
   S.bannerT = L.unlockText ? 3.6 : 2.4;
   SPIKES = []; STATIC_LIGHTS = []; DECOR = []; SPORES = []; ENEMY_SPAWNS = [];
+  S.memoryObj = null; S.boss = null;
+  S.movers = (L.movers || []).map(m => ({
+    x: m.c0 * TILE, w: (m.c1 - m.c0 + 1) * TILE,
+    yA: m.rA * TILE, yB: m.rB * TILE,
+    period: m.period, phase: m.phase || 0, shift: 0,
+    y: m.rA * TILE,
+  }));
+  if (L.boss) {
+    S.boss = {
+      state: "intro", t: 0, pips: 3,
+      x: 31.5 * TILE, y: 6 * TILE, homeY: 6 * TILE,
+      arm: null, shots: [], bolts: [], lanes: [], windowHint: false,
+      floorPulseT: 0, capFlash: 0,
+    };
+  }
   S.talk = null;
   S.npcs = (L.npcs || []).map(n => ({
     ...n,
@@ -755,6 +951,8 @@ function loadLevel(idx) {
         else if (isSolid(tileAt(x - 1, y))) dir = "right";
         else if (isSolid(tileAt(x + 1, y))) dir = "left";
         SPIKES.push({ tx: x, ty: y, dir });
+      } else if (ch === "M") {
+        S.memoryObj = { x: px + 1, y: py, w: 14, h: 16 };
       } else if (ch === "e" || ch === "E") {
         ENEMY_SPAWNS.push({ t: "slug", x: px + 2, y: py + TILE - 8, fast: ch === "E" });
       } else if (ch === "f") {
@@ -990,6 +1188,9 @@ function solidsNear(x, y, w, h) {
     if (b.life > BLOOM_WILT * 0.3)
       out.push({ x: b.x, y: b.y, w: b.w, h: b.h, oneWay: true });
   }
+  for (const m of S.movers) {
+    out.push({ x: m.x, y: m.y, w: m.w, h: 8, oneWay: true, mover: true });
+  }
   return out;
 }
 
@@ -1030,9 +1231,9 @@ function moveAxis(p, dx, dy) {
         p.y = r.y - p.h;
         p.vy = 0;
         p.grounded = true;
-        // Only REAL ground refreshes the dash and refills spores — landing on
-        // your own bloom does not; you must jump off it to keep chaining
-        if (!r.oneWay) { p.canDash = true; p.spores = MAX_SPORES; }
+        // Only REAL ground (incl. moving shelves) refreshes the dash and
+        // refills spores — landing on your own bloom does not
+        if (!r.oneWay || r.mover) { p.canDash = true; p.spores = MAX_SPORES; }
         p.coyote = COYOTE;
         if (p.dashing) endDash(p);
       } else {
@@ -1073,9 +1274,9 @@ function touchingWallDir(p) {
 }
 
 function onRealGround(p) {
-  const probe = { x: p.x + 1, y: p.y + p.h, w: p.w - 2, h: 2 };
+  const probe = { x: p.x + 1, y: p.y + p.h, w: p.w - 2, h: 3 };
   for (const r of solidsNear(probe.x, probe.y, probe.w, probe.h)) {
-    if (r.oneWay) continue;
+    if (r.oneWay && !r.mover) continue;
     if (overlap(probe, r)) return true;
   }
   return false;
@@ -1177,9 +1378,45 @@ function updateEnemies(dt) {
     }
     const eb = { x: e.x + 2, y: e.y + 2, w: e.w - 4, h: e.h - 4 };
     const pb = { x: p.x + 2, y: p.y + 2, w: p.w - 4, h: p.h - 4 };
-    if (p.invuln <= 0 && overlap(pb, eb)) killPlayer();
+    if (p.invuln <= 0 && overlap(pb, eb)) hurtPlayer(e.x + e.w / 2);
   }
   S.enemies = S.enemies.filter(e => !e.dead);
+}
+
+// ── Moving platforms (fungal shelves / boss elevators) ─────────────────────
+function updateMovers(dt) {
+  const p = S.player;
+  for (const m of S.movers) {
+    const prevY = m.y;
+    const u = S.time / m.period + m.phase + (m.shift || 0);
+    m.y = m.yA + (m.yB - m.yA) * tri(u);
+    const dy = m.y - prevY;
+    if (p && !p.dashing && p.vy >= 0 &&
+        p.y + p.h >= prevY - 2 && p.y + p.h <= prevY + 3 &&
+        p.x + p.w > m.x && p.x < m.x + m.w) {
+      p.y += dy;
+      p.grounded = true;
+    }
+  }
+}
+
+function drawMovers() {
+  for (const m of S.movers) {
+    const x = Math.round(m.x), y = Math.round(m.y);
+    g.fillStyle = C.bloomStem;
+    g.fillRect(x + m.w / 2 - 2, y + 3, 4, 5);
+    g.fillStyle = rgb(PAL.rockHi);
+    g.fillRect(x, y, m.w, 4);
+    g.fillStyle = rgb(PAL.mossHi);
+    g.fillRect(x, y, m.w, 1);
+    g.fillStyle = rgb(PAL.rockLo);
+    g.fillRect(x + 2, y + 4, m.w - 4, 2);
+    g.fillStyle = rgb(PAL.accent);
+    g.globalAlpha = 0.5 + Math.sin(S.time * 3 + m.x) * 0.2;
+    g.fillRect(x + 3, y + 1, 2, 2);
+    g.fillRect(x + m.w - 5, y + 1, 2, 2);
+    g.globalAlpha = 1;
+  }
 }
 
 function spawnBloom(p) {
@@ -1282,12 +1519,265 @@ function doJump(p) {
   }
 }
 
+// ── Secret room (THE UNDRAWN MAP) ──────────────────────────────────────────
+function enterSecret() {
+  S.spireSave = {
+    berries: S.berries,
+    taken: S.berryList.map(b => b.taken),
+    checkPt: { ...S.checkPt },
+  };
+  loadLevel(6);
+  S.mode = "play";
+  SFX.check();
+}
+
+function exitSecret() {
+  const sv = S.spireSave;
+  loadLevel(2);
+  if (sv) {
+    S.berries = sv.berries;
+    S.berryList.forEach((b, i) => { b.taken = sv.taken[i]; });
+    S.checkPt = sv.checkPt;
+    S.spireSave = null;
+  }
+  S.bannerT = 0;
+  S.secretCd = 1.5;
+  const p = S.player;
+  p.x = 5.5 * TILE; p.y = 4 * TILE - p.h;   // east end of the ledge, outside the crack
+  p.vx = 0; p.vy = 0; p.invuln = 1;
+  S.camX = clamp(p.x - W / 2, 0, Math.max(0, WORLD_W - W));
+  S.camY = clamp(p.y - H / 2, 0, Math.max(0, WORLD_H - H));
+  S.mode = "play";
+}
+
+// ── Boss: The Unbloomed ────────────────────────────────────────────────────
+function bossPhase(b) { return 4 - b.pips; } // 1, 2, 3
+
+function bossStartAttack(b) {
+  const phase = bossPhase(b);
+  b.boltN = 0;
+  b.boltT = 0.3;
+  // The root sweep only joins from phase 2 — phase 1 teaches the landing
+  if (phase >= 2) {
+    const fromLeft = phase === 3 ? (b.sweepSide = !b.sweepSide) : Math.random() < 0.5;
+    b.arm = {
+      x: fromLeft ? 2 * TILE : 60 * TILE, dir: fromLeft ? 1 : -1,
+      y: 20 * TILE - 26, w: 28, h: 26, warm: BOSS.WARN,
+    };
+    b.lanes = [16 * TILE, 31.5 * TILE, 47 * TILE].map(x => x + (Math.random() - 0.5) * 30);
+    b.rainT = 0; b.rainN = 0;
+  }
+}
+
+function bossLanded(b) {
+  const p = S.player;
+  b.pips--;
+  b.capFlash = 0;
+  p.vy = -260; p.invuln = 1.5; p.canDash = true; p.spores = MAX_SPORES;
+  S.shakeT = 0.25; S.shakeMag = 3;
+  S.freezeT = 0.1;
+  SFX.bossHit();
+  for (let i = 0; i < 24; i++) {
+    const a = Math.random() * Math.PI * 2;
+    burst(b.x, b.y - 14, Math.cos(a) * 110, Math.sin(a) * 110 - 30, 0.7,
+      i & 1 ? rgb(PAL.accent) : C.bloomHi, 2);
+  }
+  if (b.pips <= 0) {
+    b.state = "defeated"; b.t = 0;
+    b.arm = null; b.shots = []; b.bolts = [];
+    startEnding();
+  } else {
+    b.state = "recover"; b.t = 0;
+    if (b.pips === 2) S.movers.forEach((m, i) => { m.shift += 0.45 + i * 0.15; });
+  }
+}
+
+function updateBoss(dt) {
+  const b = S.boss, p = S.player;
+  if (!b || b.state === "defeated") return;
+  b.t += dt;
+  b.capFlash = Math.max(0, b.capFlash - dt);
+  const phase = bossPhase(b);
+  const openY = b.homeY - (phase === 3 ? 12 : 0);
+
+  if (b.state === "intro") {
+    if (b.t > 2.2) { b.state = "warn"; b.t = 0; SFX.bossWarn(); }
+  } else if (b.state === "warn") {
+    if (Math.random() < 0.3)
+      burst(b.x + (Math.random() - 0.5) * 60, b.y - 10, (Math.random() - 0.5) * 30, -20, 0.4, "#f0a060", 2);
+    if (b.t > BOSS.WARN) { b.state = "attack"; b.t = 0; bossStartAttack(b); }
+  } else if (b.state === "attack") {
+    // Aimed spore bolts — dodge them, you can't stand on them
+    const nBolts = phase === 3 ? 4 : 3;
+    if (b.boltN < nBolts) {
+      b.boltT -= dt;
+      if (b.boltT <= 0) {
+        b.boltT = phase === 3 ? 0.45 : 0.55;
+        b.boltN++;
+        const ox = b.x, oy = b.y - 6;
+        const dx = (p.x + 5) - ox, dy = (p.y + 5) - oy;
+        const d = Math.hypot(dx, dy) || 1;
+        b.bolts.push({ x: ox - 4, y: oy - 4, vx: dx / d * BOSS.BOLT_V, vy: dy / d * BOSS.BOLT_V, w: 8, h: 8 });
+        blip(520, 220, 0.1, "sawtooth", 0.1);
+        for (let i = 0; i < 4; i++)
+          burst(ox, oy, (Math.random() - 0.5) * 40, (Math.random() - 0.5) * 40, 0.25, "#f06080", 2);
+      }
+    }
+    if (b.t > BOSS.ATTACK) {
+      b.state = "rise"; b.t = 0;
+      if (phase === 3) [0, 0.28, 0.56].forEach(d => blip(392, 392, 0.12, "triangle", 0.16, d));
+    }
+  } else if (b.state === "rise") {
+    b.y += (openY - b.y) * Math.min(1, dt * 4);
+    if (b.t > BOSS.RISE) { b.state = "open"; b.t = 0; blip(880, 1175, 0.3, "sine", 0.14); }
+  } else if (b.state === "open") {
+    if (!b.windowHint) {
+      b.windowHint = true;
+      S.hint = { text: "Hold Jump — drift down onto the open crown.", t: 4 };
+    }
+    if (b.t > BOSS.OPEN[3 - b.pips]) { b.state = "recover"; b.t = 0; b.capFlash = 0.4; }
+  } else if (b.state === "recover") {
+    b.y += (b.homeY - b.y) * Math.min(1, dt * 3);
+    if (b.t > BOSS.RECOVER) { b.state = "warn"; b.t = 0; SFX.bossWarn(); }
+  }
+
+  // Root sweep
+  if (b.arm) {
+    const a = b.arm;
+    if (a.warm > 0) {
+      a.warm -= dt;
+      if (Math.random() < 0.5)
+        burst(a.x + 14, a.y + 10, (Math.random() - 0.5) * 20, -30 - Math.random() * 30, 0.35, "#f0a060", 2);
+    } else {
+      a.x += a.dir * BOSS.SWEEP_V * dt;
+      if (Math.random() < 0.4)
+        burst(a.x + 14, a.y + a.h, (Math.random() - 0.5) * 30, 10, 0.3, rgb(PAL.mossHi), 1);
+      if (overlap(p, a)) hurtPlayer(a.x + 14);
+      if (a.x < 1 * TILE || a.x > 61 * TILE) b.arm = null;
+    }
+  }
+
+  // Spore rain (phase 2+)
+  if (phase >= 2 && b.lanes.length && b.rainN < 9 && b.state !== "open") {
+    b.rainT -= dt;
+    if (b.rainT <= 0) {
+      b.rainT = 0.55;
+      const lane = b.lanes[b.rainN % 3];
+      b.shots.push({ x: lane, y: 2 * TILE, w: 8, h: 8 });
+      burst(lane + 4, 2 * TILE, 0, 20, 0.4, "#f06080", 2);
+      b.rainN++;
+    }
+  }
+  for (const sh of b.shots) {
+    sh.y += BOSS.RAIN_V * dt;
+    if (overlap(p, sh)) { hurtPlayer(sh.x + 4); sh.dead = true; }
+    if (sh.y > 21 * TILE - 8) {
+      sh.dead = true;
+      for (let i = 0; i < 4; i++) burst(sh.x + 4, sh.y + 6, (Math.random() - 0.5) * 40, -20, 0.3, "#f06080", 1);
+    }
+  }
+  b.shots = b.shots.filter(sh => !sh.dead);
+
+  // Aimed bolts — pure dodge hazards
+  for (const bo of b.bolts) {
+    bo.x += bo.vx * dt;
+    bo.y += bo.vy * dt;
+    if (Math.random() < 0.4)
+      burst(bo.x + 4, bo.y + 4, (Math.random() - 0.5) * 15, (Math.random() - 0.5) * 15, 0.2, "#f06080", 1);
+    if (overlap(p, bo)) { hurtPlayer(bo.x + 4); bo.dead = true; }
+    if (isSolid(tileAt(Math.floor((bo.x + 4) / TILE), Math.floor((bo.y + 4) / TILE))) ||
+        bo.x < -16 || bo.x > WORLD_W + 16 || bo.y < -16 || bo.y > WORLD_H + 16) {
+      bo.dead = true;
+      for (let i = 0; i < 4; i++)
+        burst(bo.x + 4, bo.y + 4, (Math.random() - 0.5) * 50, (Math.random() - 0.5) * 50, 0.25, "#f06080", 1);
+    }
+  }
+  b.bolts = b.bolts.filter(bo => !bo.dead);
+
+  // Phase 3: the center floor pulses hazardous
+  if (phase === 3) {
+    b.floorPulseT += dt;
+    const cyc = b.floorPulseT % 3.2;
+    if (cyc > 2.2 && cyc < 3.0) {
+      if (Math.random() < 0.5)
+        burst(20 * TILE + Math.random() * 24 * TILE, 21 * TILE, 0, -30 - Math.random() * 40, 0.3, "#f06080", 1);
+      if (p.grounded && p.x > 20 * TILE && p.x < 44 * TILE && p.y + p.h > 20.5 * TILE)
+        hurtPlayer(p.x + 5 + (Math.random() < 0.5 ? 30 : -30));
+    } else if (cyc > 1.6 && cyc <= 2.2 && Math.random() < 0.3) {
+      burst(20 * TILE + Math.random() * 24 * TILE, 21 * TILE, 0, -15, 0.4, "#f0a060", 1);
+    }
+  }
+
+  // Cap contact
+  const capTop = { x: b.x - BOSS.CAP_W / 2 + 6, y: b.y - BOSS.CAP_H - 8, w: BOSS.CAP_W - 12, h: 12 };
+  const capBox = { x: b.x - BOSS.CAP_W / 2, y: b.y - BOSS.CAP_H, w: BOSS.CAP_W, h: BOSS.CAP_H + 6 };
+  if (p.vy > 0 && overlap(p, capTop)) {
+    if (b.state === "open") {
+      bossLanded(b);
+    } else if (p.invuln <= 0) {
+      b.capFlash = 0.5;
+      SFX.bossHorn();
+      hurtPlayer(p.x + 5 + (p.x + 5 < b.x ? 60 : -60));
+      p.vy = -220;
+    }
+  } else if (overlap(p, capBox)) {
+    if (p.dashing) { endDash(p); p.vx = (p.x + 5 < b.x ? -1 : 1) * 140; p.vy = -100; }
+    else if (p.invuln <= 0) hurtPlayer(b.x);
+  }
+}
+
+// ── Ending: freed flower → reunion → credits ───────────────────────────────
+function startEnding() {
+  S.mode = "freed";
+  S.endT = 0; S.endBeat = 0;
+  S.glow = 0; S.endBoom = false;
+  S.talk = null;
+  S.shakeT = 0.8; S.shakeMag = 2;   // a short tremble, then the bloom
+  SFX.clear();
+}
+
+function fastForwardEnding() {
+  S.endT = Math.max(S.endT, 6.4);
+  S.endBoom = true;
+  S.glow = 0.25;
+  S.endBeat = 2;
+  S.shakeT = 0;
+  if (S.boss) S.boss.y = 21 * TILE - 24;
+}
+
+function startReunion() {
+  const names = Object.keys(S.score.metNpcs).filter(n => REUNION_LINES[n]);
+  if (!names.length) { S.mode = "credits"; S.creditsT = 0; SFX.win(); return; }
+  S.reunion = { names, idx: -1, t: 2.2, actors: [] };
+  S.npcs = [];
+  S.mode = "reunion";
+}
+
 function gainLife(msg) {
   if (S.lives < MAX_LIVES) {
     S.lives++;
     S.hint = { text: msg || "A new spark kindles. +1 life.", t: 2.5 };
   }
   SFX.oneUp();
+}
+
+// Getting hit knocks you back and costs a spark. No checkpoint teleport —
+// unless it was your last spark, in which case the hit is the death.
+function hurtPlayer(sx) {
+  const p = S.player;
+  if (p.invuln > 0) return;
+  if (!(DEV && S.devInf) && S.lives <= 1) { killPlayer(); return; }   // the killing blow
+  if (!(DEV && S.devInf)) S.lives--;
+  p.invuln = 1.2;
+  p.vx = (p.x + p.w / 2 < sx ? -1 : 1) * 170;
+  p.vy = -170;
+  p.wjLock = 0.2;
+  p.dashing = false; p.dashT = 0;
+  S.shakeT = 0.12; S.shakeMag = 2;
+  SFX.hurt();
+  for (let i = 0; i < 8; i++) {
+    burst(p.x + 5, p.y + 5, (Math.random() - 0.5) * 90, -20 - Math.random() * 40, 0.35, C.berryHi, 1);
+  }
 }
 
 function killPlayer() {
@@ -1349,7 +1839,7 @@ function tick(dt) {
       S.devAx = inp.ax; S.devAy = inp.ay;
     }
     if (inp.startEdge || inp.jumpEdge || inp.dashEdge) {
-      S.score = { berries: 0, total: 0, deaths: 0, time: 0, freed: 0, pickups: 0, metNpcs: {} };
+      S.score = { berries: 0, total: 0, deaths: 0, time: 0, freed: 0, pickups: 0, secretMemory: false, metNpcs: {} };
       S.lives = START_LIVES;
       S.wispHinted = false; S.hint = null;
       loadLevel(DEV ? S.devLevel : 0);
@@ -1362,6 +1852,116 @@ function tick(dt) {
   if (S.mode === "gameover") {
     updateParticles(dt);
     if (inp.jumpEdge) S.mode = "title";
+    clearJust();
+    return;
+  }
+
+  if (S.mode === "freed") {
+    S.endT += dt;
+    const p = S.player, b = S.boss;
+    p.vy = Math.min(p.vy + GRAVITY * dt, MAX_FALL);
+    p.grounded = false;
+    moveAxis(p, 0, p.vy * dt);
+    if (b) b.y += ((21 * TILE - 24) - b.y) * Math.min(1, dt * 2.5);
+    // The floral explosion
+    if (S.endT > 0.8 && !S.endBoom) {
+      S.endBoom = true;
+      SFX.bloom(); SFX.win();
+      S.shakeT = 0.2; S.shakeMag = 3;
+      const petals = ["#d8a8b8", "#f0d0da", "#8fb08a", "#c8d8c0", rgb(PAL.accent), "#fff8dc"];
+      for (let i = 0; i < 46; i++) {
+        const a = Math.random() * Math.PI * 2;
+        const sp = 60 + Math.random() * 160;
+        burst(b.x, b.y - 14, Math.cos(a) * sp, Math.sin(a) * sp - 40, 0.9 + Math.random() * 0.8,
+          petals[i % petals.length], 2 + (Math.random() * 2 | 0));
+      }
+    }
+    // Light pours out and fills the screen, then settles to a warm haze
+    if (S.endBoom) {
+      const gt = S.endT - 0.8;
+      S.glow = gt < 0.8 ? Math.min(1, gt / 0.8) : Math.max(0.25, 1 - (gt - 0.8) * 0.7);
+      if (Math.random() < 0.4)
+        burst(b.x + (Math.random() - 0.5) * 90, b.y - 20, (Math.random() - 0.5) * 20, -40 - Math.random() * 40, 1.4, rgb(PAL.accent), 2);
+    }
+    // A gentle 3-second tremble that fades out, then stillness
+    if (S.endT < 3) {
+      S.shakeT = 0.1;
+      S.shakeMag = 1.8 * (1 - S.endT / 3);
+    } else {
+      S.shakeT = 0;
+    }
+    if (S.endT > 1.8 && S.endBeat === 0) S.endBeat = 1;
+    if (S.endT > 3.2 && S.endBeat === 1) S.endBeat = 2;
+    if (inp.jumpEdge) { fastForwardEnding(); startReunion(); clearJust(); return; }
+    if (S.endT > 5.2) startReunion();
+    S.camX += (clamp(b.x - W / 2, 0, WORLD_W - W) - S.camX) * Math.min(1, dt * 2);
+    S.camY += (Math.max(0, WORLD_H - H) - S.camY) * Math.min(1, dt * 2);
+    updateParticles(dt);
+    clearJust();
+    return;
+  }
+
+  if (S.mode === "reunion") {
+    const r = S.reunion;
+    S.shakeT = 0;
+    if (inp.jumpEdge) {
+      fastForwardEnding();
+      S.talk = null;
+      S.mode = "credits"; S.creditsT = 0; SFX.win();
+      clearJust();
+      return;
+    }
+    r.t += dt;
+    if (S.talk) S.talk.t += dt;
+    // spirits drift gently
+    for (const a of r.actors) a.y = a.baseY + Math.sin(S.time * 1.4 + a.ph) * 4;
+    // linger on the full group before the credits
+    const wait = r.idx >= r.names.length - 1 ? 5.0 : 3.6;
+    if (r.t > wait) {
+      r.t = 0;
+      r.idx++;
+      if (r.idx >= r.names.length) {
+        S.mode = "credits"; S.creditsT = 0; SFX.win();
+        clearJust();
+        return;
+      }
+      const name = r.names[r.idx];
+      const sprite = REUNION_SPRITES[name];
+      // floating in an arc above the player, front and center
+      const arc = [[-40, -6], [42, -6], [-80, 8], [82, 8], [0, -22], [-120, 20], [122, 20]][r.idx] || [0, -40];
+      const line = (name === "THE CARTOGRAPHER" && S.score.secretMemory)
+        ? CARTOGRAPHER_SECRET_LINE : REUNION_LINES[name];
+      const actor = {
+        name, sprite, lines: [line], big: true,
+        x: S.player.x + arc[0],
+        baseY: 21 * TILE - 96 + arc[1],
+        y: 21 * TILE - 96 + arc[1],
+        ph: Math.random() * 6, c: 0, r: 0,
+      };
+      r.actors.push(actor);
+      S.npcs = r.actors;
+      S.talk = { npc: actor, line: 0, t: 0 };
+      SFX.talk();
+      for (let i = 0; i < 10; i++)
+        burst(actor.x + 6, actor.y + 8, (Math.random() - 0.5) * 60, (Math.random() - 0.5) * 50, 0.6, rgb(PAL.accent), 2);
+    }
+    updateParticles(dt);
+    clearJust();
+    return;
+  }
+
+  if (S.mode === "credits") {
+    S.shakeT = 0;
+    S.creditsT += dt;
+    if (S.reunion)
+      for (const a of S.reunion.actors) a.y = a.baseY + Math.sin(S.time * 1.4 + a.ph) * 4;
+    updateParticles(dt);
+    if (inp.jumpEdge || S.creditsT > 17) {
+      S.mode = "win";
+      S.lbMsg = "";
+      S.lbConfirm = false;
+      lbRefresh();
+    }
     clearJust();
     return;
   }
@@ -1385,7 +1985,16 @@ function tick(dt) {
 
   if (S.mode === "win") {
     updateParticles(dt);
-    if (inp.jumpEdge) S.mode = "title";
+    if (inp.dashEdge) {
+      if (!lbOn()) S.lbMsg = "Leaderboard offline";
+      else if (S.score.lbDone) S.lbMsg = "Already submitted";
+      else if (!S.lbConfirm) S.lbConfirm = true;   // are you sure?
+      else { S.lbConfirm = false; submitScore(); }
+    }
+    if (inp.jumpEdge) {
+      if (S.lbConfirm) S.lbConfirm = false;        // cancel, stay on this screen
+      else S.mode = "title";
+    }
     clearJust();
     return;
   }
@@ -1412,7 +2021,7 @@ function tick(dt) {
         loadLevel(S.levelIdx);
         S.mode = "play";
       } else if (S.pauseSel === 2) {
-        S.score = { berries: 0, total: 0, deaths: 0, time: 0, freed: 0, pickups: 0, metNpcs: {} };
+        S.score = { berries: 0, total: 0, deaths: 0, time: 0, freed: 0, pickups: 0, secretMemory: false, metNpcs: {} };
         S.lives = START_LIVES;
         S.wispHinted = false; S.hint = null;
         loadLevel(0);
@@ -1452,6 +2061,8 @@ function tick(dt) {
     clearJust();
     return;
   }
+
+  updateMovers(dt);
 
   const p = S.player;
   const wasGrounded = p.grounded;
@@ -1606,6 +2217,25 @@ function tick(dt) {
   }
 
   updateEnemies(dt);
+  if (S.boss) updateBoss(dt);
+  if (S.mode !== "play") { clearJust(); return; }   // boss landing may have started the ending
+
+  // The crack in the map (Spire) and the quiet way back out
+  if (S.secretCd > 0) S.secretCd -= dt;
+  if (S.levelIdx === 2 && S.secretCd <= 0 && p.y + p.h < 5 * TILE && p.x < 64) { enterSecret(); clearJust(); return; }
+  if (LEVELS[S.levelIdx].secret && p.x > 21 * TILE) { exitSecret(); clearJust(); return; }
+
+  // The First Map
+  if (S.memoryObj && !S.score.secretMemory && overlap(p, S.memoryObj)) {
+    S.score.secretMemory = true;
+    S.memoryBeat = 5;
+    SFX.check(); SFX.oneUp();
+    for (let i = 0; i < 18; i++) {
+      const a = Math.random() * Math.PI * 2;
+      burst(S.memoryObj.x + 7, S.memoryObj.y + 8, Math.cos(a) * 60, Math.sin(a) * 60 - 20, 0.8, rgb(PAL.accent), 2);
+    }
+  }
+  if (S.memoryBeat > 0) S.memoryBeat -= dt;
 
   // NPC dialogue — ambient, proximity-based, never blocks play
   let nearNpc = null;
@@ -1717,8 +2347,12 @@ function draw() {
   drawBlooms();
   drawCheckpoints();
   drawBerries();
+  drawMovers();
+  drawDoors();
+  drawMemory();
   drawNPCs();
   drawEnemies();
+  drawBoss();
   drawGoal();
   drawTrail();
   if (S.mode !== "dead") drawPlayer();
@@ -1727,9 +2361,10 @@ function draw() {
 
   drawLighting(ox, oy);
   drawForeground();
-  drawHUD();
+  if (S.mode !== "credits") drawHUD();
   drawTalk();
   drawBanner();
+  drawEndOverlay();
 
   if (S.mode === "pause") {
     g.fillStyle = "rgba(5,8,12,0.7)";
@@ -1989,6 +2624,13 @@ function drawNPCs() {
   for (const n of S.npcs) {
     const bob = Math.sin(S.time * 2 + n.ph);
     const x = Math.round(n.x), y = Math.round(n.y);
+    if (n.big) {
+      // reunion spirits float large and luminous
+      g.save();
+      g.translate(x + 6, y + 8);
+      g.scale(1.7, 1.7);
+      g.translate(-(x + 6), -(y + 8));
+    }
     if (n.sprite === "keeper") {
       g.fillStyle = "#8a7a5a"; g.fillRect(x, y + 8, 12, 6);
       g.fillStyle = "#a89878"; g.fillRect(x + 1, y + 9, 10, 2);
@@ -2080,15 +2722,20 @@ function drawNPCs() {
       g.fillStyle = C.ui;
       g.fillRect(x + 4, y - 7, 1, 1); g.fillRect(x + 6, y - 7, 1, 1); g.fillRect(x + 8, y - 7, 1, 1);
     }
+    if (n.big) g.restore();
   }
 }
 
 function drawTalk() {
-  if (!S.talk || (S.mode !== "play" && S.mode !== "pause")) return;
+  if (!S.talk || (S.mode !== "play" && S.mode !== "pause" && S.mode !== "reunion")) return;
   const npc = S.talk.npc;
   const full = npc.lines[S.talk.line];
   const shown = full.slice(0, Math.floor(S.talk.t / 0.035) + 1);
-  const bx = 10, bw = W - 20, bh = 38, by = H - bh - 5;
+  // If the speaker is in the lower half of the screen, the box goes to the
+  // top so it never covers them (Grel lives in a pit, after all)
+  const npcSy = npc.y - S.camY;
+  const bx = 10, bw = W - 20, bh = 38;
+  const by = npcSy > H * 0.52 ? 6 : H - bh - 5;
   g.fillStyle = "rgba(4,7,12,0.94)";
   g.fillRect(bx, by, bw, bh);
   g.fillStyle = rgb(PAL.accent);
@@ -2164,6 +2811,199 @@ function drawEnemies() {
       g.fillStyle = "#fff0f6";
       g.fillRect(Math.round(cx - 1), Math.round(cy - 1), 2, 2);
     }
+  }
+}
+
+function levelDoors() {
+  const out = [];
+  if (S.levelIdx === 2) out.push({ x: 18, y: 32, w: 22, h: 32 });      // the crack in the map, on the hidden ledge
+  if (LEVELS[S.levelIdx].secret) {
+    out.push({ x: 344, y: 144, w: 22, h: 48 });                        // the way back out
+    out.push({ x: 18, y: 144, w: 22, h: 48 });                         // the way you came in
+  }
+  return out;
+}
+
+function drawDoors() {
+  for (const d of levelDoors()) {
+    const pulse = 0.5 + Math.sin(S.time * 2 + d.x) * 0.2;
+    g.fillStyle = "#05070b";
+    g.fillRect(d.x, d.y, d.w, d.h);
+    g.fillStyle = rgb(PAL.accent);
+    g.globalAlpha = 0.75;
+    g.fillRect(d.x - 1, d.y - 2, d.w + 2, 2);
+    g.fillRect(d.x - 1, d.y, 1, d.h);
+    g.fillRect(d.x + d.w, d.y, 1, d.h);
+    g.globalAlpha = pulse * 0.35;
+    g.fillRect(d.x + 2, d.y + 3, d.w - 4, d.h - 3);
+    g.globalAlpha = 1;
+    g.fillStyle = rgb(PAL.moss);
+    g.fillRect(d.x + 3, d.y, 2, 5);
+    g.fillRect(d.x + 10, d.y, 2, 8);
+    g.fillRect(d.x + 16, d.y, 2, 4);
+  }
+}
+
+function drawMemory() {
+  const m = S.memoryObj;
+  if (!m || S.score.secretMemory) return;
+  const bob = Math.sin(S.time * 2) * 1.5;
+  const x = Math.round(m.x), y = Math.round(m.y + 4 + bob);
+  // a folded map of pale spore-ink
+  g.fillStyle = rgb(PAL.accent);
+  g.fillRect(x + 1, y, 12, 9);
+  g.fillStyle = "#f8f6ea";
+  g.fillRect(x + 2, y + 1, 10, 7);
+  g.fillStyle = rgb(mix(PAL.accent, [60, 70, 90], 0.6));
+  g.fillRect(x + 4, y + 2, 3, 1);
+  g.fillRect(x + 6, y + 4, 4, 1);
+  g.fillRect(x + 3, y + 6, 2, 1);
+  g.fillRect(x + 7, y + 1, 1, 6);
+  g.globalAlpha = 0.4 + Math.sin(S.time * 3) * 0.2;
+  g.fillStyle = rgb(PAL.accent);
+  g.fillRect(x - 1, y - 2, 16, 1);
+  g.globalAlpha = 1;
+}
+
+function drawBoss() {
+  const b = S.boss;
+  if (!b) return;
+  const x = Math.round(b.x), y = Math.round(b.y);
+  const t = S.time;
+  const freed = b.state === "defeated";
+  const open = b.state === "open";
+  const opening = b.state === "rise" || open;
+  const horns = b.capFlash > 0;
+  const capW = BOSS.CAP_W, capH = BOSS.CAP_H;
+  const rockC = rgb(mix(PAL.rock, [90, 100, 80], 0.35));
+  const rockHiC = rgb(mix(PAL.rockHi, [110, 120, 90], 0.3));
+  const rockLoC = rgb(PAL.rockLo);
+  const mint = rgb(PAL.accent);
+
+  if (freed) {
+    // The freed flower — pops open at the floral explosion
+    const bloom = clamp((S.endT - 0.8) / 0.5, 0, 1);
+    const sway = Math.sin(t * 1.2) * 2;
+    g.fillStyle = "#6a8468";
+    g.fillRect(x - 4, y - 6, 8, 26);
+    for (let i = 0; i < 5; i++) {
+      const px = x - 30 + i * 15 + sway * (i % 2 ? 0.5 : -0.5);
+      const ph = 14 + bloom * 14 + (i % 2) * 4;
+      g.fillStyle = i % 2 ? "#7ea27c" : "#8fb08a";
+      g.fillRect(Math.round(px), Math.round(y - 8 - ph * bloom), 12, Math.round(ph));
+      g.fillStyle = "#c8d8c0";
+      g.fillRect(Math.round(px + 2), Math.round(y - 8 - ph * bloom), 8, 2);
+    }
+    g.fillStyle = "#d8a8b8";
+    g.fillRect(x - 16, y - 12 - 10 * bloom, 32, 8 + 8 * bloom);
+    g.fillStyle = "#f0d0da";
+    g.fillRect(x - 10, y - 10 - 10 * bloom, 20, 4 + 4 * bloom);
+    for (let i = 0; i < 4; i++) {
+      const sx2 = x - 9 + i * 6;
+      g.fillStyle = "#e8e4c8";
+      g.fillRect(sx2, Math.round(y - 16 - 14 * bloom + Math.sin(t * 2 + i) * 1.5), 2, 8);
+      g.fillStyle = "#fff8dc";
+      g.fillRect(sx2 - 1, Math.round(y - 18 - 14 * bloom + Math.sin(t * 2 + i) * 1.5), 4, 3);
+    }
+    return;
+  }
+
+  // Hazards: falling rain + aimed bolts
+  for (const sh of b.shots) {
+    g.fillStyle = "#f06080";
+    g.fillRect(Math.round(sh.x), Math.round(sh.y), 8, 8);
+    g.fillStyle = "#ffb0c0";
+    g.fillRect(Math.round(sh.x + 2), Math.round(sh.y + 1), 3, 3);
+  }
+  for (const bo of b.bolts) {
+    g.fillStyle = "#f06080";
+    g.fillRect(Math.round(bo.x), Math.round(bo.y + 2), 8, 4);
+    g.fillRect(Math.round(bo.x + 2), Math.round(bo.y), 4, 8);
+    g.fillStyle = "#fff0f4";
+    g.fillRect(Math.round(bo.x + 3), Math.round(bo.y + 3), 2, 2);
+  }
+
+  // Root arms — three hanging, swaying tangles
+  g.fillStyle = "#5a4a36";
+  for (let i = 0; i < 3; i++) {
+    let ax = x - 18 + i * 18, ay = y + 2;
+    for (let s = 0; s < 6; s++) {
+      ax += Math.sin(t * 1.6 + i * 2 + s * 0.8) * 2.5;
+      g.fillRect(Math.round(ax), Math.round(ay), 3, 6);
+      ay += 5;
+    }
+  }
+  // Sweeping arm
+  if (b.arm && b.arm.warm <= 0) {
+    const a = b.arm;
+    g.fillStyle = "#6a5a42";
+    for (let s = 0; s < 5; s++) {
+      g.fillRect(Math.round(a.x + s * 6 * -a.dir), Math.round(a.y + 6 + Math.sin(t * 8 + s) * 3), 6, 5);
+    }
+    g.fillStyle = "#8a744e";
+    g.fillRect(Math.round(a.x), Math.round(a.y + 4), 8, 8);
+  }
+
+  // Throat slash under the cap
+  if (opening || b.state === "warn") {
+    const glow = open ? 1 : 0.5 + Math.sin(t * 8) * 0.2;
+    g.fillStyle = open ? mint : "#f08a50";
+    g.globalAlpha = glow;
+    g.fillRect(x - 2, y - 8, 4, 14);
+    g.fillRect(x - 1, y - 12, 2, 22);
+    g.globalAlpha = 1;
+  }
+
+  // Cracked cap — a broken crown
+  const gap = open ? 10 : opening ? 5 : 0;
+  const tilt = open ? 3 : 0;
+  // left half
+  g.fillStyle = rockC;
+  g.fillRect(x - capW / 2 - gap, y - capH - tilt, capW / 2 - 2, capH);
+  g.fillStyle = rockHiC;
+  g.fillRect(x - capW / 2 - gap, y - capH - tilt, capW / 2 - 2, 4);
+  g.fillRect(x - capW / 2 - gap + 4, y - capH - 8 - tilt, 10, 8);   // crown point
+  g.fillRect(x - 14 - gap, y - capH - 6 - tilt, 8, 6);
+  // right half
+  g.fillStyle = rockC;
+  g.fillRect(x + 2 + gap, y - capH - tilt, capW / 2 - 2, capH);
+  g.fillStyle = rockHiC;
+  g.fillRect(x + 2 + gap, y - capH - tilt, capW / 2 - 2, 4);
+  g.fillRect(x + capW / 2 - 14 + gap, y - capH - 9 - tilt, 10, 9);  // crown point
+  g.fillRect(x + 8 + gap, y - capH - 5 - tilt, 8, 5);
+  // crack lines + spore-eyes
+  g.fillStyle = rockLoC;
+  g.fillRect(x - 24 - gap, y - capH + 4, 2, 14);
+  g.fillRect(x + 16 + gap, y - capH + 6, 2, 12);
+  g.fillRect(x - 8 - gap, y - 14, 2, 8);
+  const blinkE = Math.sin(t * 2.2) > -0.85;
+  g.fillStyle = blinkE ? mint : rockLoC;
+  g.fillRect(x - 23 - gap, y - capH + 8, 3, 3);
+  g.fillRect(x + 17 + gap, y - capH + 10, 3, 3);
+  g.fillRect(x - 7 - gap, y - 12, 3, 3);
+  // horns when punished
+  if (horns) {
+    g.fillStyle = rgb(PAL.spikeHi);
+    for (let i = 0; i < 5; i++) {
+      const hx = x - capW / 2 + 6 + i * 16;
+      g.beginPath();
+      g.moveTo(hx, y - capH - tilt);
+      g.lineTo(hx + 3, y - capH - 10 - tilt);
+      g.lineTo(hx + 6, y - capH - tilt);
+      g.closePath(); g.fill();
+    }
+  }
+  // mint landing glow: builds during rise, blazes while open
+  if (open) {
+    g.globalAlpha = 0.3 + Math.sin(t * 12) * 0.12;
+    g.fillStyle = mint;
+    g.fillRect(x - capW / 2 + 4, y - capH - 14, capW - 8, 12);
+    g.globalAlpha = 1;
+  } else if (b.state === "rise") {
+    g.globalAlpha = 0.08 + (b.t / BOSS.RISE) * 0.16;
+    g.fillStyle = mint;
+    g.fillRect(x - capW / 2 + 4, y - capH - 12, capW - 8, 10);
+    g.globalAlpha = 1;
   }
 }
 
@@ -2268,6 +3108,20 @@ function collectLights() {
   }
   for (const n of S.npcs)
     out.push({ x: n.x + 6, y: n.y + 4, r: 28, a: 0.65, col: n.sprite === "echo" ? "184,216,248" : n.sprite === "grel" ? "240,240,246" : "240,200,120", ga: 0.07 });
+  if (S.memoryObj && !S.score.secretMemory)
+    out.push({ x: S.memoryObj.x + 7, y: S.memoryObj.y + 8, r: 34, a: 0.8, col: rgbs(PAL.accent), ga: 0.1 });
+  for (const d of levelDoors())
+    out.push({ x: d.x + d.w / 2, y: d.y + d.h / 2, r: 26, a: 0.5, col: rgbs(PAL.accent), ga: 0.06 });
+  if (S.boss) {
+    const b = S.boss;
+    if (b.state === "defeated") {
+      out.push({ x: b.x, y: b.y - 16, r: 70, a: 0.9, col: rgbs(PAL.accent), ga: 0.14 });
+    } else {
+      out.push({ x: b.x, y: b.y - 14, r: 46, a: 0.5, col: b.state === "open" ? rgbs(PAL.accent) : b.state === "warn" ? "240,138,80" : "170,240,200", ga: b.state === "open" ? 0.16 : 0.06 });
+    }
+  }
+  for (const m of S.movers)
+    out.push({ x: m.x + m.w / 2, y: m.y + 3, r: 20, a: 0.4, col: rgbs(PAL.accent), ga: 0.04 });
   return out;
 }
 
@@ -2384,6 +3238,96 @@ function drawHUD() {
     g.fillStyle = i < p.spores ? rgb(PAL.accent) : "#3a4250";
     g.fillRect(W - 34 + i * 8, 16, 5, 4);
   }
+
+  // Boss thorn pips
+  if (S.boss && S.boss.state !== "defeated") {
+    g.fillStyle = "rgba(8,12,18,0.55)";
+    g.fillRect(W / 2 - 22, 4, 44, 12);
+    for (let i = 0; i < 3; i++) {
+      const on = i < S.boss.pips;
+      g.fillStyle = on ? "#c05468" : "#3a2a34";
+      g.fillRect(W / 2 - 15 + i * 12, 7, 7, 6);
+      g.fillStyle = on ? "#f08098" : "#2a1f26";
+      g.fillRect(W / 2 - 13 + i * 12, 5, 3, 3);
+    }
+  }
+}
+
+function drawEndOverlay() {
+  if (S.memoryBeat > 0) {
+    const a = clamp(Math.min(S.memoryBeat, 5 - S.memoryBeat) * 1.5, 0, 1);
+    g.globalAlpha = a;
+    g.fillStyle = "rgba(4,7,12,0.85)";
+    g.fillRect(W / 2 - 130, 48, 260, 40);
+    g.fillStyle = rgb(PAL.accent);
+    g.fillRect(W / 2 - 130, 48, 260, 1);
+    g.textAlign = "center";
+    g.fillStyle = C.title;
+    g.font = "bold 9px monospace";
+    g.fillText("MEMORY FOUND — THE FIRST MAP", W / 2, 62);
+    g.fillStyle = C.ui;
+    g.font = "8px monospace";
+    g.fillText("“There was always one more place", W / 2, 74);
+    g.fillText("than the maps could hold.”", W / 2, 83);
+    g.globalAlpha = 1;
+  }
+
+  // The light that fills the screen — from the floral explosion onward
+  if ((S.mode === "freed" || S.mode === "reunion" || S.mode === "credits") && S.glow > 0) {
+    const pulse = S.glow >= 1 ? 1 : S.glow + Math.sin(S.time * 1.5) * 0.03;
+    g.globalAlpha = clamp(pulse * 0.85, 0, 0.92);
+    g.fillStyle = "rgb(228,252,238)";
+    g.fillRect(0, 0, W, H);
+    g.globalAlpha = 1;
+  }
+
+  if (S.mode === "freed" || S.mode === "reunion") {
+    g.textAlign = "center";
+    g.fillStyle = S.glow > 0.45 ? "#3a4a40" : C.uiDim;
+    g.font = "7px monospace";
+    g.fillText("Jump to skip", W / 2, H - 6);
+  }
+
+  if (S.mode === "freed") {
+    const ink = S.glow > 0.45;
+    if (S.endBeat >= 1) {
+      g.textAlign = "center";
+      g.fillStyle = ink ? "#3a4a40" : C.goalOpen;
+      g.font = "8px monospace";
+      g.fillText("“You were never meant to wake her by force.”", W / 2, 44);
+    }
+    if (S.endBeat >= 2) {
+      g.fillStyle = ink ? "#2a3a30" : C.ui;
+      g.font = "8px monospace";
+      g.fillText("“You only had to reach her.”", W / 2, 58);
+    }
+  }
+
+  if (S.mode === "credits") {
+    const lines = [
+      ["SPORELING DASH", "bold 14px monospace", C.title],
+      ["A game about going higher", "8px monospace", C.uiDim],
+      ["", "", ""],
+      ["Created by thoughtcrimegpt", "9px monospace", C.ui],
+      ["Code, art, and sound by thoughtcrimegpt", "8px monospace", C.ui],
+      ["", "", ""],
+      ["Thanks to the sporelings", "8px monospace", C.uiDim],
+      ["who kept climbing", "8px monospace", C.uiDim],
+    ];
+    const scroll = H + 20 - S.creditsT * 16;
+    g.textAlign = "center";
+    for (let i = 0; i < lines.length; i++) {
+      if (!lines[i][0]) continue;
+      const ly = scroll + i * 18;
+      if (ly < -10 || ly > H + 10) continue;
+      g.fillStyle = lines[i][2];
+      g.font = lines[i][1];
+      g.fillText(lines[i][0], W / 2, ly);
+    }
+    g.fillStyle = C.uiDim;
+    g.font = "7px monospace";
+    g.fillText("Jump to skip", W / 2, H - 6);
+  }
 }
 
 function drawBanner() {
@@ -2462,7 +3406,7 @@ function drawTitle() {
   if ((Math.sin(S.time * 4) * 0.5 + 0.5) > 0.28) {
     g.fillStyle = C.ui;
     g.font = "9px monospace";
-    g.fillText("Press Jump to start", W / 2, 148);
+    g.fillText("Press " + jumpBtnName() + " to start", W / 2, 148);
   }
 
   g.fillStyle = C.uiDim;
@@ -2470,6 +3414,8 @@ function drawTitle() {
   g.fillText(TOUCH.active
     ? "Stick to move + aim   A Jump   X Dash"
     : "Move WASD/Arrows/Stick   Jump Space/A   Dash Shift/J/X/RB", W / 2, 168);
+
+  drawLbPanel();
 
   if (DEV) {
     g.textAlign = "left";
@@ -2515,11 +3461,40 @@ function drawGameOver() {
   }
 }
 
+// Live leaderboard panel — alternates any% and full completion
+function drawLbPanel() {
+  if (!lbOn()) return;
+  const showFull = ((S.time / 6) | 0) % 2 === 1;
+  const list = showFull ? LB_CACHE.full : LB_CACHE.any;
+  g.textAlign = "left";
+  g.fillStyle = "rgba(8,12,18,0.75)";
+  g.fillRect(W - 108, 4, 104, 62);
+  g.fillStyle = C.title;
+  g.font = "bold 7px monospace";
+  g.fillText(showFull ? "FULL BLOOM 100%" : "FASTEST — ANY%", W - 103, 13);
+  g.font = "7px monospace";
+  if (!list || !list.length) {
+    g.fillStyle = C.uiDim;
+    g.fillText(list ? "no runs yet" : "...", W - 103, 24);
+  } else {
+    for (let i = 0; i < Math.min(5, list.length); i++) {
+      g.fillStyle = i === 0 ? rgb(PALS[0].accent) : C.ui;
+      const nm = String(list[i].name).slice(0, 9);
+      g.fillText((i + 1) + " " + nm, W - 103, 23 + i * 9);
+      g.textAlign = "right";
+      g.fillText(fmtMs(list[i].time_ms), W - 8, 23 + i * 9);
+      g.textAlign = "left";
+    }
+  }
+  g.textAlign = "center";
+}
+
 function drawWin() {
   g.drawImage(skyCv, 0, 0);
   g.drawImage(farCv, 0, 0);
   drawSpores("far");
   drawSpores("near");
+  drawLbPanel();
 
   g.fillStyle = C.title;
   g.font = "bold 16px monospace";
@@ -2537,22 +3512,43 @@ function drawWin() {
   g.font = "9px monospace";
   const m = Math.floor(S.score.time / 60), s = Math.floor(S.score.time % 60);
   const met = Object.keys(S.score.metNpcs).length;
-  g.fillText("Berries    " + S.score.berries + " / " + S.score.total, W / 2, 96);
-  g.fillText("Freed      " + S.score.freed, W / 2, 107);
-  g.fillText("Voices     " + met + " / " + TOTAL_NPCS, W / 2, 118);
-  g.fillText("Deaths     " + S.score.deaths, W / 2, 129);
-  g.fillText("Time       " + m + ":" + (s < 10 ? "0" : "") + s, W / 2, 140);
+  g.fillText("Berries    " + S.score.berries + " / " + S.score.total, W / 2, 94);
+  g.fillText("Freed      " + S.score.freed, W / 2, 105);
+  g.fillText("Voices     " + met + " / " + TOTAL_NPCS, W / 2, 116);
+  g.fillText("Memory     " + (S.score.secretMemory ? "1" : "0") + " / 1", W / 2, 127);
+  g.fillText("Deaths     " + S.score.deaths, W / 2, 138);
+  g.fillText("Time       " + m + ":" + (s < 10 ? "0" : "") + s, W / 2, 149);
 
-  if (met < TOTAL_NPCS) {
-    g.fillStyle = C.uiDim;
-    g.font = "7px monospace";
-    g.fillText("Someone down there never got to say hello.", W / 2, 152);
-  }
-
-  if ((Math.sin(S.time * 4) * 0.5 + 0.5) > 0.28) {
-    g.fillStyle = C.uiDim;
+  if (S.lbConfirm) {
+    // Are you sure?
+    g.fillStyle = "rgba(4,7,12,0.92)";
+    g.fillRect(W / 2 - 110, 150, 220, 26);
+    g.fillStyle = rgb(PALS[0].accent);
+    g.fillRect(W / 2 - 110, 150, 220, 1);
+    g.fillStyle = C.ui;
     g.font = "8px monospace";
-    g.fillText("Jump for title", W / 2, 166);
+    g.fillText("Submit your time to the public leaderboard?", W / 2, 161);
+    g.fillStyle = C.title;
+    g.fillText(dashBtnName() + " — yes      " + jumpBtnName() + " — no", W / 2, 172);
+  } else {
+    if (lbOn()) {
+      const blink = S.lbMsg || (Math.sin(S.time * 5) * 0.5 + 0.5) > 0.25;
+      if (blink) {
+        g.fillStyle = S.lbMsg ? rgb(PALS[0].accent) : C.goalOpen;
+        g.font = "8px monospace";
+        g.fillText(S.lbMsg || "Press " + dashBtnName() + " — submit your time", W / 2, 160);
+      }
+    } else if (met < TOTAL_NPCS) {
+      g.fillStyle = C.uiDim;
+      g.font = "7px monospace";
+      g.fillText("Someone down there never got to say hello.", W / 2, 160);
+    }
+
+    if ((Math.sin(S.time * 4) * 0.5 + 0.5) > 0.28) {
+      g.fillStyle = C.uiDim;
+      g.font = "8px monospace";
+      g.fillText(jumpBtnName() + " — title screen", W / 2, 172);
+    }
   }
 }
 
@@ -2575,6 +3571,7 @@ function frame(nowMs) {
 }
 
 setupTouch();
+lbRefresh();
 loadLevel(0);
 S.mode = "title";
 requestAnimationFrame(frame);
