@@ -61,6 +61,9 @@
 // bloom refreshes your dash. Chain blooms across chasms before they wilt.
 // ═══════════════════════════════════════════════════════════════════════════
 
+// Dev tools appear only when running locally (file:// or localhost) — never on the live site
+const DEV = location.protocol === "file:" || location.hostname === "localhost" || location.hostname === "127.0.0.1";
+
 const W = 320, H = 180, TILE = 16;
 const FIXED_DT = 1 / 60;
 const MAX_FRAME_DT = 0.05;
@@ -453,6 +456,7 @@ const LEVELS = [
         "Off to wake the Mother Bloom, little spore?",
         "She went quiet three seasons back. The dark's been... hungry since.",
         "Dash bold, land soft. The others didn't.",
+        "Some of them just stopped. You'll see them pacing. Don't judge them — it's a long way down.",
         "...what others? Hm? I said nothing.",
       ],
     }, {
@@ -673,6 +677,7 @@ const S = {
   deathT: 0, winT: 0, goalOpen: 0, time: 0, bannerT: 0,
   pauseSel: 0, pauseAy: 0,
   hint: null, wispHinted: false,
+  devLevel: 0, devInf: false, devAx: 0, devAy: 0,
   jumpHeldForCut: false,
   lives: START_LIVES,
   score: { berries: 0, total: 0, deaths: 0, time: 0, freed: 0, pickups: 0, metNpcs: {} },
@@ -1085,7 +1090,7 @@ function burst(x, y, vx, vy, life, col, s) {
 function spawnEnemies() {
   S.enemies = ENEMY_SPAWNS.map(sp => {
     if (sp.t === "slug")
-      return { t: "slug", x: sp.x, y: sp.y, w: 12, h: 8, dir: 1, speed: sp.fast ? 44 : 22, fast: sp.fast, ph: Math.random() * 6 };
+      return { t: "slug", x: sp.x, y: sp.y, w: 12, h: 8, dir: 1, speed: sp.fast ? 44 : 22, fast: sp.fast, ph: Math.random() * 6, pauseT: 0 };
     if (sp.t === "puff")
       return { t: "puff", cx: sp.x, cy: sp.y, x: sp.x, y: sp.y, w: 10, h: 10, ph: Math.random() * 6 };
     return { t: "wisp", x: sp.x, y: sp.y, hx: sp.x, hy: sp.y, w: 8, h: 8, ph: Math.random() * 6 };
@@ -1110,13 +1115,23 @@ function updateEnemies(dt) {
   const p = S.player;
   for (const e of S.enemies) {
     if (e.t === "slug") {
-      const nx = e.x + e.dir * e.speed * dt;
-      const aheadX = e.dir > 0 ? nx + e.w + 1 : nx - 2;
-      const atx = Math.floor(aheadX / TILE);
-      const midTy = Math.floor((e.y + e.h - 2) / TILE);
-      const footTy = Math.floor((e.y + e.h + 3) / TILE);
-      if (isSolid(tileAt(atx, midTy)) || !isSolid(tileAt(atx, footTy))) e.dir *= -1;
-      else e.x = nx;
+      // They hesitate at the edge before turning back — the last place
+      // they meant to keep going from
+      if (e.pauseT > 0) {
+        e.pauseT -= dt;
+      } else {
+        const nx = e.x + e.dir * e.speed * dt;
+        const aheadX = e.dir > 0 ? nx + e.w + 1 : nx - 2;
+        const atx = Math.floor(aheadX / TILE);
+        const midTy = Math.floor((e.y + e.h - 2) / TILE);
+        const footTy = Math.floor((e.y + e.h + 3) / TILE);
+        if (isSolid(tileAt(atx, midTy)) || !isSolid(tileAt(atx, footTy))) {
+          e.dir *= -1;
+          e.pauseT = 0.55;
+        } else {
+          e.x = nx;
+        }
+      }
     } else if (e.t === "puff") {
       e.x = e.cx + Math.sin(S.time * 0.9 + e.ph) * 10;
       e.y = e.cy + Math.sin(S.time * 1.4 + e.ph) * 14;
@@ -1271,7 +1286,7 @@ function killPlayer() {
   S.mode = "dead";
   S.deathT = 0;
   S.score.deaths++;
-  S.lives--;
+  if (!(DEV && S.devInf)) S.lives--;
   SFX.death();
   for (let i = 0; i < 16; i++) {
     const a = Math.random() * Math.PI * 2;
@@ -1318,11 +1333,17 @@ function tick(dt) {
   S.time += dt;
 
   if (S.mode === "title") {
+    if (DEV) {
+      if (inp.ax > 0.5 && S.devAx <= 0.5) { S.devLevel = (S.devLevel + 1) % LEVELS.length; SFX.talk(); }
+      if (inp.ax < -0.5 && S.devAx >= -0.5) { S.devLevel = (S.devLevel + LEVELS.length - 1) % LEVELS.length; SFX.talk(); }
+      if ((inp.ay < -0.5 && S.devAy >= -0.5) || (inp.ay > 0.5 && S.devAy <= 0.5)) { S.devInf = !S.devInf; SFX.talk(); }
+      S.devAx = inp.ax; S.devAy = inp.ay;
+    }
     if (inp.startEdge || inp.jumpEdge || inp.dashEdge) {
       S.score = { berries: 0, total: 0, deaths: 0, time: 0, freed: 0, pickups: 0, metNpcs: {} };
       S.lives = START_LIVES;
       S.wispHinted = false; S.hint = null;
-      loadLevel(0);
+      loadLevel(DEV ? S.devLevel : 0);
       S.mode = "play";
     }
     clearJust();
@@ -1361,13 +1382,19 @@ function tick(dt) {
   }
 
   if (inp.pauseEdge) {
-    if (S.mode === "play") { S.mode = "pause"; S.pauseSel = 0; S.pauseAy = 0; }
+    if (S.mode === "play") { S.mode = "pause"; S.pauseSel = 0; S.pauseAy = 0; S.devAx = 0; S.devLevel = S.levelIdx; }
     else if (S.mode === "pause") S.mode = "play";
   }
   if (S.mode === "pause") {
-    if (inp.ay < -0.5 && S.pauseAy >= -0.5) { S.pauseSel = (S.pauseSel + 2) % 3; SFX.talk(); }
-    if (inp.ay > 0.5 && S.pauseAy <= 0.5) { S.pauseSel = (S.pauseSel + 1) % 3; SFX.talk(); }
+    const nOpts = DEV ? 4 : 3;
+    if (inp.ay < -0.5 && S.pauseAy >= -0.5) { S.pauseSel = (S.pauseSel + nOpts - 1) % nOpts; SFX.talk(); }
+    if (inp.ay > 0.5 && S.pauseAy <= 0.5) { S.pauseSel = (S.pauseSel + 1) % nOpts; SFX.talk(); }
     S.pauseAy = inp.ay;
+    if (DEV && S.pauseSel === 3) {
+      if (inp.ax > 0.5 && S.devAx <= 0.5) { S.devLevel = (S.devLevel + 1) % LEVELS.length; SFX.talk(); }
+      if (inp.ax < -0.5 && S.devAx >= -0.5) { S.devLevel = (S.devLevel + LEVELS.length - 1) % LEVELS.length; SFX.talk(); }
+    }
+    S.devAx = inp.ax;
     if (inp.jumpEdge || inp.dashEdge) {
       SFX.berry();
       if (S.pauseSel === 0) {
@@ -1375,11 +1402,14 @@ function tick(dt) {
       } else if (S.pauseSel === 1) {
         loadLevel(S.levelIdx);
         S.mode = "play";
-      } else {
+      } else if (S.pauseSel === 2) {
         S.score = { berries: 0, total: 0, deaths: 0, time: 0, freed: 0, pickups: 0, metNpcs: {} };
         S.lives = START_LIVES;
         S.wispHinted = false; S.hint = null;
         loadLevel(0);
+        S.mode = "play";
+      } else {
+        loadLevel(S.devLevel);
         S.mode = "play";
       }
     }
@@ -1704,11 +1734,12 @@ function draw() {
     g.fillText(LEVELS[S.levelIdx].name, W / 2, 70);
 
     const opts = ["RESUME", "RESTART CHAMBER", "NEW GAME"];
+    if (DEV) opts.push("◄ " + (S.devLevel + 1) + ". " + LEVELS[S.devLevel].name + " ►");
     g.font = "9px monospace";
     for (let i = 0; i < opts.length; i++) {
-      const oy = 94 + i * 16;
+      const oy = 90 + i * 15;
       const sel = i === S.pauseSel;
-      g.fillStyle = sel ? C.title : C.uiDim;
+      g.fillStyle = i === 3 ? (sel ? C.goalOpen : "#6a5060") : (sel ? C.title : C.uiDim);
       g.fillText(opts[i], W / 2, oy);
       if (sel) {
         const bx = W / 2 - opts[i].length * 2.8 - 14;
@@ -1720,7 +1751,7 @@ function draw() {
     }
     g.fillStyle = C.uiDim;
     g.font = "7px monospace";
-    g.fillText("Move to choose   Jump to select", W / 2, 150);
+    g.fillText("Move to choose   Jump to select", W / 2, 156);
   }
 
   if (S.mode === "clear") {
@@ -2300,9 +2331,9 @@ function drawHUD() {
   g.fillRect(8, 21, 3, 1);
   g.fillStyle = C.bodySh;
   g.fillRect(9, 24, 3, 3);
-  g.fillStyle = S.lives > 1 ? C.ui : C.berryHi;
+  g.fillStyle = S.lives > 1 || (DEV && S.devInf) ? C.ui : C.berryHi;
   g.font = "8px monospace";
-  g.fillText("x" + S.lives, 17, 27);
+  g.fillText(DEV && S.devInf ? "x∞" : "x" + S.lives, 17, 27);
 
   const p = S.player;
   if (!p) return;
@@ -2406,6 +2437,21 @@ function drawTitle() {
   g.fillText(TOUCH.active
     ? "Stick to move + aim   A Jump   X Dash"
     : "Move WASD/Arrows/Stick   Jump Space/A   Dash Shift/J/X/RB", W / 2, 168);
+
+  if (DEV) {
+    g.textAlign = "left";
+    g.fillStyle = "rgba(8,12,18,0.8)";
+    g.fillRect(4, 4, 128, 32);
+    g.fillStyle = C.goalOpen;
+    g.font = "bold 7px monospace";
+    g.fillText("TEST MODE", 9, 13);
+    g.fillStyle = C.ui;
+    g.font = "7px monospace";
+    g.fillText("◄► " + (S.devLevel + 1) + ". " + LEVELS[S.devLevel].name, 9, 22);
+    g.fillStyle = S.devInf ? rgb(PALS[0].accent) : C.uiDim;
+    g.fillText("▲▼ sparks: " + (S.devInf ? "UNLIMITED" : "normal"), 9, 31);
+    g.textAlign = "center";
+  }
 }
 
 function drawGameOver() {
