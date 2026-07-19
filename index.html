@@ -685,6 +685,8 @@ function readInput() {
   let dashEdge = !!(just.ShiftLeft || just.ShiftRight || just.KeyJ);
   let pauseEdge = !!(just.Escape || just.KeyP);
   let startEdge = !!(just.Enter || just.Space);
+  let dailyEdge = !!just.KeyD;
+  let boardEdge = !!just.KeyL;
 
   const pad = gp();
   if (pad) {
@@ -708,18 +710,24 @@ function readInput() {
     const a = !!pad.buttons[0]?.pressed;
     const b = !!pad.buttons[1]?.pressed;
     const x = !!pad.buttons[2]?.pressed;
+    const y = !!pad.buttons[3]?.pressed;
     const rb = !!pad.buttons[5]?.pressed;
     const lb = !!pad.buttons[4]?.pressed;
-    const st = !!pad.buttons[9]?.pressed || !!pad.buttons[8]?.pressed;
+    const sel = !!pad.buttons[8]?.pressed;   // Select/Back — leaderboard
+    const st = !!pad.buttons[9]?.pressed;
     if (a || b) jumpDown = true;
     if (x || rb || lb) dashDown = true;
     if (st) pauseDown = true;
     if ((a || b) && !padPrev.jump) { jumpEdge = true; startEdge = true; }
     if ((x || rb || lb) && !padPrev.dash) dashEdge = true;
     if (st && !padPrev.pause) pauseEdge = true;
+    if (y && !padPrev.y) dailyEdge = true;
+    if (sel && !padPrev.sel) boardEdge = true;
     padPrev.jump = a || b; padPrev.dash = x || rb || lb; padPrev.pause = st;
+    padPrev.y = y; padPrev.sel = sel;
   } else {
     padPrev.jump = jumpDown; padPrev.dash = dashDown; padPrev.pause = pauseDown;
+    padPrev.y = false; padPrev.sel = false;
   }
 
   if (TOUCH.active) {
@@ -735,7 +743,7 @@ function readInput() {
 
   const len = Math.hypot(ax, ay);
   if (len > 1) { ax /= len; ay /= len; }
-  return { ax, ay, jumpDown, jumpEdge, dashEdge, pauseEdge, startEdge };
+  return { ax, ay, jumpDown, jumpEdge, dashEdge, pauseEdge, startEdge, dailyEdge, boardEdge };
 }
 
 function clearJust() { for (const k in just) delete just[k]; }
@@ -1099,6 +1107,29 @@ const LEVELS = [
     unlockText: "They dive alone. When they gather as one — dash the heart.",
   },
   {
+    name: "THE SWALLOW", pal: 5,
+    map: buildLevel(28, 68, ({ set, rect }) => {
+      rect(0, 0, 27, 1);                                      // ceiling
+      rect(0, 0, 0, 67); rect(27, 0, 27, 67);                 // shaft walls
+      rect(1, 8, 8, 8); set(3, 7, "P"); set(6, 7, "C");       // the lip — step off and fall
+      // Teeth: alternating shelves, spikes up — weave the gaps on the way down
+      rect(1, 14, 14, 14); for (let c = 1; c <= 14; c++) set(c, 13, "S");
+      rect(13, 24, 26, 24); for (let c = 13; c <= 26; c++) set(c, 23, "S");
+      rect(1, 33, 12, 33); for (let c = 1; c <= 12; c++) set(c, 32, "S");
+      rect(13, 42, 26, 42); for (let c = 13; c <= 26; c++) set(c, 41, "S");
+      rect(8, 50, 19, 50); for (let c = 8; c <= 19; c++) set(c, 49, "S");
+      rect(6, 57, 21, 57); for (let c = 6; c <= 21; c++) set(c, 56, "S");
+      // Molars jutting from the walls
+      set(1, 18, "S"); set(26, 28, "S"); set(1, 46, "S"); set(26, 54, "S");
+      // Two berries hanging on the crossing lines — hit the drift or miss them
+      set(16, 18, "B"); set(10, 28, "B");
+      rect(1, 64, 26, 67);                                    // the stomach floor
+      set(23, 63, "G");
+    }),
+    clearText: "Swallowed is not the same as gone.",
+    unlockText: "Open your cap — hold Jump, fall soft, drift between the teeth.",
+  },
+  {
     name: "THE MOTHER'S THROAT", pal: 5, boss: "unbloomed",
     movers: [
       { c0: 24, c1: 27, rA: 18, rB: 6, period: 3.2, phase: 0 },   // elevators flank the boss
@@ -1324,16 +1355,33 @@ function loadLevel(idx) {
   }
 
   // On dream nights the cave remembers more of its children — seeded surge,
-  // identical for everyone running today's spore
+  // identical for everyone running today's spore. Clones spawn a few tiles
+  // away and come back wrong: faster, hungrier, or changed outright.
   if (S.daily) {
     const rand = seededRand(dailySeedStr() + ":" + idx);
+    const gentle = L.name === "THE SKITTERWAY";   // the low-ceiling gauntlet stays fair
+    const chance = gentle ? 0.25 : 0.55;
+    const needsFloor = t => t === "slug" || t === "skitter" || t === "spitter";
     const extra = [];
     for (const sp of ENEMY_SPAWNS) {
-      if (rand() >= 0.55) continue;
-      const nx = sp.x + (rand() < 0.5 ? -12 : 12);
-      const tx = Math.floor((nx + 5) / TILE), ty = Math.floor((sp.y + 4) / TILE);
-      if (nx > 4 && nx < WORLD_W - 16 && !isSolid(tileAt(tx, ty)))
-        extra.push({ ...sp, x: nx });
+      if (rand() >= chance) continue;
+      const sgn = rand() < 0.5 ? -1 : 1;
+      let nx = null;
+      for (const mag of [40, 56, 24]) {
+        const cx = sp.x + sgn * mag;
+        const tx = Math.floor((cx + 5) / TILE), ty = Math.floor((sp.y + 4) / TILE);
+        if (cx <= 4 || cx >= WORLD_W - 16 || isSolid(tileAt(tx, ty))) continue;
+        if (needsFloor(sp.t) && !isSolid(tileAt(tx, ty + 1))) continue;
+        nx = cx; break;
+      }
+      if (nx === null) continue;
+      const clone = { ...sp, x: nx };
+      if (!gentle) {
+        clone.hard = true;
+        if (clone.t === "slug") clone.fast = true;        // hungrier
+        else if (clone.t === "puff") clone.t = "wisp";    // changed outright
+      }
+      extra.push(clone);
     }
     ENEMY_SPAWNS.push(...extra);
   }
@@ -1680,9 +1728,9 @@ function spawnEnemies() {
     if (sp.t === "puff")
       return { t: "puff", cx: sp.x, cy: sp.y, x: sp.x, y: sp.y, w: 10, h: 10, ph: Math.random() * 6 };
     if (sp.t === "skitter")
-      return { t: "skitter", x: sp.x, y: sp.y, w: 12, h: 6, dir: Math.random() < 0.5 ? -1 : 1, speed: 165 * sm, ph: Math.random() * 6, pauseT: 0 };
+      return { t: "skitter", x: sp.x, y: sp.y, w: 12, h: 6, dir: Math.random() < 0.5 ? -1 : 1, speed: 165 * sm * (sp.hard ? 1.2 : 1), ph: Math.random() * 6, pauseT: 0 };
     if (sp.t === "spitter")
-      return { t: "spitter", x: sp.x, y: sp.y, w: 12, h: 12, cd: 1 + Math.random(), ph: Math.random() * 6 };
+      return { t: "spitter", x: sp.x, y: sp.y, w: 12, h: 12, hard: sp.hard, cd: (sp.hard ? 0.6 : 1) + Math.random(), ph: Math.random() * 6 };
     if (sp.t === "mine")
       return { t: "mine", cx: sp.x, cy: sp.y, x: sp.x, y: sp.y, w: 10, h: 10, armT: 0, ph: Math.random() * 6 };
     return { t: "wisp", x: sp.x, y: sp.y, hx: sp.x, hy: sp.y, w: 8, h: 8, ph: Math.random() * 6 };
@@ -1745,7 +1793,7 @@ function updateEnemies(dt) {
       const dx = (p.x + 5) - (e.x + 6);
       const d = Math.hypot(dx, (p.y + 5) - (e.y + 6));
       if (e.cd <= 0 && d < 150) {
-        e.cd = 2.6;
+        e.cd = e.hard ? 1.6 : 2.6;
         S.eshots.push({ x: e.x + 4, y: e.y - 4, vx: Math.sign(dx) * (40 + Math.abs(dx) * 0.45), vy: -175, grav: true, w: 7, h: 7 });
         blip(300, 170, 0.12, "square", 0.09);
         burst(e.x + 6, e.y - 2, 0, -35, 0.3, "#f06080", 2);
@@ -1974,7 +2022,7 @@ function enterSecret() {
     taken: S.berryList.map(b => b.taken),
     checkPt: { ...S.checkPt },
   };
-  loadLevel(10);
+  loadLevel(11);
   S.mode = "play";
   SFX.check();
 }
@@ -2542,7 +2590,7 @@ function tick(dt) {
   if (S.mode === "title") {
     // UTC midnight rolled over while idling — refetch today's dream
     if (lbOn() && LB_DAY && LB_DAY !== dailySeedStr()) { LB_CACHE.daily = null; lbRefresh(); }
-    if (just.KeyL && lbOn()) {
+    if (inp.boardEdge && lbOn()) {
       S.boardFrom = "title"; S.mode = "board";
       clearJust();
       return;
@@ -2553,7 +2601,7 @@ function tick(dt) {
       if ((inp.ay < -0.5 && S.devAy >= -0.5) || (inp.ay > 0.5 && S.devAy <= 0.5)) { S.devInf = !S.devInf; SFX.talk(); }
       S.devAx = inp.ax; S.devAy = inp.ay;
     }
-    if (just.KeyD && lbOn() && dailyUnlocked()) {
+    if (inp.dailyEdge && lbOn() && dailyUnlocked()) {
       startDaily();
       clearJust();
       return;
@@ -2726,7 +2774,7 @@ function tick(dt) {
 
   if (S.mode === "win") {
     updateParticles(dt);
-    if (just.KeyL && lbOn()) {
+    if (inp.boardEdge && lbOn()) {
       S.boardFrom = "win"; S.mode = "board";
       clearJust();
       return;
@@ -4455,7 +4503,7 @@ function drawTitle() {
       g.fillText(MOD_NAMES[mods[1]], 9, 132);
       g.fillText(MOD_NAMES[mods[2]], 9, 140);
       g.fillStyle = C.goalOpen;
-      g.fillText("D / tap here — descend", 9, 151);
+      g.fillText(gp() ? "D / Y — descend" : TOUCH.active ? "tap here — descend" : "D / tap here — descend", 9, 151);
     } else {
       g.fillStyle = C.uiDim;
       g.fillText("the cave dreams a new", 9, 118);
@@ -4557,7 +4605,7 @@ function drawLbPanel(tall) {
   }
   g.fillStyle = C.goalOpen;
   g.font = "7px monospace";
-  g.fillText("▸ full board", px + 5, 4 + ph - 5);
+  g.fillText(gp() ? "▸ full board · SELECT" : TOUCH.active ? "▸ full board · tap" : "▸ full board · L", px + 5, 4 + ph - 5);
   g.textAlign = "center";
 }
 
