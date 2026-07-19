@@ -2,7 +2,7 @@
 
 A tiny fungal platformer in a single HTML file.
 
-Dash in mid-air and a mushroom platform blooms where you land. Landing on a bloom refreshes your dash — chain them across the void before they wilt. Three chambers.
+The Mother Bloom has gone quiet. Dash in mid-air and a mushroom platform blooms where you land — jump off it to chain across the void before it wilts. Five chambers, strange residents, and the things the previous sporelings became.
 
 **Play:** https://thoughtcrimegpt.github.io/sporeling-dash/
 
