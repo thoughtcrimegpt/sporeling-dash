@@ -3895,8 +3895,13 @@ function tick(dt) {
 // ── Draw ───────────────────────────────────────────────────────────────────
 const canvas = document.getElementById("game");
 const ctx = canvas.getContext("2d");
-const buf = mkCv(W, H);
+// The buffer renders at 2x: every art pixel is still a perfect uniform
+// block (drawn as exact 2x2 cells), but text rasterizes at double
+// resolution — the same chunky world, far crisper lettering.
+const SS = 2;
+const buf = mkCv(W * SS, H * SS);
 const g = buf.getContext("2d");
+g.scale(SS, SS);
 let scale = 1;
 
 function resize() {
@@ -3980,7 +3985,7 @@ canvas.addEventListener("mousemove", e => {
 function blit() {
   ctx.imageSmoothingEnabled = false;
   ctx.clearRect(0, 0, canvas.width, canvas.height);
-  ctx.drawImage(buf, 0, 0, W, H, 0, 0, canvas.width, canvas.height);
+  ctx.drawImage(buf, 0, 0, buf.width, buf.height, 0, 0, canvas.width, canvas.height);
 }
 
 function draw() {
