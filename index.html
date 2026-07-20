@@ -683,6 +683,9 @@ function prefetchLeader(slot, list) {
 }
 // ── Patch notes — the cave remembers its own growth. Newest first. ─────────
 const PATCH_NOTES = [
+  { v: "V4.1.2 — WITHIN THE MARGINS", d: "2026-07-20 02:26 UTC", lines: [
+    "· Long lines on this page now wrap instead of wandering off the right edge",
+  ]},
   { v: "V4.1.1 — READ THE NOTES", d: "2026-07-20 02:22 UTC", lines: [
     "· This very page earned its full name and a little shine. Hello",
     "· Every entry now wears the moment it shipped",
@@ -767,6 +770,7 @@ const PATCH_NOTES = [
   ]},
 ];
 const NOTES_TOTAL = PATCH_NOTES.reduce((a, b) => a + 13 + b.lines.length * 9 + 8, 0);
+let NOTES_MEASURED = NOTES_TOTAL;   // true height once wrapping is measured
 let NOTES_HIT = null;   // the title's notes link rect
 
 let LB_HITS = [];   // clickable name rows, rebuilt each frame the panel draws
@@ -3418,7 +3422,7 @@ function tick(dt) {
   }
 
   if (S.mode === "notes") {
-    S.notesY = clamp(S.notesY + inp.ay * 130 * dt, 0, Math.max(0, NOTES_TOTAL - (H - 58)));
+    S.notesY = clamp(S.notesY + inp.ay * 130 * dt, 0, Math.max(0, NOTES_MEASURED - (H - 58)));
     if (inp.jumpEdge || inp.pauseEdge) S.mode = "title";
     clearJust();
     return;
@@ -5918,9 +5922,23 @@ function drawNotes() {
     y += 13;
     g.fillStyle = C.uiDim;
     g.font = "7px monospace";
-    for (const ln of blk.lines) { g.fillText(ln, 18, y); y += 9; }
+    // word-wrap: nothing runs off the right edge; continuations indent
+    const maxTw = W - 38;
+    for (const ln of blk.lines) {
+      let rest = ln, first = true;
+      while (rest.length) {
+        let seg = rest;
+        while (g.measureText(seg).width > (first ? maxTw : maxTw - 6) && seg.includes(" "))
+          seg = seg.slice(0, seg.lastIndexOf(" "));
+        g.fillText(seg, first ? 18 : 24, y);
+        y += 9;
+        rest = rest.slice(seg.length).trim();
+        first = false;
+      }
+    }
     y += 8;
   }
+  NOTES_MEASURED = y + S.notesY - 38;
   g.restore();
   g.textAlign = "center";
   g.fillStyle = C.uiDim;
