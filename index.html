@@ -619,6 +619,38 @@ const reachSet = idx => {
   try { if (idx > reachGet()) localStorage.setItem("sd_reach", String(idx)); } catch (e) {}
 };
 
+// Cycle the practice selector: 0 = full run (title only), 1..reach = chambers,
+// 99 = the Shoggoth directly once it's been met
+function stepPrac(dir, allowZero) {
+  const reach = reachGet(), hasShog = shogSeen();
+  const lo = allowZero ? 0 : 1;
+  if (dir > 0) S.pracSel = S.pracSel === 99 ? lo : (S.pracSel >= reach ? (hasShog ? 99 : lo) : S.pracSel + 1);
+  else S.pracSel = S.pracSel <= lo ? (hasShog ? 99 : Math.max(lo, reach)) : (S.pracSel === 99 ? Math.max(lo, reach) : S.pracSel - 1);
+}
+const pracName = sel => sel === 99 ? "THE SHOGGOTH" : LEVELS[sel] ? LEVELS[sel].name : "";
+
+const pauseIds = () => {
+  const ids = ["resume", "restart"];
+  if (!DEV && (reachGet() > 0 || shogSeen())) ids.push("practice");
+  ids.push("newgame", "titlescr");
+  if (DEV) ids.push("devrow");
+  return ids;
+};
+
+// A fresh practice run at the chosen chamber — clearly not board-eligible
+function startPracticeRun(sel) {
+  S.score = { berries: 0, total: 0, deaths: 0, time: 0, freed: 0, pickups: 0, secretMemory: false, metNpcs: {} };
+  S.lives = START_LIVES;
+  S.wispHinted = false;
+  S.daily = false; S.dailyMods = null;
+  S.practice = true;
+  S.rec = []; S.ghost = null; S.ghostPos = null;
+  loadLevel(sel === 99 ? 10 : sel);
+  S.mode = "play";
+  if (sel === 99) spawnShoggoth();
+  S.hint = { text: "PRACTICE — " + pracName(sel) + ". This run won't count for the board.", t: 4.5 };
+}
+
 function startDaily() {
   if (!dailyUnlocked()) return;
   S.score = { berries: 0, total: 0, deaths: 0, time: 0, freed: 0, pickups: 0, secretMemory: false, metNpcs: {} };
@@ -653,6 +685,7 @@ const PATCH_NOTES = [
     "· It coils before it moves. It smiles before it spits",
     "· Its spores are stepping stones. Stomp what rises, dash what it hides",
     "· The gates open when it's done. Once you've met it, practice it from the title",
+    "· The title screen breathes again; practice also lives in the pause menu now",
     "· The board is wiped once more, for the longest route yet",
   ]},
   { v: "V3.7 — THE CAVE FORGIVES", lines: [
@@ -3319,12 +3352,8 @@ function tick(dt) {
       if (S.pracSel !== 99 && S.pracSel > reach) S.pracSel = 0;
       if (S.pracSel === 99 && !hasShog) S.pracSel = 0;
       if (reach > 0 || hasShog) {
-        const stepSel = dir => {
-          if (dir > 0) S.pracSel = S.pracSel === 99 ? 0 : (S.pracSel >= reach ? (hasShog ? 99 : 0) : S.pracSel + 1);
-          else S.pracSel = S.pracSel === 0 ? (hasShog ? 99 : reach) : (S.pracSel === 99 ? reach : S.pracSel - 1);
-        };
-        if (inp.ax > 0.5 && S.devAx <= 0.5) { stepSel(1); SFX.talk(); }
-        if (inp.ax < -0.5 && S.devAx >= -0.5) { stepSel(-1); SFX.talk(); }
+        if (inp.ax > 0.5 && S.devAx <= 0.5) { stepPrac(1, true); SFX.talk(); }
+        if (inp.ax < -0.5 && S.devAx >= -0.5) { stepPrac(-1, true); SFX.talk(); }
       }
       S.devAx = inp.ax;
     }
@@ -3527,27 +3556,38 @@ function tick(dt) {
   }
 
   if (inp.pauseEdge) {
-    if (S.mode === "play") { S.mode = "pause"; S.pauseSel = 0; S.pauseAy = 0; S.devAx = 0; S.devLevel = S.levelIdx; }
+    if (S.mode === "play") {
+      S.mode = "pause"; S.pauseSel = 0; S.pauseAy = 0; S.devAx = 0; S.devLevel = S.levelIdx;
+      if (S.pracSel === 0 && reachGet() > 0) S.pracSel = Math.max(1, Math.min(S.levelIdx, reachGet()));
+    }
     else if (S.mode === "pause") S.mode = "play";
   }
   if (S.mode === "pause") {
-    const nOpts = DEV ? 5 : 4;
+    const ids = pauseIds();
+    if (S.pauseSel >= ids.length) S.pauseSel = 0;
+    const nOpts = ids.length;
     if (inp.ay < -0.5 && S.pauseAy >= -0.5) { S.pauseSel = (S.pauseSel + nOpts - 1) % nOpts; SFX.talk(); }
     if (inp.ay > 0.5 && S.pauseAy <= 0.5) { S.pauseSel = (S.pauseSel + 1) % nOpts; SFX.talk(); }
     S.pauseAy = inp.ay;
-    if (DEV && S.pauseSel === 4) {
+    const cur = ids[S.pauseSel];
+    if (cur === "devrow") {
       if (inp.ax > 0.5 && S.devAx <= 0.5) { S.devLevel = (S.devLevel + 1) % LEVELS.length; SFX.talk(); }
       if (inp.ax < -0.5 && S.devAx >= -0.5) { S.devLevel = (S.devLevel + LEVELS.length - 1) % LEVELS.length; SFX.talk(); }
+    } else if (cur === "practice") {
+      if (inp.ax > 0.5 && S.devAx <= 0.5) { stepPrac(1, false); SFX.talk(); }
+      if (inp.ax < -0.5 && S.devAx >= -0.5) { stepPrac(-1, false); SFX.talk(); }
     }
     S.devAx = inp.ax;
     if (inp.jumpEdge || inp.dashEdge) {
       SFX.berry();
-      if (S.pauseSel === 0) {
+      if (cur === "resume") {
         S.mode = "play";
-      } else if (S.pauseSel === 1) {
+      } else if (cur === "restart") {
         loadLevel(S.levelIdx);
         S.mode = "play";
-      } else if (S.pauseSel === 2) {
+      } else if (cur === "practice") {
+        startPracticeRun(S.pracSel === 0 ? 1 : S.pracSel);
+      } else if (cur === "newgame") {
         S.score = { berries: 0, total: 0, deaths: 0, time: 0, freed: 0, pickups: 0, secretMemory: false, metNpcs: {} };
         S.lives = START_LIVES;
         S.wispHinted = false; S.hint = null;
@@ -3556,7 +3596,7 @@ function tick(dt) {
         S.rec = []; S.ghost = null; S.ghostPos = null;
         loadLevel(0);
         S.mode = "play";
-      } else if (S.pauseSel === 3) {
+      } else if (cur === "titlescr") {
         S.talk = null;
         S.mode = "title";
       } else {
@@ -4049,25 +4089,38 @@ function draw() {
     g.font = "8px monospace";
     g.fillText(LEVELS[S.levelIdx].name, W / 2, 70);
 
-    const opts = ["RESUME", "RESTART CHAMBER", "NEW GAME", "TITLE SCREEN"];
-    if (DEV) opts.push("◄ " + (S.devLevel + 1) + ". " + LEVELS[S.devLevel].name + " ►");
+    const ids = pauseIds();
+    const labels = ids.map(id =>
+      id === "resume" ? "RESUME" :
+      id === "restart" ? "RESTART CHAMBER" :
+      id === "practice" ? "◄ PRACTICE: " + pracName(S.pracSel === 0 ? 1 : S.pracSel) + " ►" :
+      id === "newgame" ? "NEW GAME" :
+      id === "titlescr" ? "TITLE SCREEN" :
+      "◄ " + (S.devLevel + 1) + ". " + LEVELS[S.devLevel].name + " ►");
     g.font = "9px monospace";
-    for (let i = 0; i < opts.length; i++) {
+    for (let i = 0; i < labels.length; i++) {
       const oy = 86 + i * 14;
       const sel = i === S.pauseSel;
-      g.fillStyle = i === 4 ? (sel ? C.goalOpen : "#6a5060") : (sel ? C.title : C.uiDim);
-      g.fillText(opts[i], W / 2, oy);
+      g.fillStyle = ids[i] === "devrow" ? (sel ? C.goalOpen : "#6a5060")
+        : ids[i] === "practice" ? (sel ? rgb(PALS[0].accent) : C.uiDim)
+        : (sel ? C.title : C.uiDim);
+      g.fillText(labels[i], W / 2, oy);
       if (sel) {
-        const bx = W / 2 - opts[i].length * 2.8 - 14;
+        const bx = W / 2 - labels[i].length * 2.8 - 14;
         g.fillStyle = C.cap;
         g.fillRect(bx, oy - 7, 6, 3);
         g.fillStyle = C.bloomStem;
         g.fillRect(bx + 2, oy - 4, 2, 3);
       }
     }
+    if (ids[S.pauseSel] === "practice") {
+      g.fillStyle = C.wilt;
+      g.font = "7px monospace";
+      g.fillText("starts a fresh run — it won't count for the leaderboard", W / 2, 152);
+    }
     g.fillStyle = C.uiDim;
     g.font = "7px monospace";
-    g.fillText("Move to choose   Jump to select", W / 2, 156);
+    g.fillText("Move to choose   Jump to select", W / 2, 163);
   }
 
   if (S.mode === "clear") {
@@ -5509,35 +5562,38 @@ function drawTitle() {
   decorMush(255, 138, 1.0);
   decorMush(155, 146, 1.6);
 
+  // Left column — the whole title block stays clear of the leaderboard panel
+  const TCX = 100;
   g.save();
-  g.translate(W / 2, 82);
+  g.translate(TCX, 92);
   drawMap(g, ((S.time * 2 | 0) & 1) ? SPRITES.idle1 : SPRITES.idle2, -6, -7, false);
   g.restore();
 
   g.fillStyle = C.title;
-  g.font = "bold 16px monospace";
+  g.font = "bold 15px monospace";
   g.textAlign = "center";
-  g.fillText("SPORELING DASH", W / 2, 44);
+  g.fillText("SPORELING DASH", TCX, 34);
 
   g.fillStyle = C.goalOpen;
-  g.font = "8px monospace";
-  g.fillText("The Mother Bloom has gone quiet. Go wake her.", W / 2, 56);
-
+  g.font = "7px monospace";
+  g.fillText("The Mother Bloom has gone quiet. Go wake her.", TCX, 48);
   g.fillStyle = C.ui;
-  g.fillText("Dash in the air — a bloom sprouts where you land.", W / 2, 68);
+  g.fillText("Dash in the air — a bloom sprouts", TCX, 60);
+  g.fillText("where you land. Jump off it to chain.", TCX, 69);
   g.fillStyle = C.uiDim;
-  g.fillText("Jump off it to chain. Solid ground restores spores.", W / 2, 77);
+  g.fillText("Solid ground restores spores.", TCX, 78);
 
+  // Full-width band under the panels: start + practice, unmissable
   if ((Math.sin(S.time * 4) * 0.5 + 0.5) > 0.28) {
     g.fillStyle = C.ui;
-    g.font = "9px monospace";
-    g.fillText("Press " + jumpBtnName() + " to start", W / 2, 148);
+    g.font = "bold 10px monospace";
+    g.fillText("Press " + jumpBtnName() + " to start", W / 2, 110);
   }
   if (!DEV && (reachGet() > 0 || shogSeen())) {
-    g.fillStyle = S.pracSel > 0 ? rgb(PALS[0].accent) : C.uiDim;
-    g.font = "7px monospace";
     const pn = S.pracSel === 99 ? "THE SHOGGOTH" : S.pracSel > 0 ? LEVELS[S.pracSel].name : null;
-    g.fillText("◄ ► " + (pn ? "PRACTICE: " + pn : "FULL RUN — from the top"), W / 2, 159);
+    g.fillStyle = pn ? rgb(PALS[0].accent) : C.uiDim;
+    g.font = "bold 9px monospace";
+    g.fillText(pn ? "◄ ► PRACTICE: " + pn : "◄ ► FULL RUN  ·  arrows for practice", W / 2, 124);
   }
   // the cave's own memory
   NOTES_HIT = { x: W - 64, y: 80, w: 58, h: 12 };
@@ -5551,39 +5607,35 @@ function drawTitle() {
   g.font = "7px monospace";
   g.fillText(TOUCH.active
     ? "Stick to move + aim   A Jump   X Dash"
-    : "Move WASD/Arrows/Stick   Jump Space/A   Dash Shift/J/X/RB   M music", W / 2, 168);
+    : "Move WASD/Arrows/Stick   Jump Space/A   Dash Shift/J/X/RB   M music", W / 2, 176);
 
   drawLbPanel();
 
-  // Today's dream
+  // Today's dream — one compact card, bottom left
   DAILY_PANEL = null;
   if (lbOn()) {
     g.textAlign = "left";
     g.fillStyle = "rgba(8,12,18,0.82)";
-    g.fillRect(4, 96, 134, 62);
+    g.fillRect(4, 130, 182, 36);
     g.fillStyle = C.goalOpen;
-    g.fillRect(4, 96, 134, 1);
+    g.fillRect(4, 130, 182, 1);
     g.fillStyle = C.title;
     g.font = "bold 7px monospace";
-    g.fillText("☾ DAILY SPORE", 9, 106);
+    g.fillText("☾ DAILY SPORE — " + dailySeedStr(), 9, 139);
     g.font = "7px monospace";
     if (dailyUnlocked()) {
-      DAILY_PANEL = { x: 4, y: 96, w: 134, h: 62 };
+      DAILY_PANEL = { x: 4, y: 130, w: 182, h: 36 };
       const mods = dailyMods();
-      g.fillStyle = C.uiDim;
-      g.fillText(dailySeedStr() + (S.pendingGhost ? "  · echo armed" : ""), 9, 115);
       g.fillStyle = rgb(PALS[0].accent);
-      g.fillText(MOD_NAMES[mods[0]], 9, 124);
-      g.fillText(MOD_NAMES[mods[1]], 9, 132);
-      g.fillText(MOD_NAMES[mods[2]], 9, 140);
+      g.fillText(mods.map(m => MOD_NAMES[m]).join(" + "), 9, 149);
       g.fillStyle = C.goalOpen;
-      g.fillText(gp() ? "D / Y — descend" : TOUCH.active ? "tap here — descend" : "D / tap here — descend", 9, 151);
+      g.fillText((gp() ? "D / Y — descend" : TOUCH.active ? "tap here — descend" : "D — descend") +
+        (S.pendingGhost ? "   · echo armed" : ""), 9, 159);
     } else {
       g.fillStyle = C.uiDim;
-      g.fillText("the cave dreams a new", 9, 118);
-      g.fillText("descent every night...", 9, 127);
+      g.fillText("a new descent dreamed every night...", 9, 149);
       g.fillStyle = "#6a5060";
-      g.fillText("🔒 wake the Mother first", 9, 145);
+      g.fillText("🔒 wake the Mother first", 9, 159);
     }
     g.textAlign = "center";
   }
