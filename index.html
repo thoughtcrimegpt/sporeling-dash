@@ -683,6 +683,10 @@ function prefetchLeader(slot, list) {
 }
 // ── Patch notes — the cave remembers its own growth. Newest first. ─────────
 const PATCH_NOTES = [
+  { v: "V4.2.2 — ONE ROOT, ONE BOARD", d: "2026-07-20 03:50 UTC", lines: [
+    "· The Pale Root is not a daily. It is THE trial — one climb, one name,",
+    "  one eternal leaderboard. Its champion's echo races every challenger",
+  ]},
   { v: "V4.2.1 — THE ROOT GOES DEEPER", d: "2026-07-20 03:35 UTC", lines: [
     "· The trial doubled: two hundred rows, nine segments, two mercies",
     "· All daily modifiers stripped from it — no tricks, only the climb",
@@ -830,7 +834,7 @@ function lbRefresh() {
   LB_DAY = dailySeedStr();
   lbFetch("any").then(d => { if (d) { LB_CACHE.any = d; prefetchLeader("any", d); } });
   lbFetch("full").then(d => { if (d) LB_CACHE.full = d; });
-  lbFetch("daily-" + dailySeedStr()).then(d => { if (d) { LB_CACHE.daily = d; prefetchLeader("daily", d); } });
+  lbFetch("root").then(d => { if (d) { LB_CACHE.daily = d; prefetchLeader("daily", d); } });
   fallenFetch();
 }
 
@@ -1002,16 +1006,15 @@ function submitScore() {
   const gameUrl = "https://thoughtcrimegpt.github.io/sporeling-dash/";
 
   if (S.daily) {
-    const cat = "daily-" + dailySeedStr();
+    const cat = "root";   // the trial's one eternal board
     lbPost(name, cat, ms, ghost).then(res => {
-      S.lbMsg = res.ok ? "On today's board!" : "Submit failed, try again later";
+      S.lbMsg = res.ok ? "On the Root board!" : "Submit failed, try again later";
       if (!res.ok) { S.score.lbDone = false; return; }
       lbRefresh();
       lbRank(cat, ms).then(rank => {
-        const modTxt = (S.dailyMods || []).map(m => MOD_NAMES[m]).join(" + ");
         const link = res.id ? gameUrl + "?race=" + res.id : gameUrl;
         const tweet = fmtMs(ms) + " — " + (rank ? "#" + rank + " " : "") +
-          "on today's DAILY SPORE (" + modTxt + ") 🍄 race my echo: " + link;
+          "up THE PALE ROOT 🍄 race my echo: " + link;
         showShare(buildShareCard(name, cat, ms, rank), tweet);
       });
     });
@@ -5875,18 +5878,18 @@ function drawTitle() {
     g.fillRect(4, 130, 182, 1);
     g.fillStyle = C.title;
     g.font = "bold 7px monospace";
-    g.fillText("☾ DAILY SPORE — " + dailySeedStr(), 9, 139);
+    g.fillText("☾ THE PALE ROOT — the Mother's trial", 9, 139);
     g.font = "7px monospace";
     if (dailyUnlocked()) {
       DAILY_PANEL = { x: 4, y: 130, w: 182, h: 36 };
       g.fillStyle = rgb(PALS[0].accent);
-      g.fillText("THE PALE ROOT — pure platforming, no mercy", 9, 149);
+      g.fillText("pure platforming · two mercies · one board, forever", 9, 149);
       g.fillStyle = C.goalOpen;
       g.fillText((gp() ? "D / Y — descend" : TOUCH.active ? "tap here — descend" : "D — descend") +
         (S.pendingGhost ? "   · echo armed" : ""), 9, 159);
     } else {
       g.fillStyle = C.uiDim;
-      g.fillText("a new descent dreamed every night...", 9, 149);
+      g.fillText("the Root waits past the ending...", 9, 149);
       g.fillStyle = "#6a5060";
       g.fillText("🔒 wake the Mother first", 9, 159);
     }
@@ -5965,7 +5968,7 @@ function drawLbPanel(tall) {
   g.fillRect(px, 4, pw, 1);
   g.fillStyle = C.title;
   g.font = "bold 7px monospace";
-  g.fillText(slot === "daily" ? "☾ TODAY'S SPORE" : slot === "full" ? "FULL BLOOM 100%" : "FASTEST — ANY%", px + 5, 14);
+  g.fillText(slot === "daily" ? "☾ THE PALE ROOT" : slot === "full" ? "FULL BLOOM 100%" : "FASTEST — ANY%", px + 5, 14);
   g.font = "7px monospace";
   if (!list || !list.length) {
     g.fillStyle = C.uiDim;
@@ -6069,7 +6072,7 @@ function drawBoard() {
 
   // tabs
   RACE_HITS = [];
-  const tabs = [["any", "ANY%", 48], ["full", "FULL 100%", 80], ["daily", "TODAY'S SPORE", 106]];
+  const tabs = [["any", "ANY%", 48], ["full", "FULL 100%", 80], ["daily", "THE PALE ROOT", 106]];
   let tx = W / 2 - 125;
   for (const [tab, label, tw] of tabs) {
     const active = S.boardTab === tab;
