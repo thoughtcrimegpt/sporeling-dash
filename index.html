@@ -683,6 +683,10 @@ function prefetchLeader(slot, list) {
 }
 // ── Patch notes — the cave remembers its own growth. Newest first. ─────────
 const PATCH_NOTES = [
+  { v: "V4.1.1 — READ THE NOTES", d: "2026-07-20 02:22 UTC", lines: [
+    "· This very page earned its full name and a little shine. Hello",
+    "· Every entry now wears the moment it shipped",
+  ]},
   { v: "V4.1 — THE BARROW, UNEARTHED", d: "2026-07-20 02:10 UTC", lines: [
     "· The Oldest Slug stopped pacing. It swims the earth now",
     "· Read the mound, dodge the eruption, then dash UP and drive a bloom",
@@ -5735,12 +5739,14 @@ function drawTitle() {
     g.font = "bold 9px monospace";
     g.fillText(pn ? "◄ ► PRACTICE: " + pn : "◄ ► FULL RUN  ·  arrows for practice", W / 2, 124);
   }
-  // the cave's own memory
-  NOTES_HIT = { x: W - 64, y: 80, w: 58, h: 12 };
+  // the cave's own memory — bright enough to invite the click
+  NOTES_HIT = { x: W - 104, y: 79, w: 98, h: 14 };
   g.textAlign = "right";
-  g.fillStyle = C.uiDim;
-  g.font = "7px monospace";
-  g.fillText(TOUCH.active ? "✎ NOTES — tap" : "✎ NOTES — N", W - 8, 89);
+  g.fillStyle = C.title;
+  g.globalAlpha = 0.75 + Math.sin(S.time * 3) * 0.25;
+  g.font = "bold 7px monospace";
+  g.fillText(TOUCH.active ? "✎ PATCH NOTES — tap" : "✎ PATCH NOTES — N", W - 8, 89);
+  g.globalAlpha = 1;
   g.textAlign = "center";
 
   g.fillStyle = C.uiDim;
