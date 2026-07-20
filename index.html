@@ -11,7 +11,7 @@
   body { display: flex; align-items: center; justify-content: center; touch-action: none; overscroll-behavior: none; }
   canvas {
     display: block;
-    image-rendering: pixelated; image-rendering: crisp-edges;
+    image-rendering: crisp-edges; image-rendering: pixelated;
     background: #0a0c10;
   }
   /* Touch controls — shown only on touch devices */
@@ -3900,15 +3900,21 @@ const g = buf.getContext("2d");
 let scale = 1;
 
 function resize() {
-  const raw = Math.min(innerWidth / W, innerHeight / H);
+  // Size the backing store in DEVICE pixels: on 4K/HiDPI screens the game
+  // pixels land 1:1 on physical pixels instead of being filtered up by the
+  // compositor. Still chunky, no longer blurry.
+  const dpr = window.devicePixelRatio || 1;
+  const raw = Math.min(innerWidth * dpr / W, innerHeight * dpr / H);
   // Touch devices get fractional scaling so the game fills the screen;
   // desktop stays integer-scaled for crisp pixels
   scale = TOUCH.active ? Math.max(1, raw) : Math.max(1, Math.floor(raw));
   canvas.width = Math.round(W * scale);
   canvas.height = Math.round(H * scale);
-  canvas.style.width = canvas.width + "px";
-  canvas.style.height = canvas.height + "px";
+  canvas.style.width = (canvas.width / dpr) + "px";
+  canvas.style.height = (canvas.height / dpr) + "px";
   ctx.imageSmoothingEnabled = false;
+  // re-run when the window moves to a monitor with a different pixel ratio
+  try { matchMedia("(resolution: " + dpr + "dppx)").addEventListener("change", resize, { once: true }); } catch (e) {}
 }
 addEventListener("resize", resize);
 resize();
@@ -3916,8 +3922,9 @@ resize();
 // Leaderboard interactivity: @names open X profiles, the small panel opens
 // the full board, and the board's tabs switch between the two lists.
 function canvasPos(e) {
+  // rect-relative: correct at any pixel ratio
   const r = canvas.getBoundingClientRect();
-  return { x: (e.clientX - r.left) / scale, y: (e.clientY - r.top) / scale };
+  return { x: (e.clientX - r.left) * (W / r.width), y: (e.clientY - r.top) * (H / r.height) };
 }
 function lbHitAt(e) {
   if (S.mode !== "title" && S.mode !== "win" && S.mode !== "board") return null;
