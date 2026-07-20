@@ -683,6 +683,9 @@ function prefetchLeader(slot, list) {
 }
 // ── Patch notes — the cave remembers its own growth. Newest first. ─────────
 const PATCH_NOTES = [
+  { v: "V4.1.3 — ONE ECHO PER SPORELING", d: "2026-07-20 02:32 UTC", lines: [
+    "· The boards show each name's best run only — no more stacking the top with yourself",
+  ]},
   { v: "V4.1.2 — WITHIN THE MARGINS", d: "2026-07-20 02:26 UTC", lines: [
     "· Long lines on this page now wrap instead of wandering off the right edge",
   ]},
@@ -789,10 +792,22 @@ const fmtMs = ms => {
 async function lbFetch(cat) {
   try {
     const r = await fetch(LB.url + "/rest/v1/scores?category=eq." + cat +
-      "&select=name,time_ms,id,has_ghost&order=time_ms.asc&limit=15", {
+      "&select=name,time_ms,id,has_ghost&order=time_ms.asc&limit=100", {
       headers: { apikey: LB.key, Authorization: "Bearer " + LB.key },
     });
-    return r.ok ? await r.json() : null;
+    if (!r.ok) return null;
+    const rows = await r.json();
+    // one row per sporeling: rows arrive fastest-first, keep each name's best
+    const seen = {};
+    const out = [];
+    for (const row of rows) {
+      const k = String(row.name || "").trim().toLowerCase();
+      if (seen[k]) continue;
+      seen[k] = true;
+      out.push(row);
+      if (out.length >= 15) break;
+    }
+    return out;
   } catch (e) { return null; }
 }
 
