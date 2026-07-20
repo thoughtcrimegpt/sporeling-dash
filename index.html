@@ -661,14 +661,14 @@ function startDaily() {
   S.wispHinted = false; S.hint = null;
   S.daily = true;
   S.practice = false;
-  S.dailyMods = dailyMods();
+  S.dailyMods = [];   // the trial needs no tricks — the climb is the whole test
   S.lives = dMod("petal") ? 1 : dMod("sparks2") ? 2 : START_LIVES;
   S.rec = []; S.ghost = null; S.ghostPos = null;
   if (GHOST_CACHE.daily)
     S.ghost = { frames: GHOST_CACHE.daily.frames, name: GHOST_CACHE.daily.name };
   loadLevel(LEVELS.length - 1);   // THE PALE ROOT — the daily IS the trial now
   S.mode = "play";
-  S.hint = { text: "THE PALE ROOT — " + S.dailyMods.map(m => MOD_NAMES[m]).join(" + "), t: 4.5 };
+  S.hint = { text: "THE PALE ROOT — no tricks. Only the climb.", t: 4.5 };
 }
 const LB_CACHE = { any: null, full: null, daily: null };
 const GHOST_CACHE = { any: null, daily: null };   // the reigning champions' echoes, prefetched
@@ -683,6 +683,11 @@ function prefetchLeader(slot, list) {
 }
 // ── Patch notes — the cave remembers its own growth. Newest first. ─────────
 const PATCH_NOTES = [
+  { v: "V4.2.1 — THE ROOT GOES DEEPER", d: "2026-07-20 03:35 UTC", lines: [
+    "· The trial doubled: two hundred rows, nine segments, two mercies",
+    "· All daily modifiers stripped from it — no tricks, only the climb",
+    "· Every chain now asks for your maximum reach",
+  ]},
   { v: "V4.2 — THE PALE ROOT", d: "2026-07-20 02:50 UTC", lines: [
     "· The Daily Spore is reborn: one pale climb, brutal and fair, in the",
     "  Mother's oldest root. Pure platforming. One mercy checkpoint",
@@ -1544,39 +1549,63 @@ const LEVELS = [
     // White-Palace rules: pure platforming, brutal, fair, one mercy checkpoint.
     name: "THE PALE ROOT", pal: 6, gauntlet: true,
     movers: [
-      { c0: 18, c1: 20, rA: 42, rB: 38, period: 2.2, phase: 0 },
-      { c0: 12, c1: 14, rA: 38, rB: 42, period: 2.2, phase: 0.5 },
-      { c0: 6, c1: 8, rA: 42, rB: 38, period: 2.2, phase: 0.25 },
+      { c0: 18, c1: 20, rA: 126, rB: 122, period: 1.9, phase: 0 },
+      { c0: 12, c1: 14, rA: 122, rB: 126, period: 1.9, phase: 0.5 },
+      { c0: 6, c1: 8, rA: 126, rB: 122, period: 1.9, phase: 0.25 },
+      { c0: 12, c1: 14, rA: 32, rB: 27, period: 1.8, phase: 0 },
+      { c0: 5, c1: 7, rA: 27, rB: 32, period: 1.8, phase: 0.5 },
     ],
-    map: buildLevel(26, 96, ({ set, rect }) => {
+    map: buildLevel(26, 200, ({ set, rect }) => {
       rect(0, 0, 25, 1);                                      // ceiling
-      rect(0, 0, 0, 95); rect(25, 0, 25, 95);                 // walls
-      rect(1, 92, 24, 95);                                    // base floor
-      set(3, 91, "P"); set(5, 91, "C");
-      // SEG 1 — the first steps: rising posts over a spiked floor
-      for (let c = 7; c <= 23; c++) set(c, 91, "S");
-      rect(9, 88, 9, 91); rect(13, 86, 13, 91); rect(17, 84, 17, 91); rect(21, 82, 21, 91);
-      // SEG 2 — the spiked chimney: wall-jump the gap, mind the studs
-      rect(17, 64, 17, 78);
-      set(18, 75, "S"); set(24, 71, "S"); set(18, 67, "S");
-      rect(13, 63, 16, 63);                                   // exit ledge
-      // the mercy — one checkpoint, halfway up
-      rect(1, 60, 8, 60); set(4, 59, "C");
-      // SEG 3 — the bloom ladder: nothing to stand on but what you grow
-      set(24, 56, "S"); set(1, 52, "S");
-      rect(12, 54, 13, 54);                                   // one breath, mid-ladder
-      rect(18, 48, 24, 48);                                   // landing shelf
-      // SEG 4 — the crossing: ride the shelves between two rows of teeth
-      rect(1, 46, 17, 46); for (let c = 2; c <= 16; c++) set(c, 45, "S");
-      rect(5, 34, 24, 34); for (let c = 6; c <= 23; c++) set(c, 35, "S");
-      rect(1, 36, 4, 36);                                     // exit ledge, gap above
-      // SEG 5 — the pale thread: rest posts and spiked islands to the crown
-      rect(1, 28, 2, 28);
-      rect(6, 30, 8, 30); for (let c = 6; c <= 8; c++) { set(c, 29, "S"); set(c, 31, "S"); }
-      rect(1, 20, 2, 20);
-      rect(14, 18, 16, 18); for (let c = 14; c <= 16; c++) { set(c, 17, "S"); set(c, 19, "S"); }
-      rect(10, 13, 11, 13);
-      set(24, 13, "S");
+      rect(0, 0, 0, 199); rect(25, 0, 25, 199);               // walls
+      rect(1, 196, 24, 199);                                  // base floor
+      set(3, 195, "P"); set(5, 195, "C");
+      // SEG 1 — the steps: thin posts, long gaps, spiked floor
+      for (let c = 7; c <= 23; c++) set(c, 195, "S");
+      rect(9, 193, 9, 195); rect(14, 191, 14, 195); rect(19, 189, 19, 195); rect(22, 187, 22, 195);
+      // SEG 2 — the first chimney: 21 rows, five studs
+      rect(17, 156, 17, 176);
+      set(18, 173, "S"); set(24, 169, "S"); set(18, 165, "S"); set(24, 161, "S"); set(18, 158, "S");
+      rect(13, 155, 16, 155);                                 // exit ledge
+      rect(1, 152, 6, 152);                                   // ladder start
+      // SEG 3 — the long ladder: two 10-row spans, one breath between
+      set(24, 148, "S"); set(1, 144, "S"); set(24, 140, "S"); set(1, 136, "S");
+      rect(12, 142, 13, 142);
+      rect(18, 132, 24, 132);                                 // landing shelf
+      // SEG 4 — the crossing: faster shelves, tighter teeth
+      rect(1, 130, 17, 130); for (let c = 2; c <= 16; c++) set(c, 129, "S");
+      rect(5, 118, 24, 118); for (let c = 6; c <= 23; c++) set(c, 119, "S");
+      rect(1, 120, 4, 120);
+      // FIRST MERCY
+      rect(1, 116, 6, 116); set(3, 115, "C");
+      // SEG 5 — the thread: max-reach chains between spiked islands
+      rect(1, 108, 2, 108);
+      rect(8, 110, 9, 110); for (let c = 8; c <= 9; c++) { set(c, 109, "S"); set(c, 111, "S"); }
+      rect(12, 103, 13, 103);
+      rect(16, 106, 17, 106); for (let c = 16; c <= 17; c++) { set(c, 105, "S"); set(c, 107, "S"); }
+      rect(4, 97, 5, 97);
+      rect(8, 99, 9, 99); for (let c = 8; c <= 9; c++) { set(c, 98, "S"); set(c, 100, "S"); }
+      rect(1, 94, 5, 94);
+      // SEG 6 — the teeth: climb the gaps, every shelf bites below
+      rect(6, 90, 24, 90); for (let c = 7; c <= 23; c++) set(c, 91, "S");
+      rect(1, 85, 19, 85); for (let c = 2; c <= 18; c++) set(c, 86, "S");
+      rect(6, 80, 8, 80); for (let c = 7; c <= 8; c++) set(c, 81, "S");
+      rect(16, 80, 24, 80); for (let c = 17; c <= 23; c++) set(c, 81, "S");
+      // SEG 7 — the second chimney: between two inner walls, studs both sides
+      rect(8, 58, 8, 74); rect(16, 58, 16, 74);
+      set(9, 71, "S"); set(15, 67, "S"); set(9, 63, "S"); set(15, 59, "S");
+      // SECOND MERCY
+      rect(1, 56, 8, 56); set(4, 55, "C");
+      // SEG 8 — the second ladder
+      set(24, 52, "S"); set(1, 48, "S"); set(24, 44, "S"); set(1, 40, "S");
+      rect(12, 46, 13, 46);
+      rect(18, 36, 24, 36);                                   // shelf
+      // SEG 9 — the crown approach: shelves in motion, then the last weave
+      rect(1, 22, 2, 22);
+      rect(6, 17, 7, 17); for (let c = 6; c <= 7; c++) { set(c, 16, "S"); set(c, 18, "S"); }
+      rect(11, 14, 12, 14);
+      rect(16, 11, 17, 11); for (let c = 16; c <= 17; c++) { set(c, 10, "S"); set(c, 12, "S"); }
+      set(24, 17, "S");
       rect(19, 8, 24, 8);                                     // the crown
       set(21, 6, "G");
     }),
@@ -5850,9 +5879,8 @@ function drawTitle() {
     g.font = "7px monospace";
     if (dailyUnlocked()) {
       DAILY_PANEL = { x: 4, y: 130, w: 182, h: 36 };
-      const mods = dailyMods();
       g.fillStyle = rgb(PALS[0].accent);
-      g.fillText(mods.map(m => MOD_NAMES[m]).join(" + "), 9, 149);
+      g.fillText("THE PALE ROOT — pure platforming, no mercy", 9, 149);
       g.fillStyle = C.goalOpen;
       g.fillText((gp() ? "D / Y — descend" : TOUCH.active ? "tap here — descend" : "D — descend") +
         (S.pendingGhost ? "   · echo armed" : ""), 9, 159);
