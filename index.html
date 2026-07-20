@@ -461,7 +461,7 @@ const MUS_TRACKS = {
     pad: [],
   },
 };
-const LEVEL_MUSIC = ["dream", "roots", "roots", "garden", "skitter", "brood", "garden", "skitter", "brood", "throat", "throat", "margin"];
+const LEVEL_MUSIC = ["dream", "roots", "roots", "garden", "skitter", "brood", "garden", "skitter", "brood", "throat", "throat", "margin", "skitter"];
 
 function musicWanted() {
   if (!musicOn) return null;
@@ -666,9 +666,9 @@ function startDaily() {
   S.rec = []; S.ghost = null; S.ghostPos = null;
   if (GHOST_CACHE.daily)
     S.ghost = { frames: GHOST_CACHE.daily.frames, name: GHOST_CACHE.daily.name };
-  loadLevel(0);
+  loadLevel(LEVELS.length - 1);   // THE PALE ROOT — the daily IS the trial now
   S.mode = "play";
-  S.hint = { text: "DAILY SPORE: " + S.dailyMods.map(m => MOD_NAMES[m]).join(" + "), t: 4.5 };
+  S.hint = { text: "THE PALE ROOT — " + S.dailyMods.map(m => MOD_NAMES[m]).join(" + "), t: 4.5 };
 }
 const LB_CACHE = { any: null, full: null, daily: null };
 const GHOST_CACHE = { any: null, daily: null };   // the reigning champions' echoes, prefetched
@@ -683,6 +683,14 @@ function prefetchLeader(slot, list) {
 }
 // ── Patch notes — the cave remembers its own growth. Newest first. ─────────
 const PATCH_NOTES = [
+  { v: "V4.2 — THE PALE ROOT", d: "2026-07-20 02:50 UTC", lines: [
+    "· The Daily Spore is reborn: one pale climb, brutal and fair, in the",
+    "  Mother's oldest root. Pure platforming. One mercy checkpoint",
+    "· Posts over spikes, a studded chimney, a ladder you must grow yourself,",
+    "  a crossing between two rows of teeth, and the thread to the crown",
+    "· Daily modifiers still twist it; the dated board and echoes carry on",
+    "· Heavy air no longer removes the glide — it just sinks faster",
+  ]},
   { v: "V4.1.3 — ONE ECHO PER SPORELING", d: "2026-07-20 02:32 UTC", lines: [
     "· The boards show each name's best run only — no more stacking the top with yourself",
   ]},
@@ -1531,6 +1539,50 @@ const LEVELS = [
       set(2, 10, "P"); set(11, 11, "M");
     }),
   },
+  {
+    // The daily trial — a pale climb in the Mother's oldest root.
+    // White-Palace rules: pure platforming, brutal, fair, one mercy checkpoint.
+    name: "THE PALE ROOT", pal: 6, gauntlet: true,
+    movers: [
+      { c0: 18, c1: 20, rA: 42, rB: 38, period: 2.2, phase: 0 },
+      { c0: 12, c1: 14, rA: 38, rB: 42, period: 2.2, phase: 0.5 },
+      { c0: 6, c1: 8, rA: 42, rB: 38, period: 2.2, phase: 0.25 },
+    ],
+    map: buildLevel(26, 96, ({ set, rect }) => {
+      rect(0, 0, 25, 1);                                      // ceiling
+      rect(0, 0, 0, 95); rect(25, 0, 25, 95);                 // walls
+      rect(1, 92, 24, 95);                                    // base floor
+      set(3, 91, "P"); set(5, 91, "C");
+      // SEG 1 — the first steps: rising posts over a spiked floor
+      for (let c = 7; c <= 23; c++) set(c, 91, "S");
+      rect(9, 88, 9, 91); rect(13, 86, 13, 91); rect(17, 84, 17, 91); rect(21, 82, 21, 91);
+      // SEG 2 — the spiked chimney: wall-jump the gap, mind the studs
+      rect(17, 64, 17, 78);
+      set(18, 75, "S"); set(24, 71, "S"); set(18, 67, "S");
+      rect(13, 63, 16, 63);                                   // exit ledge
+      // the mercy — one checkpoint, halfway up
+      rect(1, 60, 8, 60); set(4, 59, "C");
+      // SEG 3 — the bloom ladder: nothing to stand on but what you grow
+      set(24, 56, "S"); set(1, 52, "S");
+      rect(12, 54, 13, 54);                                   // one breath, mid-ladder
+      rect(18, 48, 24, 48);                                   // landing shelf
+      // SEG 4 — the crossing: ride the shelves between two rows of teeth
+      rect(1, 46, 17, 46); for (let c = 2; c <= 16; c++) set(c, 45, "S");
+      rect(5, 34, 24, 34); for (let c = 6; c <= 23; c++) set(c, 35, "S");
+      rect(1, 36, 4, 36);                                     // exit ledge, gap above
+      // SEG 5 — the pale thread: rest posts and spiked islands to the crown
+      rect(1, 28, 2, 28);
+      rect(6, 30, 8, 30); for (let c = 6; c <= 8; c++) { set(c, 29, "S"); set(c, 31, "S"); }
+      rect(1, 20, 2, 20);
+      rect(14, 18, 16, 18); for (let c = 14; c <= 16; c++) { set(c, 17, "S"); set(c, 19, "S"); }
+      rect(10, 13, 11, 13);
+      set(24, 13, "S");
+      rect(19, 8, 24, 8);                                     // the crown
+      set(21, 6, "G");
+    }),
+    clearText: "The root remembers every hand that climbed it.",
+    unlockText: "The Mother's trial: no gifts, no shortcuts. Grow your own way up.",
+  },
 ];
 
 // ── Player sprite (pixel maps, 12x12) ──────────────────────────────────────
@@ -2088,7 +2140,9 @@ function onGround(p) {
 }
 
 const wallsUnlocked = () => S.levelIdx >= WALL_LEVEL;
-const glideUnlocked = () => S.levelIdx >= GLIDE_LEVEL && !dMod("heavy");
+// HEAVY AIR no longer removes the glide — it just makes it sink faster.
+// The Swallow must always be survivable.
+const glideUnlocked = () => S.levelIdx >= GLIDE_LEVEL;
 
 // -1 = wall on the left, 1 = wall on the right, 0 = none (real tiles only)
 function touchingWallDir(p) {
@@ -2500,7 +2554,7 @@ function chamberClear() {
   S.mode = "clear";
   S.winT = 0;
   S.goalOpen = 0;
-  if (!S.daily && S.levelIdx + 1 < LEVELS.length - 1) reachSet(S.levelIdx + 1);
+  if (!S.daily && S.levelIdx + 1 <= 10) reachSet(S.levelIdx + 1);
   // Split vs the echo you're racing: when did THEY leave this chamber?
   S.split = null;
   if (S.ghost && S.ghost.frames && !S.practice) {
@@ -3639,7 +3693,13 @@ function tick(dt) {
     S.goalOpen = Math.min(1, S.goalOpen + dt * 1.4);
     updateParticles(dt);
     if (S.winT > 2.0) {
-      if (S.levelIdx + 1 < LEVELS.length) {
+      if (S.daily) {
+        // the trial is one chamber — the top IS the finish line
+        S.mode = "win";
+        S.lbMsg = ""; S.lbConfirm = false;
+        lbRefresh();
+        SFX.win();
+      } else if (S.levelIdx + 1 < LEVELS.length) {
         loadLevel(S.levelIdx + 1);
         S.mode = "play";
       } else {
@@ -3847,7 +3907,7 @@ function tick(dt) {
     if (p.vy > MAX_FALL) p.vy = MAX_FALL;
     if (p.sliding) p.vy = Math.min(p.vy, p.grip > 0 ? WALL_SLIDE_V : WALL_TIRED_V);
     else if (p.gliding) {
-      p.vy = Math.min(p.vy, GLIDE_FALL);
+      p.vy = Math.min(p.vy, GLIDE_FALL * (dMod("heavy") ? 1.9 : 1));
       if (Math.random() < 0.15)
         burst(p.x + Math.random() * 10, p.y - 4, (Math.random() - 0.5) * 10, -12, 0.4, "#c4a878", 1);
     }
