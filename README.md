@@ -18,3 +18,14 @@ Wall-cling, spore-glide, a lives system, a secret somewhere off the map, and **l
 | Pause      | Esc / P             | Start        |
 
 No dependencies, no build step — open `index.html` and play.
+
+## Development
+
+Development work stays on `goal-mode-dev`; production `main` is never updated directly.
+
+```text
+npm run dev
+npm test
+```
+
+`npm run dev` serves the same single-file game locally at `http://127.0.0.1:8765/` with DEV tools enabled. `npm test` runs the dependency-free script, level-map, and input-safety checks.

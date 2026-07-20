@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
-<meta name="description" content="Sporeling Dash — dash, bloom a platform, chain across the void. A tiny fungal platformer.">
+<meta name="description" content="In Sporeling Dash, your air-dash creates a temporary platform beneath you.">
 <title>Sporeling Dash</title>
 <style>
   * { margin: 0; padding: 0; box-sizing: border-box; }
@@ -38,6 +38,10 @@
     border-radius: 6px; display: flex; align-items: center; justify-content: center;
     color: rgba(232,224,208,0.6); font-size: 11px;
     background: rgba(8,12,18,0.5); border: 1px solid rgba(232,224,208,0.25); }
+  #touch.left-handed #stick { left: auto; right: calc(14px + env(safe-area-inset-right, 0px)); }
+  #touch.left-handed #btnJump { right: auto; left: calc(18px + env(safe-area-inset-left, 0px)); }
+  #touch.left-handed #btnDash { right: auto; left: calc(108px + env(safe-area-inset-left, 0px)); }
+  #touch.left-handed #btnPause { right: auto; left: calc(10px + env(safe-area-inset-left, 0px)); }
   #rotateHint { display: none; position: fixed; top: 8px; left: 50%; transform: translateX(-50%);
     color: #e8e0d0; font: 10px monospace; background: rgba(8,12,18,0.75);
     padding: 6px 10px; border-radius: 6px; z-index: 5; pointer-events: none; }
@@ -133,6 +137,10 @@ const BLOOM_LIFE = 1.7;
 const BLOOM_WILT = 0.45;
 const BLOOM_W = 24;
 const BLOOM_H = 8;
+// A short, capped lead keeps the bloom beneath the player's landing path
+// without steering them or erasing the need to manage air momentum.
+const BLOOM_PREDICT_TIME = 0.045;
+const BLOOM_LEAD_MAX = 5;
 const MAX_BLOOMS = 3;
 const MAX_SPORES = 3;   // blooms per airtime; solid ground refills
 // Successive blooms in one flight wilt faster — no surfing the ceiling
@@ -141,10 +149,11 @@ const CHAIN_WILT = [1, 0.75, 0.5];
 const SHAKE_MAG = 2.5;
 const SHAKE_TIME = 0.14;
 
-// Lives ("sparks") — run ends at 0; berries and chamber clears earn more
-const START_LIVES = 5;
-const MAX_LIVES = 9;
-const BERRIES_PER_LIFE = 8;
+// Health is a per-attempt hit buffer. Death always retries from the checkpoint.
+const START_HEALTH = 5;
+const MAX_HEALTH = 9;
+const BERRIES_PER_HEAL = 8;
+const ADVENTURE_LIVES = 3;
 
 // ── Palettes (one per level) ───────────────────────────────────────────────
 const PALS = [
@@ -247,6 +256,18 @@ const BOSS = {
   SWEEP_V: 240, RAIN_V: 85, BOLT_V: 150,
   CAP_W: 76, CAP_H: 26,
 };
+const ROOT_TIERS = Object.freeze({
+  ground: Object.freeze({ id: "ground", y: 19.5 * TILE, h: 24 }),
+  mid: Object.freeze({ id: "mid", y: 12.25 * TILE, h: 24 }),
+  upper: Object.freeze({ id: "upper", y: 5.25 * TILE, h: 24 }),
+});
+const ROOT_TIER_ORDER = Object.freeze({
+  2: Object.freeze(["mid", "ground"]),
+  3: Object.freeze(["ground", "upper", "mid"]),
+});
+const ROOT_X_MIN = 15 * TILE;
+const ROOT_X_MAX = 48 * TILE;
+const ROOT_W = 32;
 
 // Boss tuning — Barrow, the Oldest Slug (it swims the earth; stomp the
 // glowing belly mid-leap)
@@ -264,7 +285,7 @@ const BARROW = {
 const CHORUS = {
   ORBIT_R: 68, ORBIT: 2.0,
   DIVERS: [2, 3, 4],
-  DIVE_WARN: 0.5, DIVE_V: 230,
+  DIVE_WARN: 0.5, DIVE_V: 230, DIVE_TIME: 0.9,
   GATHER: [2.4, 1.45, 1.15],      // core-open window per phase (long first — learn it)
   N_WISPS: 7,
 };
@@ -380,6 +401,14 @@ function whoosh(dur, vol, freq) {
 let MUS = null;
 let musicOn = true;
 try { musicOn = localStorage.getItem("sd_music") !== "0"; } catch (e) {}
+let reducedMotion = false;
+try { reducedMotion = localStorage.getItem("sd_reduced_motion") === "1"; } catch (e) {}
+function toggleReducedMotion() {
+  reducedMotion = !reducedMotion;
+  try { localStorage.setItem("sd_reduced_motion", reducedMotion ? "1" : "0"); } catch (e) {}
+  S.shakeT = 0;
+  S.camLook = 0;
+}
 const MUS_VOL = 0.8;
 
 // scale = semitone steps; deg indexes it (wraps up octaves); root = semis from C
@@ -581,7 +610,7 @@ function dailySeedStr() {
     String(d.getUTCDate()).padStart(2, "0");
 }
 const MOD_NAMES = {
-  mirror: "MIRRORED", dim: "DIM", sparks2: "TWO SPARKS",
+  mirror: "MIRRORED", dim: "DIM", sparks2: "TWO HEALTH",
   brittle: "BRITTLE BLOOMS", restless: "RESTLESS", heavy: "HEAVY AIR",
   petal: "PETAL RUN",
 };
@@ -633,26 +662,128 @@ function stepPrac(dir, allowZero) {
 }
 const pracName = sel => sel === 99 ? "THE SHOGGOTH" : LEVELS[sel] ? LEVELS[sel].name : "";
 
+function stepAdventureLevel(dir) {
+  const max = reachGet();
+  if (max <= 0) { S.advStart = 0; return; }
+  S.advStart = wrap(S.advStart + (dir < 0 ? -1 : 1), max + 1);
+}
+const adventureLevelName = () => (S.advStart + 1) + ". " + LEVELS[S.advStart].name.replace(/^THE /, "");
+
 const pauseIds = () => {
   const ids = ["resume", "restart"];
-  if (!DEV && (reachGet() > 0 || shogSeen())) ids.push("practice");
+  if (!DEV && S.runMode === "adventure" && (reachGet() > 0 || shogSeen())) ids.push("practice");
+  ids.push("motion");
+  if (TOUCH.active) ids.push("touchhand");
   ids.push("newgame", "titlescr");
   if (DEV) ids.push("devrow");
   return ids;
 };
 
+const titleIds = () => {
+  const ids = ["adventure", "speedrun"];
+  if (runModePref === "adventure") {
+    ids.push("lives");
+    if (reachGet() > 0) ids.push("levelselect");
+  } else {
+    ids.push("ghost");
+  }
+  ids.push("start");
+  if (DEV && runModePref === "adventure") ids.push("devlevel");
+  if (DEV) ids.push("devhealth");
+  if (lbOn()) ids.push("board");
+  ids.push("daily");
+  ids.push("notes");
+  return ids;
+};
+
+function titleCurrentId() {
+  const ids = titleIds();
+  S.titleSel = clamp(S.titleSel, 0, ids.length - 1);
+  return ids[S.titleSel];
+}
+
+function startTitleRun() {
+  S.score = { berries: 0, total: 0, deaths: 0, time: 0, freed: 0, pickups: 0, secretMemory: false, metNpcs: {} };
+  S.health = START_HEALTH;
+  S.wispHinted = false; S.hint = null;
+  S.bloomLessonDone = false;
+  S.daily = false; S.dailyMods = null;
+  S.practice = false;
+  S.runMode = runModePref;
+  configureRunLives(S.runMode, false);
+  S.rec = [];
+  S.ghost = null; S.ghostPos = null;
+  if (S.runMode === "speedrun" && ghostPref === "leader") {
+    if (S.pendingGhost) {
+      S.ghost = S.pendingGhost;
+      S.pendingGhost = null;
+    } else if (GHOST_CACHE.any) {
+      S.ghost = { frames: GHOST_CACHE.any.frames, name: GHOST_CACHE.any.name };
+    }
+    S.hint = S.ghost
+      ? { text: "Speedrun: you're racing " + (S.ghost.name || "the leaderboard ghost") + ".", t: 3.5 }
+      : { text: "Speedrun: there isn't a leaderboard ghost to load yet.", t: 3.5 };
+  } else if (S.runMode === "speedrun" && ghostPref === "personal") {
+    try {
+      const pb = JSON.parse(localStorage.getItem("sd_pb") || "null");
+      if (pb && pb.frames) {
+        S.ghost = { frames: pb.frames, name: "your echo" };
+        S.hint = { text: "Speedrun: you're racing your " + fmtMs(pb.t * 1000) + " personal best.", t: 3.5 };
+      } else {
+        S.hint = { text: "Finish a Speedrun once and your ghost will be saved.", t: 3.5 };
+      }
+    } catch (e) {}
+  } else if (S.runMode === "speedrun") {
+    S.hint = { text: "Speedrun started. The timer is running, and the ghost is off.", t: 3.2 };
+  }
+  const startLevel = DEV ? (S.runMode === "speedrun" ? 0 : S.devLevel) : S.runMode === "adventure" ? clamp(S.advStart, 0, reachGet()) : 0;
+  if (!DEV && S.runMode === "adventure" && startLevel > 0)
+    S.hint = { text: "Adventure starts at " + LEVELS[startLevel].name + ".", t: 3.5 };
+  loadLevel(startLevel);
+  S.mode = "play";
+}
+
+function activateTitleItem(id) {
+  if (id === "start") startTitleRun();
+  else if (id === "adventure") { setRunModePref("adventure"); SFX.talk(); }
+  else if (id === "speedrun") { setRunModePref("speedrun"); SFX.talk(); }
+  else if (id === "lives") { toggleUnlimitedLives(); SFX.talk(); }
+  else if (id === "levelselect") { stepAdventureLevel(1); SFX.talk(); }
+  else if (id === "ghost") { cycleGhostPref(1); SFX.talk(); }
+  else if (id === "notes") { S.mode = "notes"; S.notesY = 0; SFX.talk(); }
+  else if (id === "board" && lbOn()) { S.boardFrom = "title"; S.mode = "board"; SFX.talk(); }
+  else if (id === "daily") { if (dailyUnlocked()) startDaily(); else SFX.talk(); }
+  else if (id === "devlevel") { S.devLevel = (S.devLevel + 1) % LEVELS.length; SFX.talk(); }
+  else if (id === "devhealth") { S.devInf = !S.devInf; SFX.talk(); }
+}
+
 // A fresh practice run at the chosen chamber — clearly not board-eligible
 function startPracticeRun(sel) {
   S.score = { berries: 0, total: 0, deaths: 0, time: 0, freed: 0, pickups: 0, secretMemory: false, metNpcs: {} };
-  S.lives = START_LIVES;
+        S.health = START_HEALTH;
   S.wispHinted = false;
+  S.bloomLessonDone = sel !== 0;
   S.daily = false; S.dailyMods = null;
   S.practice = true;
+  S.runMode = "adventure";
+  configureRunLives("adventure", true);
   S.rec = []; S.ghost = null; S.ghostPos = null;
   loadLevel(sel === 99 ? 10 : sel);
   S.mode = "play";
-  if (sel === 99) spawnShoggoth();
-  S.hint = { text: "PRACTICE — " + pracName(sel) + ". This run won't count for the board.", t: 4.5 };
+  if (sel === 99) stageShoggothPractice();
+  S.hint = { text: "Practice: " + pracName(sel) + ". This run won't be submitted.", t: 4.5 };
+}
+
+function restartCurrentChamber() {
+  recordDevAttempt("restart");
+  if (S.practice) {
+    const sel = S.pracSel === 99 ? 99 : S.levelIdx;
+    startPracticeRun(sel);
+    S.hint = { text: "Practice restarted with full health.", t: 3 };
+  } else {
+    loadLevel(S.levelIdx);
+    S.mode = "play";
+  }
 }
 
 function startDaily() {
@@ -661,14 +792,16 @@ function startDaily() {
   S.wispHinted = false; S.hint = null;
   S.daily = true;
   S.practice = false;
+  S.runMode = "speedrun";
+  configureRunLives("speedrun", false);
   S.dailyMods = [];   // the trial needs no tricks — the climb is the whole test
-  S.lives = dMod("petal") ? 1 : dMod("sparks2") ? 2 : START_LIVES;
+  S.health = dMod("petal") ? 1 : dMod("sparks2") ? 2 : START_HEALTH;
   S.rec = []; S.ghost = null; S.ghostPos = null;
-  if (GHOST_CACHE.daily)
+  if (ghostPref === "leader" && GHOST_CACHE.daily)
     S.ghost = { frames: GHOST_CACHE.daily.frames, name: GHOST_CACHE.daily.name };
   loadLevel(LEVELS.length - 1);   // THE PALE ROOT — the daily IS the trial now
   S.mode = "play";
-  S.hint = { text: "THE PALE ROOT — no tricks. Only the climb.", t: 4.5 };
+  S.hint = { text: "Reach the crown. There are only two checkpoints.", t: 4.5 };
 }
 const LB_CACHE = { any: null, full: null, daily: null };
 const GHOST_CACHE = { any: null, daily: null };   // the reigning champions' echoes, prefetched
@@ -682,7 +815,40 @@ function prefetchLeader(slot, list) {
   });
 }
 // ── Patch notes — the cave remembers its own growth. Newest first. ─────────
-const PATCH_NOTES = [
+const PATCH_NOTES_SOURCE_ARCHIVE = [
+  { v: "V4.3.8 — TEACH, THEN TRUST", d: "2026-07-20 21:15 UTC", lines: [
+    "· Patch Notes is now a full desktop click target with clear hover feedback",
+    "· Root Sweep names its direction twice per fight, then lets you read the attack",
+  ]},
+  { v: "V4.3.5 — START AT THE FIGHT", d: "2026-07-20 08:42 UTC", lines: [
+    "· Direct Shoggoth practice now begins beside the fight, not at the far entrance",
+    "· Its practice checkpoint stays there too, so a retry returns to the arena",
+  ]},
+  { v: "V4.3.4 — KEEP THEM IN FRAME", d: "2026-07-20 08:40 UTC", lines: [
+    "· The Chorus camera now frames both you and its fixed heart during the fight",
+    "· Vulnerable gather windows no longer begin with the target at the screen edge",
+  ]},
+  { v: "V4.3.3 — EITHER HAND", d: "2026-07-20 08:34 UTC", lines: [
+    "· Touch Layout in pause now mirrors stick and buttons for left-handed play",
+    "· The choice stays on this device and respects notches on either side",
+  ]},
+  { v: "V4.3.2 — PRACTICE MEANS AGAIN", d: "2026-07-20 08:28 UTC", lines: [
+    "· Restart Chamber now restores every spark during a practice run",
+    "· A spent practice run retries its current chamber instead of detouring to title",
+  ]},
+  { v: "V4.3.1 — THE ROOT POINTS FIRST", d: "2026-07-20 08:26 UTC", lines: [
+    "· The Unbloomed's root sweep now names its entry edge and direction",
+    "· Its warning bar is the real danger timer — full means move now",
+  ]},
+  { v: "V4.3 — STEADY HANDS", d: "2026-07-20 08:08 UTC", lines: [
+    "· Switching tabs or apps now pauses safely and clears stale inputs",
+    "· Quick direction taps no longer vanish between fixed updates",
+    "· Reduced Motion removes screen shake and directional camera drift",
+  ]},
+  { v: "V4.2.3 — NO FALSE MERCIES", d: "2026-07-20 03:58 UTC", lines: [
+    "· The pointless checkpoint at the Root's doorstep is gone — the two",
+    "  real mercies wait a third and three-quarters of the way up",
+  ]},
   { v: "V4.2.2 — ONE ROOT, ONE BOARD", d: "2026-07-20 03:50 UTC", lines: [
     "· The Pale Root is not a daily. It is THE trial — one climb, one name,",
     "  one eternal leaderboard. Its champion's echo races every challenger",
@@ -789,15 +955,91 @@ const PATCH_NOTES = [
     "· Eleven... no. Six chambers, one frightened guardian, and a dash that blooms",
   ]},
 ];
+const PATCH_NOTES = [
+  { v: "V4.4  Player feedback pass", d: "2026-07-20 DEV", lines: [
+    "· The title starts only when you confirm the highlighted Start row.",
+    "· Adventure is the default. Speedrun and ghosts are separate choices.",
+    "· Air-dash blooms now sit under your landing path instead of behind it.",
+    "· The opening chamber teaches the air-dash on a safe, required gap.",
+    "· Checkpoints accept close passes, and Adventure can use unlimited lives or three lives.",
+    "· Adventure level select appears after the first clear. Speedrun always starts at level one.",
+    "· The Pale Root remains visible as locked New Game+ content until the main game is beaten.",
+    "· Health, blooms, and dash readiness now share one HUD panel.",
+    "· Dialogue and instructions were rewritten for clarity and distinct voices.",
+    "· Press E, Enter, or controller Y to finish a line; tap the speaker or dialogue box on touch screens.",
+    "· The Unbloomed now sends roots across the ground, middle, and upper arena.",
+    "· Chorus Hall names the glowing-heart opening, and diving wisps travel farther.",
+    "· Control labels now show keyboard, controller, or touch buttons separately.",
+  ]},
+  { v: "V4.3.8  Controls and boss warnings", d: "2026-07-20", lines: [
+    "· Patch Notes became a large clickable target on desktop.",
+    "· The first two Unbloomed sweeps show their direction in text.",
+    "· Switching tabs pauses the game and clears held input.",
+  ]},
+  { v: "V4.3  Practice and accessibility", d: "2026-07-20", lines: [
+    "· Practice retries restore full health and restart the current encounter.",
+    "· Shoggoth practice begins inside its arena.",
+    "· Left-handed touch controls mirror the full layout.",
+    "· Reduced Motion removes shake and directional camera drift.",
+    "· The Chorus camera keeps both the player and its heart in frame.",
+  ]},
+  { v: "V4.2  The Pale Root", d: "2026-07-20", lines: [
+    "· The Pale Root became one permanent climb with one leaderboard.",
+    "· The climb has nine sections and two checkpoints.",
+    "· Daily modifiers were removed from this route.",
+  ]},
+  { v: "V4.1  Barrow and leaderboard updates", d: "2026-07-20", lines: [
+    "· Barrow now burrows, warns before surfacing, and exposes its belly in the air.",
+    "· Leaderboards keep each player's best time instead of duplicate entries.",
+    "· Long patch-note lines wrap inside the panel.",
+  ]},
+  { v: "V4.0  Shoggoth and display updates", d: "2026-07-20", lines: [
+    "· The Shoggoth was added after the Unbloomed fight.",
+    "· Text and game pixels render sharply on high-density displays.",
+    "· A player can create three blooms before returning to solid ground.",
+  ]},
+  { v: "V3.7  Practice, music, and movement", d: "2026-07-19", lines: [
+    "· Added chamber practice, a pause-menu practice shortcut, and the down-slam.",
+    "· Added music for each part of the cave and a mute control.",
+    "· Full runs remained separate from practice and continued to use the board.",
+  ]},
+  { v: "V3.6  Teaching and game feel", d: "2026-07-19", lines: [
+    "· Death messages identify the hazard that hit you.",
+    "· Bosses give a longer first opening and mark the weak point once.",
+    "· Camera look-ahead, dash buffering, and touch input were tightened.",
+  ]},
+  { v: "V3.4  The Stopped", d: "2026-07-19", lines: [
+    "· Anonymous fallen sporelings appear where other players died.",
+    "· Air-dashing through one frees it.",
+  ]},
+  { v: "V3.3  The Swallow", d: "2026-07-19", lines: [
+    "· Added the vertical tooth shaft before the Mother's Throat.",
+    "· Added controller shortcuts for the board and the old daily route.",
+  ]},
+  { v: "V3.1  Daily runs and ghosts", d: "2026-07-19", lines: [
+    "· Added a shared nightly route, dated boards, replay ghosts, and race links.",
+  ]},
+  { v: "V3  Deep chambers", d: "2026-07-19", lines: [
+    "· Added three chambers, two bosses, three enemies, share cards, and the full board.",
+  ]},
+  { v: "V2  The Mother's Throat", d: "2026-07-19", lines: [
+    "· Added the Unbloomed, the Undrawn Map, and live leaderboards.",
+  ]},
+  { v: "V1  First build", d: "2026-07-19", lines: [
+    "· Shipped six chambers, one boss, and the air-dash bloom mechanic.",
+  ]},
+];
 const NOTES_TOTAL = PATCH_NOTES.reduce((a, b) => a + 13 + b.lines.length * 9 + 8, 0);
 let NOTES_MEASURED = NOTES_TOTAL;   // true height once wrapping is measured
 let NOTES_HIT = null;   // the title's notes link rect
+let NOTES_HOVER = false;
+let TITLE_HITS = [];
 
 let LB_HITS = [];   // clickable name rows, rebuilt each frame the panel draws
 let LB_PANEL = null; // the small panel's rect — click it to open the full board
 let BOARD_TABS = []; // tab rects on the full-board screen
 let RACE_HITS = []; // ▸ race-this-echo zones on the full board
-let DAILY_PANEL = null; // the title's daily-spore card
+let DAILY_PANEL = null; // the title's New Game+ Pale Root card
 
 const fmtMs = ms => {
   const t = Math.max(0, Math.round(ms / 100) / 10);
@@ -928,8 +1170,8 @@ function buildShareCard(name, cat, ms, rank) {
   const isDaily = cat.indexOf("daily-") === 0;
   c2.fillStyle = isDaily ? "#f0c878" : cat === "full" ? "#f098b8" : "#90e8b0";
   c2.font = "bold 18px monospace";
-  c2.fillText(isDaily ? "☾ DAILY SPORE — " + cat.slice(6) + " ☽"
-    : cat === "full" ? "★ FULL BLOOM — 100% ★" : "ANY% CLEAR", 320, 80);
+  c2.fillText(isDaily ? "☾ DAILY SPORE " + cat.slice(6) + " ☽"
+    : cat === "full" ? "★ FULL BLOOM 100% ★" : "ANY% CLEAR", 320, 80);
   c2.save();
   c2.translate(320 - 36, 100);
   c2.scale(6, 6);
@@ -953,7 +1195,7 @@ function buildShareCard(name, cat, ms, rank) {
   } else if (S.score.secretMemory) {
     c2.fillStyle = "#dee6c8";
     c2.font = "13px monospace";
-    c2.fillText("— found the place the maps forgot —", 320, 316);
+    c2.fillText("Found the Undrawn Map", 320, 316);
   }
   c2.fillStyle = "#7a8494";
   c2.font = "14px monospace";
@@ -976,21 +1218,27 @@ function showShare(dataUrl, tweetText) {
 // Name the real button for whatever the player is holding
 const dashBtnName = () => gp() ? "X" : TOUCH.active ? "the X button" : "SHIFT";
 const jumpBtnName = () => gp() ? "A" : TOUCH.active ? "the A button" : "SPACE";
+function titleControlLines() {
+  if (TOUCH.active) return ["Move: STICK   Jump: A   Dash: X"];
+  if (gp()) return ["Move: LEFT STICK or D-PAD", "Jump: A   Dash: X or RB"];
+  return ["Move: A / D or LEFT / RIGHT", "Jump: SPACE   Dash: SHIFT or J   M: MUSIC"];
+}
 
 function submitScore() {
-  if (!lbOn()) { S.lbMsg = "Leaderboard offline"; return; }
-  if (S.practice) { S.lbMsg = "Practice run — the board only takes full runs"; return; }
-  if (S.score.lbDone) { S.lbMsg = "Already submitted"; return; }
+  if (!lbOn()) { S.lbMsg = "The leaderboard is offline."; return; }
+  if (S.practice) { S.lbMsg = "Practice runs can't be submitted."; return; }
+  if (!competitiveRun()) { S.lbMsg = "Adventure runs aren't submitted."; return; }
+  if (S.score.lbDone) { S.lbMsg = "You already submitted this run."; return; }
   let name = "";
   try { name = localStorage.getItem("sd_name") || ""; } catch (e) {}
   if (!name) name = "@";   // start them off with the handle prefix
   name = window.prompt(
-    "LEADERBOARD NAME — required. No name = you won't appear on the board.\n\n" +
-    "Want it clickable? Enter your EXACT X username with the @ (like @yourhandle) " +
-    "and the board links straight to your profile. Anything else shows as plain text.",
+    "Enter the name you want on the leaderboard. This is required.\n\n" +
+    "If you enter an exact X handle such as @yourhandle, it will link to that profile. " +
+    "Anything else will be shown as plain text.",
     name) || "";
   name = name.trim().replace(/[^\w@.\- ]/g, "").slice(0, 20);
-  if (!name || name === "@") { S.lbMsg = "No name — not on the board. " + dashBtnName() + " to retry"; return; }
+  if (!name || name === "@") { S.lbMsg = "A name is required. Press " + dashBtnName() + " to try again."; return; }
   try { localStorage.setItem("sd_name", name); } catch (e) {}
   const ms = Math.round(S.score.time * 1000);
   const met = Object.keys(S.score.metNpcs).length;
@@ -1008,13 +1256,13 @@ function submitScore() {
   if (S.daily) {
     const cat = "root";   // the trial's one eternal board
     lbPost(name, cat, ms, ghost).then(res => {
-      S.lbMsg = res.ok ? "On the Root board!" : "Submit failed, try again later";
+      S.lbMsg = res.ok ? "Your time is on the Root board." : "That didn't submit. Try again later.";
       if (!res.ok) { S.score.lbDone = false; return; }
       lbRefresh();
       lbRank(cat, ms).then(rank => {
         const link = res.id ? gameUrl + "?race=" + res.id : gameUrl;
-        const tweet = fmtMs(ms) + " — " + (rank ? "#" + rank + " " : "") +
-          "up THE PALE ROOT 🍄 race my echo: " + link;
+        const tweet = fmtMs(ms) + ". " + (rank ? "#" + rank + " " : "") +
+          "on THE PALE ROOT 🍄 Race my ghost: " + link;
         showShare(buildShareCard(name, cat, ms, rank), tweet);
       });
     });
@@ -1023,15 +1271,15 @@ function submitScore() {
 
   Promise.all([lbPost(name, "any", ms, ghost), full ? lbPost(name, "full", ms, null) : Promise.resolve({ ok: true, id: null })])
     .then(res => {
-      S.lbMsg = res[0].ok && res[1].ok ? (full ? "On both boards — FULL BLOOM!" : "On the board — any%") : "Submit failed, try again later";
+      S.lbMsg = res[0].ok && res[1].ok ? (full ? "Your time is on both boards." : "Your time is on the Any% board.") : "That didn't submit. Try again later.";
       if (!res[0].ok) S.score.lbDone = false;
       lbRefresh();
       if (res[0].ok) {
         const cat = full ? "full" : "any";
         lbRank(cat, ms).then(rank => {
           const link = res[0].id && ghost ? gameUrl + "?race=" + res[0].id : gameUrl;
-          const tweet = fmtMs(ms) + " — " + (rank ? "#" + rank + " " : "") +
-            "on the Sporeling Dash " + (full ? "100%" : "any%") + " leaderboard 🍄 race my echo: " + link;
+          const tweet = fmtMs(ms) + ". " + (rank ? "#" + rank + " " : "") +
+            "on the Sporeling Dash " + (full ? "100%" : "any%") + " leaderboard 🍄 Race my ghost: " + link;
           showShare(buildShareCard(name, cat, ms, rank), tweet);
         });
       }
@@ -1044,6 +1292,65 @@ const just = Object.create(null);
 const padPrev = { jump: false, dash: false, pause: false };
 const TOUCH = { active: false, ax: 0, ay: 0, jump: false, dash: false, pause: false };
 const touchPrev = { jump: false, dash: false, pause: false };
+let focusInputLock = false;
+let focusReady = true;
+let leftHanded = false;
+try { leftHanded = localStorage.getItem("sd_touch_left") === "1"; } catch (e) {}
+
+const RUN_MODES = ["adventure", "speedrun"];
+const GHOST_PREFS = ["off", "personal", "leader"];
+let runModePref = "adventure";
+let ghostPref = "off";
+let unlimitedLivesPref = true;
+try {
+  const savedMode = localStorage.getItem("sd_run_mode");
+  const savedGhost = localStorage.getItem("sd_ghost_pref");
+  const savedLives = localStorage.getItem("sd_adventure_unlimited_lives");
+  if (RUN_MODES.includes(savedMode)) runModePref = savedMode;
+  if (GHOST_PREFS.includes(savedGhost)) ghostPref = savedGhost;
+  if (savedLives === "0") unlimitedLivesPref = false;
+} catch (e) {}
+
+function setRunModePref(mode) {
+  runModePref = RUN_MODES.includes(mode) ? mode : "adventure";
+  try { localStorage.setItem("sd_run_mode", runModePref); } catch (e) {}
+  return runModePref;
+}
+
+function cycleGhostPref(dir = 1) {
+  const i = GHOST_PREFS.indexOf(ghostPref);
+  ghostPref = GHOST_PREFS[(i + (dir < 0 ? -1 : 1) + GHOST_PREFS.length) % GHOST_PREFS.length];
+  try { localStorage.setItem("sd_ghost_pref", ghostPref); } catch (e) {}
+  return ghostPref;
+}
+
+function toggleUnlimitedLives() {
+  unlimitedLivesPref = !unlimitedLivesPref;
+  try { localStorage.setItem("sd_adventure_unlimited_lives", unlimitedLivesPref ? "1" : "0"); } catch (e) {}
+  return unlimitedLivesPref;
+}
+
+function configureRunLives(mode, practice) {
+  S.unlimitedLives = mode !== "adventure" || practice || unlimitedLivesPref;
+  S.lives = S.unlimitedLives ? -1 : ADVENTURE_LIVES;
+  S.outOfLives = false;
+}
+
+const competitiveRun = () => S.runMode === "speedrun" && !S.practice;
+
+function applyTouchLayout() {
+  const root = document.getElementById("touch");
+  if (!root) return;
+  if (leftHanded) root.classList.add("left-handed");
+  else root.classList.remove("left-handed");
+}
+
+function toggleTouchHand() {
+  leftHanded = !leftHanded;
+  try { localStorage.setItem("sd_touch_left", leftHanded ? "1" : "0"); } catch (e) {}
+  releaseTransientInput();
+  applyTouchLayout();
+}
 
 addEventListener("keydown", e => {
   if (!keys[e.code]) just[e.code] = true;
@@ -1064,6 +1371,12 @@ function readInput() {
   if (keys.KeyD || keys.ArrowRight) ax += 1;
   if (keys.KeyW || keys.ArrowUp)    ay -= 1;
   if (keys.KeyS || keys.ArrowDown)  ay += 1;
+  // Preserve a one-tick directional impulse when keydown and keyup both land
+  // between fixed updates. Without this, quick menu taps and dash aims vanish.
+  if (ax === 0)
+    ax = (just.KeyD || just.ArrowRight ? 1 : 0) - (just.KeyA || just.ArrowLeft ? 1 : 0);
+  if (ay === 0)
+    ay = (just.KeyS || just.ArrowDown ? 1 : 0) - (just.KeyW || just.ArrowUp ? 1 : 0);
 
   let jumpDown = !!(keys.Space || keys.KeyZ || keys.KeyK);
   let dashDown = !!(keys.ShiftLeft || keys.ShiftRight || keys.KeyJ);
@@ -1072,6 +1385,7 @@ function readInput() {
   let dashEdge = !!(just.ShiftLeft || just.ShiftRight || just.KeyJ);
   let pauseEdge = !!(just.Escape || just.KeyP);
   let startEdge = !!(just.Enter || just.Space);
+  let talkEdge = !!(just.Enter || just.KeyE);
   let dailyEdge = !!just.KeyD;
   let boardEdge = !!just.KeyL;
 
@@ -1105,10 +1419,13 @@ function readInput() {
     if (a || b) jumpDown = true;
     if (x || rb || lb) dashDown = true;
     if (st) pauseDown = true;
-    if ((a || b) && !padPrev.jump) { jumpEdge = true; startEdge = true; }
+    if ((a || b) && !padPrev.jump) {
+      jumpEdge = true;
+      if (a) startEdge = true;
+    }
     if ((x || rb || lb) && !padPrev.dash) dashEdge = true;
-    if (st && !padPrev.pause) pauseEdge = true;
-    if (y && !padPrev.y) dailyEdge = true;
+    if (st && !padPrev.pause) { pauseEdge = true; startEdge = true; }
+    if (y && !padPrev.y) { dailyEdge = true; talkEdge = true; }
     if (sel && !padPrev.sel) boardEdge = true;
     padPrev.jump = a || b; padPrev.dash = x || rb || lb; padPrev.pause = st;
     padPrev.y = y; padPrev.sel = sel;
@@ -1122,7 +1439,7 @@ function readInput() {
     if (TOUCH.jump) jumpDown = true;
     if (TOUCH.dash) dashDown = true;
     if (TOUCH.pause) pauseDown = true;
-    if (TOUCH.jump && !touchPrev.jump) { jumpEdge = true; startEdge = true; }
+    if (TOUCH.jump && !touchPrev.jump) jumpEdge = true;
     if (TOUCH.dash && !touchPrev.dash) dashEdge = true;
     if (TOUCH.pause && !touchPrev.pause) pauseEdge = true;
     touchPrev.jump = TOUCH.jump; touchPrev.dash = TOUCH.dash; touchPrev.pause = TOUCH.pause;
@@ -1130,16 +1447,43 @@ function readInput() {
 
   const len = Math.hypot(ax, ay);
   if (len > 1) { ax /= len; ay /= len; }
-  return { ax, ay, jumpDown, jumpEdge, dashEdge, pauseEdge, startEdge, dailyEdge, boardEdge };
+  // After focus returns, require every control to pass through neutral once.
+  // Browsers can miss keyup/touchend while switching tabs or apps; accepting
+  // those stale inputs is indistinguishable from the game moving by itself.
+  if (focusInputLock) {
+    const neutral = Math.abs(ax) < 0.01 && Math.abs(ay) < 0.01 &&
+      !jumpDown && !dashDown && !pauseDown;
+    if (focusReady && neutral) focusInputLock = false;
+    return {
+      ax: 0, ay: 0, jumpDown: false, jumpEdge: false, dashEdge: false,
+      pauseEdge: false, startEdge: false, talkEdge: false, dailyEdge: false, boardEdge: false,
+    };
+  }
+  return { ax, ay, jumpDown, jumpEdge, dashEdge, pauseEdge, startEdge, talkEdge, dailyEdge, boardEdge };
 }
 
 function clearJust() { for (const k in just) delete just[k]; }
+
+function releaseTransientInput() {
+  for (const k in keys) delete keys[k];
+  clearJust();
+  TOUCH.ax = 0; TOUCH.ay = 0;
+  TOUCH.jump = false; TOUCH.dash = false; TOUCH.pause = false;
+  touchPrev.jump = false; touchPrev.dash = false; touchPrev.pause = false;
+  padPrev.jump = false; padPrev.dash = false; padPrev.pause = false;
+  padPrev.y = false; padPrev.sel = false;
+  const nub = document.getElementById("nub");
+  if (nub) nub.style.transform = "";
+  for (const id of ["btnJump", "btnDash", "btnPause"])
+    document.getElementById(id)?.classList.remove("pressed");
+}
 
 // Touch controls — virtual stick + buttons, shown only once a touch device is detected
 function setupTouch() {
   const root = document.getElementById("touch");
   const stick = document.getElementById("stick");
   const nub = document.getElementById("nub");
+  applyTouchLayout();
 
   function enable() {
     if (TOUCH.active) return;
@@ -1247,15 +1591,15 @@ const LEVELS = [
       set(76, 4, "B");                                        // above the splinters
       set(58, 11, "B");                                       // skim the spike pit mid-dash — grind bait
     }),
-    clearText: "Far above, a single leaf uncurls.",
+    clearText: "You can reach Rotroot Chasm now.",
     npcs: [{
       c: 12, r: 8, name: "BARNABY", sprite: "keeper",
       lines: [
-        "Off to wake the Mother Bloom, little spore?",
-        "She went quiet three seasons back. The dark's been... hungry since.",
-        "Dash bold, land soft. The others didn't.",
-        "Some of them just stopped. You'll see them pacing. Don't judge them — it's a long way down.",
-        "...what others? Hm? I said nothing.",
+        "You're going up? All right. Mother Bloom's at the top, assuming the old paths still connect.",
+        "She stopped answering three seasons ago, and that's about when everything down here started biting.",
+        "At the first gap, jump and then air-dash. The bloom comes up under you, so use it to get across.",
+        "You'll see gray sporelings pacing later on. Dash through them if you can. Sometimes they wake up.",
+        "I didn't tell you that. Go.",
       ],
     }],
   },
@@ -1290,23 +1634,23 @@ const LEVELS = [
       set(51, 3, "B");                                        // high above the chasm — ride the shelf
     }),
     movers: [{ c0: 50, c1: 52, rA: 13, rB: 6, period: 3.4, phase: 0 }],
-    clearText: "The roots remember your name now.",
+    clearText: "The roots let go of the Spire door.",
     npcs: [{
       c: 36, r: 3, name: "COMMANTHA", sprite: "dog",
       lines: [
-        "Yes, a dog. No, I won't explain. The cave has room for all kinds.",
-        "I keep the smallest journal down here. One mouthful of words a day. No more.",
-        "Today's entry: 'The climber came through. Good grip. Would follow.'",
-        "Every entry ends with three scratches: 'who was MH.' Don't ask. The asking is the point.",
-        "Some down here call me something gentler. Only my pack knows it.",
+        "Yes, I'm a dog. Anyway.",
+        "I keep a journal. One sentence a day, because if I let myself write two I'll be here all night.",
+        "'Small climber came through today. Good feet. Bad sense of danger.' That's today's.",
+        "Somebody wrote M.H. at the bottom of the old entries. I don't know who, and yes, I've looked.",
+        "Come back if you find out. Tomorrow's sentence can wait.",
       ],
     }, {
       c: 70, r: 11, name: "THE TWINS", sprite: "twins",
       lines: [
-        "Ooh! A live one, sister. It's been ages.",
-        "The puffballs drifting yonder? Sister says they were sporelings once.",
-        "I did NOT say that. ...I thought it, though.",
-        "Pop them gently, dear. They'd want to be useful.",
+        "Look, a climber.",
+        "You say that like we haven't been staring at them for ten minutes.",
+        "Those puffballs ahead used to be climbers too. You can free them if you dash through them.",
+        "Don't listen to her tone. She's excited.",
       ],
     }],
   },
@@ -1334,15 +1678,15 @@ const LEVELS = [
       // wall and a bare ledge waits at the top — the crack in the map.
       rect(1, 4, 6, 4);
     }),
-    clearText: "Forty-two maps. Yours goes further.",
-    unlockText: "NEW — Press into walls to cling. Jump to kick away.",
+    clearText: "The Cartographer draws one more line and waves you on.",
+    unlockText: "NEW: Hold toward a wall to cling. Jump to kick off.",
     npcs: [{
       c: 19, r: 33, name: "THE CARTOGRAPHER", sprite: "moth",
       lines: [
-        "Hush — I'm mapping. Climb slower, you're smearing the ink.",
-        "Your threads have thickened since the Hollow. The walls will hold you now. Briefly.",
-        "Forty-one sporelings, forty-one maps. Each one stops a little higher.",
-        "Yours is the first with no end drawn yet. Do keep it that way.",
+        "Wait. Don't move. You're dripping on the east wall.",
+        "There. Your threads can hold stone now, but only for a second or two, so don't hang around.",
+        "I've drawn forty-one routes up this Spire. Every one of them stops.",
+        "Yours is forty-two. I'd like to use the back of the page for once.",
       ],
     }],
   },
@@ -1379,16 +1723,16 @@ const LEVELS = [
       set(27, 7, "B");                                        // shelf-ride prize over the first chasm
     }),
     movers: [{ c0: 26, c1: 28, rA: 15, rB: 10, period: 3.2, phase: 0 }],
-    clearText: "The garden hums as you pass. Politely.",
-    unlockText: "NEW — Hold Jump while falling to open your cap.",
+    clearText: "Granny opens the gate at the end of the garden.",
+    unlockText: "NEW: Hold Jump while falling to glide.",
     npcs: [{
       c: 69, r: 12, name: "GRANNY MOREL", sprite: "granny",
       lines: [
-        "A visitor! Eat a berry, dear. You're all stem and no cap.",
-        "Take my old cap with you. Hold it open as you fall — gently, now.",
-        "My garden grows best over the old climbers. Lovely rich soil.",
-        "Don't look at me like that. They'd be proud to be so useful.",
-        "Mind the corridor ahead, sweetling. It bites.",
+        "Oh, look at you. Come here and eat a berry before you fall over.",
+        "Your cap's wide enough to catch air now. Hold Jump on the way down and you'll glide.",
+        "You don't need to fight the drop, dear. Just steer.",
+        "The flower beds? Old climbing gear, mostly. Mostly.",
+        "There's a nasty little corridor ahead. Keep your cap open and mind your head.",
       ],
     }],
   },
@@ -1411,7 +1755,7 @@ const LEVELS = [
       set(48, 8, "k"); set(58, 8, "k"); set(64, 8, "k");
       set(79, 8, "k"); set(85, 8, "k"); set(91, 8, "k");
     }),
-    clearText: "Something small cheered you on the whole way.",
+    clearText: "The last skitter runs off. The Broodnest is just ahead.",
   },
   {
     name: "THE BROODNEST", pal: 8, boss: "barrow",
@@ -1423,8 +1767,8 @@ const LEVELS = [
       set(3, 12, "P");
       set(8, 8, "B"); set(39, 8, "B"); set(23, 6, "B");
     }),
-    clearText: "The oldest one dreams kinder now.",
-    unlockText: "It swims through the earth. When it leaps, its belly glows — meet it up there.",
+    clearText: "The Broodmother digs down and stays there.",
+    unlockText: "When it leaps, dash upward into the glowing belly.",
   },
   {
     name: "THE BLOOMHEART", pal: 4,
@@ -1454,10 +1798,10 @@ const LEVELS = [
     npcs: [{
       c: 41, r: 8, name: "THE ECHO", sprite: "echo",
       lines: [
-        "Oh. You look just like I did.",
-        "I got so close. Then I got... light.",
-        "The wisps will come for you. It's not malice. It's loneliness.",
-        "Set them free, and go up. She's been waiting for one of us.",
+        "I know that walk.",
+        "I got this far. Then the wisps found me, and I couldn't get them apart again.",
+        "They'll dive one at a time. Wait until the heart glows green, and then dash straight through it.",
+        "You should go. I'll stay out of your way.",
       ],
     }],
   },
@@ -1478,7 +1822,7 @@ const LEVELS = [
       set(16, 13, "n"); set(21, 11, "n"); set(44, 13, "n");
       set(58, 11, "n"); set(80, 12, "n"); set(86, 14, "n");
     }),
-    clearText: "The bones remember being soft.",
+    clearText: "The bridge stops moving. You're clear.",
   },
   {
     name: "THE CHORUS HALL", pal: 10, boss: "chorus",
@@ -1490,8 +1834,8 @@ const LEVELS = [
       set(4, 13, "P");
       set(8, 13, "B"); set(31, 13, "B");
     }),
-    clearText: "The song has words again.",
-    unlockText: "They dive alone. When they gather as one — dash the heart.",
+    clearText: "The wisps scatter and leave the door alone.",
+    unlockText: "Dodge the diving wisps. When the heart glows green, dash through it.",
   },
   {
     name: "THE SWALLOW", pal: 5,
@@ -1513,16 +1857,17 @@ const LEVELS = [
       rect(1, 64, 26, 67);                                    // the stomach floor
       set(23, 63, "G");
     }),
-    clearText: "Swallowed is not the same as gone.",
-    unlockText: "Open your cap — hold Jump, fall soft, drift between the teeth.",
+    clearText: "That's the last row of teeth. The floor is safe.",
+    unlockText: "Hold Jump to glide. Steer between the teeth.",
     // Grel waited nine chambers for a pit worthy of him
     npcs: [{
       c: 7, r: 63, name: "GREL", sprite: "grel",
       lines: [
-        "Oh! Down here! Everyone falls in eventually. Best seat in the cave.",
-        "We believed first, you know. Before the spores even settled.",
-        "Every time you bloom, somewhere in the dark a stranger cheers. That's us.",
-        "Go on then. We'll be watching. We're always watching.",
+        "Hey. Down here.",
+        "I fell past this ledge years ago. The view turned out to be pretty good, so I stayed.",
+        "We can see every bloom from here. They light the whole shaft for a second.",
+        "I was counting yours, but then you doubled back and I lost it.",
+        "If you come past again, wave.",
       ],
     }],
   },
@@ -1562,7 +1907,7 @@ const LEVELS = [
       rect(0, 0, 25, 1);                                      // ceiling
       rect(0, 0, 0, 199); rect(25, 0, 25, 199);               // walls
       rect(1, 196, 24, 199);                                  // base floor
-      set(3, 195, "P"); set(5, 195, "C");
+      set(3, 195, "P");
       // SEG 1 — the steps: thin posts, long gaps, spiked floor
       for (let c = 7; c <= 23; c++) set(c, 195, "S");
       rect(9, 193, 9, 195); rect(14, 191, 14, 195); rect(19, 189, 19, 195); rect(22, 187, 22, 195);
@@ -1612,8 +1957,8 @@ const LEVELS = [
       rect(19, 8, 24, 8);                                     // the crown
       set(21, 6, "G");
     }),
-    clearText: "The root remembers every hand that climbed it.",
-    unlockText: "The Mother's trial: no gifts, no shortcuts. Grow your own way up.",
+    clearText: "The crown opens.",
+    unlockText: "Climb to the crown. Checkpoints are scarce.",
   },
 ];
 
@@ -1681,19 +2026,19 @@ let LEVEL = [], ROWS = 0, COLS = 0, WORLD_W = 0, WORLD_H = 0, PAL = PALS[0];
 let DECOR = [], SPORES = [], SPIKES = [], STATIC_LIGHTS = [], ENEMY_SPAWNS = [];
 const REUNION_SPRITES = { "BARNABY": "keeper", "GREL": "grel", "COMMANTHA": "dog", "THE TWINS": "twins", "THE CARTOGRAPHER": "moth", "GRANNY MOREL": "granny", "THE ECHO": "echo" };
 const REUNION_LINES = {
-  "BARNABY": "I told you to dash bold. Never thought you'd carry the dark home with you.",
-  "GREL": "Everyone falls in eventually. You found the way back up.",
-  "COMMANTHA": "Final entry: 'The climber reached the top. Good grip. Would follow anywhere.'",
-  "THE TWINS": "Ooh, sister — look. The garden is breathing again.",
-  "THE CARTOGRAPHER": "No end drawn. Just an opening.",
-  "GRANNY MOREL": "Eat a berry, dear. You've earned the sweet part.",
-  "THE ECHO": "Oh. You came back for the ones who didn't.",
+  "BARNABY": "You made it. Good. Saves me climbing up after you.",
+  "GREL": "Best view in the cave. I knew you'd make the last jump.",
+  "COMMANTHA": "Final entry: 'The climber reached the top and brought everyone back.'",
+  "THE TWINS": "She did it. I know, sister. I was standing right here.",
+  "THE CARTOGRAPHER": "Route forty-two reaches the crown. I'll need more paper.",
+  "GRANNY MOREL": "Sit down, dear. Heroics look exhausting.",
+  "THE ECHO": "You brought me back. I didn't think that was allowed.",
 };
-const CARTOGRAPHER_SECRET_LINE = "You found the margin. That's where the map was hiding.";
+const CARTOGRAPHER_SECRET_LINE = "You found the room past the Spire wall. I knew that margin looked wrong.";
 let terrainCv = null, skyCv = null, farCv = null, midCv = null;
 
 const S = {
-  mode: "title", levelIdx: 0,
+  mode: "title", runMode: "adventure", levelIdx: 0,
   berries: 0, berriesTotal: 0,
   berryList: [], checkpoints: [], blooms: [], particles: [], trail: [], enemies: [],
   npcs: [], talk: null,
@@ -1705,18 +2050,59 @@ const S = {
   shakeT: 0, shakeMag: 0, freezeT: 0,
   deathT: 0, winT: 0, goalOpen: 0, time: 0, bannerT: 0,
   pauseSel: 0, pauseAy: 0,
-  hint: null, wispHinted: false,
+  titleSel: 2, titleAy: 0,
+  hint: null, wispHinted: false, bloomLessonDone: false,
   devLevel: 0, devInf: false, devAx: 0, devAy: 0,
   boardTab: "any", boardAx: 0, boardFrom: "title", notesY: 0,
   daily: false, dailyMods: null,
-  practice: false, pracSel: 0,
+  practice: false, pracSel: 0, advStart: 0,
   rec: [], ghost: null, ghostPos: null, pendingGhost: null, split: null,
   fallen: [], stoppedHint: false,
   jumpHeldForCut: false,
-  lives: START_LIVES,
+  health: START_HEALTH, unlimitedLives: true, lives: -1, outOfLives: false,
   score: { berries: 0, total: 0, deaths: 0, time: 0, freed: 0, pickups: 0, secretMemory: false, metNpcs: {} },
 };
 const TOTAL_NPCS = LEVELS.reduce((a, L) => a + (L.npcs ? L.npcs.length : 0), 0);
+const DEV_METRICS = { startedAt: 0, deaths: {}, attempts: [] };
+
+function beginDevAttempt() {
+  if (DEV) DEV_METRICS.startedAt = S.score.time;
+}
+
+function recordDevAttempt(outcome, death = false) {
+  if (!DEV) return;
+  const label = String(outcome || "unknown").slice(0, 48);
+  const seconds = Math.max(0, S.score.time - DEV_METRICS.startedAt);
+  DEV_METRICS.attempts.push({ level: S.levelIdx, outcome: label, seconds: Math.round(seconds * 100) / 100 });
+  if (DEV_METRICS.attempts.length > 40) DEV_METRICS.attempts.shift();
+  if (death) DEV_METRICS.deaths[label] = (DEV_METRICS.deaths[label] || 0) + 1;
+  DEV_METRICS.startedAt = S.score.time;
+}
+
+function devMetricsSnapshot() {
+  return {
+    deaths: { ...DEV_METRICS.deaths },
+    attempts: DEV_METRICS.attempts.map(a => ({ ...a })),
+  };
+}
+
+function handleFocusLoss() {
+  releaseTransientInput();
+  focusInputLock = true;
+  focusReady = false;
+  if (S.mode === "play") {
+    S.mode = "pause";
+    S.pauseSel = 0; S.pauseAy = 0; S.devAx = 0;
+  }
+}
+function handleFocusReturn() { focusReady = true; }
+addEventListener("blur", handleFocusLoss);
+addEventListener("focus", handleFocusReturn);
+addEventListener("pagehide", handleFocusLoss);
+document.addEventListener("visibilitychange", () => {
+  if (document.hidden) handleFocusLoss();
+  else handleFocusReturn();
+});
 
 function tileAt(tx, ty) {
   if (tx < 0 || tx >= COLS || ty < 0) return "#";
@@ -1767,7 +2153,8 @@ function loadLevel(idx) {
     S.boss = {
       kind: L.boss, state: "intro", t: 0, pips: 3,
       arm: null, shots: [], bolts: [], lanes: [], windowHint: false,
-      floorPulseT: 0, capFlash: 0,
+      floorPulseT: 0, capFlash: 0, sweepHints: 0, sweepN: 0,
+      sweepSide: false, rootPhase: 0, rootPhaseN: 0, lastRootTier: null,
       grace: true,   // until the first successful hit, windows run 1.45x longer
     };
     if (L.boss === "unbloomed") {
@@ -1914,6 +2301,7 @@ function loadLevel(idx) {
   S.camLook = 0;
   S.camX = clamp(S.player.x - W / 2, 0, Math.max(0, WORLD_W - W));
   S.camY = clamp(S.player.y - H / 2, 0, Math.max(0, WORLD_H - H));
+  beginDevAttempt();
 }
 
 // ── Baking: sky (dithered gradient) ────────────────────────────────────────
@@ -2113,6 +2501,42 @@ function solidBlocked(x, y, w, h) {
     if (!r.oneWay && overlap(box, r)) return true;
   }
   return false;
+}
+
+function checkpointPathClear(p, cp) {
+  const x0 = p.x + p.w / 2, y0 = p.y + p.h / 2;
+  const x1 = cp.x + cp.w / 2, y1 = cp.y + cp.h / 2;
+  const steps = Math.max(1, Math.ceil(Math.hypot(x1 - x0, y1 - y0) / 4));
+  for (let i = 1; i < steps; i++) {
+    const a = i / steps;
+    if (isSolid(tileAt(Math.floor((x0 + (x1 - x0) * a) / TILE), Math.floor((y0 + (y1 - y0) * a) / TILE)))) return false;
+  }
+  return true;
+}
+
+function checkpointEligible(p, cp) {
+  const px = p.x + p.w / 2, py = p.y + p.h / 2;
+  const cx = cp.x + cp.w / 2, cy = cp.y + cp.h / 2;
+  const dx = px - cx, dy = py - cy;
+  if (Math.abs(dx) > 32 || Math.abs(dy) > 24) return false;
+
+  // Approach from an open neighboring tile. This admits a close pass above or
+  // beside the marker, but rejects reaching it through the platform below.
+  const tx = Math.floor(cx / TILE), ty = Math.floor(cy / TILE);
+  const ax = Math.abs(dx) >= Math.abs(dy) ? Math.sign(dx) : 0;
+  const ay = ax === 0 ? Math.sign(dy) : 0;
+  if (isSolid(tileAt(tx + ax, ty + ay))) return false;
+  return checkpointPathClear(p, cp);
+}
+
+function activateCheckpoint(cp) {
+  cp.active = true;
+  S.checkPt = { x: cp.x + 3, y: cp.y - 4 };
+  S.hint = { text: "Checkpoint saved. You'll restart here.", t: 2.4 };
+  SFX.check();
+  for (let i = 0; i < 10; i++) {
+    burst(cp.x + 8, cp.y + 4, (Math.random() - 0.5) * 50, -40 - Math.random() * 40, 0.55, rgb(PAL.accent), 2);
+  }
 }
 
 function moveAxis(p, dx, dy) {
@@ -2322,7 +2746,7 @@ function updateEnemies(dt) {
       const d = Math.hypot(dx, dy);
       if (d < 90 && !S.wispHinted) {
         S.wispHinted = true;
-        S.hint = { text: "Dash through the lost ones to set them free.", t: 4 };
+        S.hint = { text: "Air-dash through gray sporelings to wake them up.", t: 4 };
       }
       // Wisps hang back while someone living is speaking
       if (d < 110 && d > 4 && !S.talk) {
@@ -2412,16 +2836,39 @@ function drawMovers() {
   }
 }
 
+function bloomPlacement(p) {
+  const centered = Math.round(p.x + p.w / 2 - BLOOM_W / 2);
+  const lead = clamp(p.vx * BLOOM_PREDICT_TIME, -BLOOM_LEAD_MAX, BLOOM_LEAD_MAX);
+  const desired = Math.round(centered + lead);
+  const y = Math.round(p.y + p.h);
+  const minX = 0, maxX = Math.max(0, WORLD_W - BLOOM_W);
+  const preferred = clamp(desired, minX, maxX);
+  if (!solidBlocked(preferred, y, BLOOM_W, BLOOM_H)) return { x: preferred, y, lead };
+
+  // Near a wall, walk the cap back toward the player's centered position first.
+  // One-way blooms and moving shelves are intentionally ignored by solidBlocked.
+  const towardCenter = Math.sign(centered - preferred) || (lead >= 0 ? -1 : 1);
+  for (let d = 1; d <= BLOOM_W; d++) {
+    const candidates = [preferred + towardCenter * d, preferred - towardCenter * d];
+    for (const raw of candidates) {
+      const x = clamp(raw, minX, maxX);
+      if (!solidBlocked(x, y, BLOOM_W, BLOOM_H)) return { x, y, lead: x - centered };
+    }
+  }
+  return { x: preferred, y, lead };
+}
+
 function spawnBloom(p) {
   if (S.blooms.length >= MAX_BLOOMS) {
     const oldest = S.blooms.reduce((a, b) => a.age > b.age ? a : b);
     oldest.life = Math.min(oldest.life, BLOOM_WILT * 0.6);
   }
-  const bx = Math.round(p.x + p.w / 2 - BLOOM_W / 2);
-  const by = Math.round(p.y + p.h);
+  const place = bloomPlacement(p);
+  const bx = place.x, by = place.y;
   const chain = CHAIN_WILT[Math.min(p.chainN || 0, CHAIN_WILT.length - 1)];
   p.chainN = (p.chainN || 0) + 1;
   S.blooms.push({ x: bx, y: by, w: BLOOM_W, h: BLOOM_H, life: BLOOM_LIFE * chain * (dMod("brittle") ? 0.5 : 1), age: 0 });
+  if (S.levelIdx === 0) S.bloomLessonDone = true;
   SFX.bloom();
   for (let i = 0; i < 10; i++) {
     const a = Math.random() * Math.PI * 2;
@@ -2583,20 +3030,21 @@ function exitSecret() {
 
 // A chamber is cleared — by goal-flower or by soothing its boss
 function chamberClear() {
+  recordDevAttempt("clear");
   S.mode = "clear";
   S.winT = 0;
   S.goalOpen = 0;
   if (!S.daily && S.levelIdx + 1 <= 10) reachSet(S.levelIdx + 1);
   // Split vs the echo you're racing: when did THEY leave this chamber?
   S.split = null;
-  if (S.ghost && S.ghost.frames && !S.practice) {
+  if (competitiveRun() && S.ghost && S.ghost.frames) {
     const nxt = S.levelIdx + 1;
     const idx = S.ghost.frames.findIndex(f => f[0] === nxt);
     if (idx > 0) S.split = { d: S.score.time - idx * 0.2, name: S.ghost.name || "the echo" };
   }
   S.score.berries += S.berries;
   S.score.total += S.berriesTotal;
-  if (S.lives < MAX_LIVES) S.lives++;
+  if (S.health < MAX_HEALTH) S.health++;
   SFX.clear();
 }
 
@@ -2616,7 +3064,7 @@ function bossVanquished(b) {
     ? { x: 44 * TILE + 6, y: 13 * TILE - 48, w: 22, h: 48 }
     : { x: 36 * TILE + 6, y: 14 * TILE - 48, w: 22, h: 48 };
   SFX.check();
-  S.hint = { text: "The way onward has opened.", t: 3.5 };
+  S.hint = { text: "The exit is open.", t: 3.5 };
 }
 
 // ── Boss: Barrow, the Oldest Slug — it swims the earth; stomp the belly ────
@@ -2658,7 +3106,7 @@ function updateBarrow(dt) {
       // teach the verb once, on the first leap — then let them figure it out
       if (b.grace && !b.taughtLeap) {
         b.taughtLeap = true;
-        S.hint = { text: "▲ + " + dashBtnName() + " — drive a bloom into the glowing belly.", t: 3.8 };
+        S.hint = { text: "Wait for the belly to glow, then hold Up and press " + dashBtnName() + ".", t: 3.8 };
       }
       b.dir = (p.x + 5) >= b.x ? 1 : -1;
       b.vx = b.dir * BARROW.DRIFT;
@@ -2781,7 +3229,7 @@ function updateChorus(dt) {
       wsp.x += wsp.vx * dt;
       wsp.y += wsp.vy * dt;
       if (Math.random() < 0.5) burst(wsp.x + 4, wsp.y + 4, 0, 0, 0.25, "#ff82aa", 1);
-      if (wsp.t > 0.7 || wsp.x < 16 || wsp.x > WORLD_W - 24 || wsp.y > 14 * TILE - 10 || wsp.y < 2 * TILE) {
+      if (wsp.t > CHORUS.DIVE_TIME || wsp.x < 16 || wsp.x > WORLD_W - 24 || wsp.y > 14 * TILE - 10 || wsp.y < 2 * TILE) {
         wsp.mode = "return"; wsp.t = 0;
       }
     } else if (wsp.mode === "return") {
@@ -2806,7 +3254,7 @@ function updateChorus(dt) {
   if (b.state === "intro") {
     if (b.t > 2) {
       b.state = "orbit"; b.t = 0; SFX.bossWarn();
-      S.hint = { text: "When they gather into one — dash through the heart.", t: 4.5 };
+      S.hint = { text: "When the heart glows green, dash straight through it.", t: 4.5 };
     }
   } else if (b.state === "orbit") {
     if (b.t > CHORUS.ORBIT) {
@@ -2822,7 +3270,7 @@ function updateChorus(dt) {
       blip(880, 1320, 0.35, "sine", 0.15);
       for (const wsp of b.wisps) { wsp.dead = false; wsp.mode = "gathered"; wsp.t = 0; }
       // teach at the exact actionable moment, every window until the first hit
-      if (b.pips === 3) S.hint = { text: "NOW — dash through the heart!", t: 2.2 };
+      if (b.pips === 3) S.hint = { text: "The heart is glowing. Dash straight through it.", t: 2.2 };
     }
   } else if (b.state === "gather") {
     for (const wsp of b.wisps) {
@@ -2846,7 +3294,7 @@ function updateChorus(dt) {
         b.state = "orbit"; b.t = 0;
         for (const wsp of b.wisps) { wsp.mode = "orbit"; wsp.t = 0; }
       } else if (p.invuln <= 0) {
-        hurtPlayer(b.x, "the gathered chorus — dash through it");
+        hurtPlayer(b.x, "the gathered chorus");
       }
     }
     if (b.t > CHORUS.GATHER[phase - 1] * (b.grace ? 1.45 : 1)) {
@@ -2863,19 +3311,42 @@ function updateChorus(dt) {
 // ── Boss: The Unbloomed ────────────────────────────────────────────────────
 function bossPhase(b) { return 4 - b.pips; } // 1, 2, 3
 
+function nextRootTier(b, phase) {
+  const order = ROOT_TIER_ORDER[phase];
+  if (!order) return null;
+  if (b.rootPhase !== phase) {
+    b.rootPhase = phase;
+    b.rootPhaseN = 0;
+  }
+  let index = b.rootPhaseN % order.length;
+  if (order[index] === b.lastRootTier) index = (index + 1) % order.length;
+  const tier = order[index];
+  b.rootPhaseN++;
+  b.sweepN = (b.sweepN || 0) + 1;
+  b.lastRootTier = tier;
+  return tier;
+}
+
 function bossStartAttack(b) {
   const phase = bossPhase(b);
   b.boltN = 0;
   b.boltT = 0.3;
   // The root sweep only joins from phase 2 — phase 1 teaches the landing
   if (phase >= 2) {
-    const fromLeft = phase === 3 ? (b.sweepSide = !b.sweepSide) : Math.random() < 0.5;
+    const tier = nextRootTier(b, phase);
+    const band = ROOT_TIERS[tier];
+    const fromLeft = (b.sweepSide = !b.sweepSide);
     b.arm = {
-      x: fromLeft ? 2 * TILE : 60 * TILE, dir: fromLeft ? 1 : -1,
-      y: 20 * TILE - 26, w: 28, h: 26, warm: BOSS.WARN,
+      x: fromLeft ? ROOT_X_MIN : ROOT_X_MAX, dir: fromLeft ? 1 : -1,
+      y: band.y, w: ROOT_W, h: band.h, warm: BOSS.WARN, tier,
     };
+    b.sweepHints = (b.sweepHints || 0) + 1;
+    b.shots = [];
+    b.bolts = [];
     b.lanes = [16 * TILE, 31.5 * TILE, 47 * TILE].map(x => x + (Math.random() - 0.5) * 30);
     b.rainT = 0; b.rainN = 0;
+    SFX.bossWarn();
+    blip(tier === "upper" ? 230 : tier === "mid" ? 180 : 135, 70, 0.35, "sawtooth", 0.12);
   }
 }
 
@@ -2954,6 +3425,20 @@ function spawnShoggoth() {
   S.shakeT = 0.5; S.shakeMag = 3;
   S.shogTitleT = 3.4;
   SFX.bossWarn();
+}
+
+function stageShoggothPractice() {
+  spawnShoggoth();
+  const p = S.player;
+  const x = 24 * TILE + 3;
+  const y = 20 * TILE + 4;
+  p.x = x; p.y = y;
+  p.vx = 0; p.vy = 0; p.invuln = 1;
+  S.spawn = { x, y };
+  S.checkPt = { x, y };
+  S.camLook = 0;
+  S.camX = clamp(p.x + p.w / 2 - W / 2, 0, Math.max(0, WORLD_W - W));
+  S.camY = clamp(p.y + p.h / 2 - H / 2, 0, Math.max(0, WORLD_H - H));
 }
 
 const shogSeen = () => {
@@ -3048,7 +3533,7 @@ function updateShoggoth(dt) {
       burst(b.x + (Math.random() - 0.5) * 40, b.y + 20, (Math.random() - 0.5) * 30, -40, 0.6, "#3a2b4a", 2);
     if (b.t > 2.2) {
       b.state = "crawl"; b.t = 0;
-      S.hint = { text: "It was never her voice. Its spores are stepping stones — stomp the risen eye.", t: 5 };
+      S.hint = { text: "Stomp the raised eye. You can stand on the rolling spores.", t: 5 };
     }
   } else if (b.state === "crawl") {
     const tx = p.x + 5;
@@ -3124,7 +3609,7 @@ function updateShoggoth(dt) {
   } else if (b.state === "eyeOpen") {
     if (!b.windowHint) {
       b.windowHint = true;
-      if (b.grace) S.hint = { text: "The eye has risen — stomp it.", t: 2.8 };
+      if (b.grace) S.hint = { text: "The eye is up. Stomp it now.", t: 2.8 };
     }
     if (b.t > SHOG.EYE_OPEN[phase - 1] * gm) { b.state = "crawl"; b.t = 0; }
     const eye = { x: b.x - 8, y: b.y - 44, w: 16, h: 14 };
@@ -3173,6 +3658,9 @@ function bossLanded(b) {
   const p = S.player;
   b.pips--;
   b.capFlash = 0;
+  b.arm = null;
+  b.shots = [];
+  b.bolts = [];
   p.vy = -260; p.invuln = 1.5; p.canDash = true; p.spores = MAX_SPORES; p.chainN = 0;
   S.shakeT = 0.25; S.shakeMag = 3;
   S.freezeT = 0.1;
@@ -3212,7 +3700,7 @@ function updateBoss(dt) {
   } else if (b.state === "attack") {
     // Aimed spore bolts — dodge them, you can't stand on them
     const nBolts = phase === 3 ? 4 : 3;
-    if (b.boltN < nBolts) {
+    if (!b.arm && b.boltN < nBolts) {
       b.boltT -= dt;
       if (b.boltT <= 0) {
         b.boltT = phase === 3 ? 0.45 : 0.55;
@@ -3236,7 +3724,7 @@ function updateBoss(dt) {
   } else if (b.state === "open") {
     if (!b.windowHint) {
       b.windowHint = true;
-      S.hint = { text: "Hold Jump — drift down onto the open crown.", t: 4 };
+      S.hint = { text: "Hold Jump and glide down onto the open crown.", t: 4 };
     }
     if (b.t > BOSS.OPEN[3 - b.pips] * (b.grace ? 1.45 : 1)) { b.state = "recover"; b.t = 0; b.capFlash = 0.4; }
   } else if (b.state === "recover") {
@@ -3249,19 +3737,19 @@ function updateBoss(dt) {
     const a = b.arm;
     if (a.warm > 0) {
       a.warm -= dt;
-      if (Math.random() < 0.5)
+      if (!reducedMotion && Math.random() < 0.5)
         burst(a.x + 14, a.y + 10, (Math.random() - 0.5) * 20, -30 - Math.random() * 30, 0.35, "#f0a060", 2);
     } else {
       a.x += a.dir * BOSS.SWEEP_V * dt;
-      if (Math.random() < 0.4)
+      if (!reducedMotion && Math.random() < 0.4)
         burst(a.x + 14, a.y + a.h, (Math.random() - 0.5) * 30, 10, 0.3, rgb(PAL.mossHi), 1);
-      if (overlap(p, a)) hurtPlayer(a.x + 14, "a root sweep");
-      if (a.x < 1 * TILE || a.x > 61 * TILE) b.arm = null;
+      if (overlap(p, a)) hurtPlayer(a.x + a.w / 2, "a " + a.tier + " root");
+      if (a.x < ROOT_X_MIN || a.x > ROOT_X_MAX) b.arm = null;
     }
   }
 
   // Spore rain (phase 2+)
-  if (phase >= 2 && b.lanes.length && b.rainN < 9 && b.state !== "open") {
+  if (phase >= 2 && !b.arm && b.lanes.length && b.rainN < 9 && b.state !== "open") {
     b.rainT -= dt;
     if (b.rainT <= 0) {
       b.rainT = 0.55;
@@ -3298,7 +3786,7 @@ function updateBoss(dt) {
   b.bolts = b.bolts.filter(bo => !bo.dead);
 
   // Phase 3: the center floor pulses hazardous
-  if (phase === 3) {
+  if (phase === 3 && !b.arm) {
     b.floorPulseT += dt;
     const cyc = b.floorPulseT % 3.2;
     if (cyc > 2.2 && cyc < 3.0) {
@@ -3365,7 +3853,7 @@ function startEnding() {
   try { if (!S.practice) localStorage.setItem("sd_beaten", "1"); } catch (e) {}
   // remember your best echo
   try {
-    if (!S.daily && !S.practice) {
+    if (competitiveRun() && !S.daily) {
       const pb = JSON.parse(localStorage.getItem("sd_pb") || "null");
       if (!pb || S.score.time < pb.t)
         localStorage.setItem("sd_pb", JSON.stringify({ t: S.score.time, frames: S.rec }));
@@ -3396,21 +3884,20 @@ function startReunion() {
   S.mode = "reunion";
 }
 
-function gainLife(msg) {
-  if (S.lives < MAX_LIVES) {
-    S.lives++;
-    S.hint = { text: msg || "A new spark kindles. +1 life.", t: 2.5 };
+function gainHealth(msg) {
+  if (S.health < MAX_HEALTH) {
+    S.health++;
+    S.hint = { text: msg || "Recovered 1 health.", t: 2.5 };
   }
   SFX.oneUp();
 }
 
-// Getting hit knocks you back and costs a spark. No checkpoint teleport —
-// unless it was your last spark, in which case the hit is the death.
+// Getting hit removes one health. The last hit starts a checkpoint retry.
 function hurtPlayer(sx, cause) {
   const p = S.player;
   if (p.invuln > 0) return;
-  if (!(DEV && S.devInf) && S.lives <= 1) { killPlayer(cause); return; }   // the killing blow
-  if (!(DEV && S.devInf)) S.lives--;
+  if (!(DEV && S.devInf) && S.health <= 1) { killPlayer(cause); return; }
+  if (!(DEV && S.devInf)) S.health--;
   p.invuln = 1.2;
   p.vx = (p.x + p.w / 2 < sx ? -1 : 1) * 170;
   p.vy = -170;
@@ -3429,9 +3916,14 @@ function killPlayer(cause) {
   S.mode = "dead";
   S.deathT = 0;
   S.deathCause = cause || "the dark";
+  recordDevAttempt(S.deathCause, true);
   S.score.deaths++;
+  if (!(DEV && S.devInf) && S.runMode === "adventure" && !S.practice && !S.unlimitedLives) {
+    S.lives = Math.max(0, S.lives - 1);
+    S.outOfLives = S.lives === 0;
+  }
   fallenPost(S.levelIdx, p.x, p.y);
-  if (!(DEV && S.devInf)) S.lives--;
+  if (!(DEV && S.devInf)) S.health = Math.max(0, S.health - 1);
   SFX.death();
   for (let i = 0; i < 16; i++) {
     const a = Math.random() * Math.PI * 2;
@@ -3448,11 +3940,13 @@ function respawn() {
   p.canDash = true; p.spores = MAX_SPORES; p.chainN = 0; p.grounded = false;
   p.grip = GRIP_TIME; p.wallCoyote = 0; p.wjLock = 0; p.gliding = false; p.sliding = false;
   p.coyote = 0; p.jumpBuf = 0; p.dashBuf = 0;
+  S.health = START_HEALTH;
   p.invuln = 0.5;
   S.blooms = [];
   spawnEnemies();
   S.deathT = 0;
   S.mode = "play";
+  beginDevAttempt();
   S.jumpHeldForCut = false;
   for (let i = 0; i < 10; i++) {
     const a = Math.random() * Math.PI * 2;
@@ -3482,7 +3976,7 @@ function updateFallen(dt) {
       try { seen = localStorage.getItem("sd_stopped") === "1"; } catch (e) {}
       if (!seen) {
         try { localStorage.setItem("sd_stopped", "1"); } catch (e) {}
-        S.hint = { text: "A real one stopped here, once. Dash through — set them free.", t: 4.5 };
+        S.hint = { text: "That gray sporeling is stuck. Air-dash through them.", t: 4.5 };
       }
     }
   }
@@ -3501,6 +3995,43 @@ function updateParticles(dt) {
 }
 
 // ── Update ─────────────────────────────────────────────────────────────────
+function cameraTargetX(p) {
+  const px = p.x + p.w / 2;
+  const b = S.boss;
+  // The Chorus is fixed at the arena's center. A player-only camera can leave
+  // its short gather window at the screen edge, so frame both subjects.
+  if (b && b.kind === "chorus" && b.state !== "defeated")
+    return (px + b.x) / 2 - W / 2;
+  return px - W / 2 + S.camLook;
+}
+
+function rootCameraCenterY(p) {
+  const a = S.boss && S.boss.kind === "unbloomed" ? S.boss.arm : null;
+  if (!a) return null;
+  const playerY = p.y + p.h / 2 - 10;
+  const rootY = a.y + a.h / 2;
+  return Math.abs(playerY - rootY) <= H - 44 ? (playerY + rootY) / 2 : null;
+}
+
+const TALK_CHAR_TIME = 0.035;
+const TALK_HOLD_TIME = 2.4;
+
+function advanceTalk() {
+  if (!S.talk || !S.talk.npc?.lines?.length) return false;
+  const talk = S.talk;
+  const fullAt = talk.npc.lines[talk.line].length * TALK_CHAR_TIME;
+  if (talk.t < fullAt) {
+    talk.t = fullAt;
+  } else if (talk.line < talk.npc.lines.length - 1) {
+    talk.line++;
+    talk.t = 0;
+    SFX.talk();
+  } else {
+    talk.t = Math.max(talk.t, fullAt);
+  }
+  return true;
+}
+
 function tick(dt) {
   const inp = readInput();
   S.time += dt;
@@ -3532,80 +4063,43 @@ function tick(dt) {
   if (S.mode === "title") {
     // UTC midnight rolled over while idling — refetch today's dream
     if (lbOn() && LB_DAY && LB_DAY !== dailySeedStr()) { LB_CACHE.daily = null; lbRefresh(); }
-    if (just.KeyN) {
-      S.mode = "notes"; S.notesY = 0;
-      clearJust();
-      return;
+    const ids = titleIds();
+    if (S.titleSel >= ids.length) S.titleSel = ids.length - 1;
+    if (inp.ay < -0.5 && S.titleAy >= -0.5) { S.titleSel = (S.titleSel + ids.length - 1) % ids.length; SFX.talk(); }
+    if (inp.ay > 0.5 && S.titleAy <= 0.5) { S.titleSel = (S.titleSel + 1) % ids.length; SFX.talk(); }
+    S.titleAy = inp.ay;
+    const cur = ids[S.titleSel];
+    const right = inp.ax > 0.5 && S.devAx <= 0.5;
+    const left = inp.ax < -0.5 && S.devAx >= -0.5;
+    if (cur === "devlevel") {
+      if (right) { S.devLevel = (S.devLevel + 1) % LEVELS.length; SFX.talk(); }
+      if (left) { S.devLevel = (S.devLevel + LEVELS.length - 1) % LEVELS.length; SFX.talk(); }
+    } else if (cur === "devhealth" && (right || left)) {
+      S.devInf = !S.devInf; SFX.talk();
+    } else if (cur === "practice") {
+      if (right) { stepPrac(1, true); SFX.talk(); }
+      if (left) { stepPrac(-1, true); SFX.talk(); }
+    } else if (cur === "lives" && (right || left)) {
+      toggleUnlimitedLives(); SFX.talk();
+    } else if (cur === "levelselect") {
+      if (right) { stepAdventureLevel(1); SFX.talk(); }
+      if (left) { stepAdventureLevel(-1); SFX.talk(); }
+    } else if (cur === "ghost") {
+      if (right) { cycleGhostPref(1); SFX.talk(); }
+      if (left) { cycleGhostPref(-1); SFX.talk(); }
     }
-    if (inp.boardEdge && lbOn()) {
-      S.boardFrom = "title"; S.mode = "board";
-      clearJust();
-      return;
-    }
-    if (DEV) {
-      if (inp.ax > 0.5 && S.devAx <= 0.5) { S.devLevel = (S.devLevel + 1) % LEVELS.length; SFX.talk(); }
-      if (inp.ax < -0.5 && S.devAx >= -0.5) { S.devLevel = (S.devLevel + LEVELS.length - 1) % LEVELS.length; SFX.talk(); }
-      if ((inp.ay < -0.5 && S.devAy >= -0.5) || (inp.ay > 0.5 && S.devAy <= 0.5)) { S.devInf = !S.devInf; SFX.talk(); }
-      S.devAx = inp.ax; S.devAy = inp.ay;
-    } else {
-      // One selector: 0 = full run, 1..reach = practice that chamber,
-      // 99 = the Shoggoth directly (once you've met it)
-      const reach = reachGet();
-      const hasShog = shogSeen();
-      if (S.pracSel !== 99 && S.pracSel > reach) S.pracSel = 0;
-      if (S.pracSel === 99 && !hasShog) S.pracSel = 0;
-      if (reach > 0 || hasShog) {
-        if (inp.ax > 0.5 && S.devAx <= 0.5) { stepPrac(1, true); SFX.talk(); }
-        if (inp.ax < -0.5 && S.devAx >= -0.5) { stepPrac(-1, true); SFX.talk(); }
-      }
-      S.devAx = inp.ax;
-    }
-    if (inp.dailyEdge && lbOn() && dailyUnlocked()) {
-      startDaily();
-      clearJust();
-      return;
-    }
-    if (inp.startEdge || inp.jumpEdge || inp.dashEdge) {
-      S.score = { berries: 0, total: 0, deaths: 0, time: 0, freed: 0, pickups: 0, secretMemory: false, metNpcs: {} };
-      S.lives = START_LIVES;
-      S.wispHinted = false; S.hint = null;
-      S.daily = false; S.dailyMods = null;
-      S.practice = !DEV && S.pracSel > 0;
-      S.rec = [];
-      // arm an echo to race: a challenge link's ghost, or your own best run
-      S.ghost = null; S.ghostPos = null;
-      if (S.practice) {
-        // practice starts mid-cave — echoes would run out of sync
-        const pn = S.pracSel === 99 ? "THE SHOGGOTH" : LEVELS[S.pracSel].name;
-        S.hint = { text: "PRACTICE — " + pn + ". Full runs start from the top.", t: 4 };
-      } else if (S.pendingGhost) {
-        S.ghost = S.pendingGhost;
-        S.pendingGhost = null;
-        S.hint = { text: "Racing " + (S.ghost.name || "an echo") + " — catch the pale one.", t: 4 };
-      } else if (GHOST_CACHE.any) {
-        // the reigning champion always runs beside you
-        S.ghost = { frames: GHOST_CACHE.any.frames, name: GHOST_CACHE.any.name };
-        S.hint = { text: S.ghost.name + " holds the record. Their echo runs with you.", t: 4 };
-      } else {
-        try {
-          const pb = JSON.parse(localStorage.getItem("sd_pb") || "null");
-          if (pb && pb.frames) {
-            S.ghost = { frames: pb.frames, name: "your echo" };
-            S.hint = { text: "Your best echo runs beside you (" + fmtMs(pb.t * 1000) + ").", t: 3.5 };
-          }
-        } catch (e) {}
-      }
-      loadLevel(DEV ? S.devLevel : S.practice ? (S.pracSel === 99 ? 10 : S.pracSel) : 0);
-      S.mode = "play";
-      if (!DEV && S.pracSel === 99) spawnShoggoth();   // straight to phase two
-    }
+    S.devAx = inp.ax;
+    if (inp.startEdge) activateTitleItem(cur);
     clearJust();
     return;
   }
 
   if (S.mode === "gameover") {
     updateParticles(dt);
-    if (inp.jumpEdge) S.mode = "title";
+    if (inp.jumpEdge) {
+      if (S.practice) restartCurrentChamber();
+      else S.mode = "title";
+    }
     clearJust();
     return;
   }
@@ -3658,6 +4152,7 @@ function tick(dt) {
   if (S.mode === "reunion") {
     const r = S.reunion;
     S.shakeT = 0;
+    if (inp.talkEdge) advanceTalk();
     if (inp.jumpEdge) {
       fastForwardEnding();
       S.talk = null;
@@ -3745,12 +4240,12 @@ function tick(dt) {
 
   if (S.mode === "win") {
     updateParticles(dt);
-    if (inp.boardEdge && lbOn()) {
+    if (inp.boardEdge && lbOn() && competitiveRun()) {
       S.boardFrom = "win"; S.mode = "board";
       clearJust();
       return;
     }
-    if (inp.dashEdge) {
+    if (inp.dashEdge && competitiveRun()) {
       if (!lbOn()) S.lbMsg = "Leaderboard offline";
       else if (S.score.lbDone) S.lbMsg = "Already submitted";
       else if (!S.lbConfirm) S.lbConfirm = true;   // are you sure?
@@ -3792,16 +4287,21 @@ function tick(dt) {
       if (cur === "resume") {
         S.mode = "play";
       } else if (cur === "restart") {
-        loadLevel(S.levelIdx);
-        S.mode = "play";
+        restartCurrentChamber();
       } else if (cur === "practice") {
         startPracticeRun(S.pracSel === 0 ? 1 : S.pracSel);
+      } else if (cur === "motion") {
+        toggleReducedMotion();
+      } else if (cur === "touchhand") {
+        toggleTouchHand();
       } else if (cur === "newgame") {
         S.score = { berries: 0, total: 0, deaths: 0, time: 0, freed: 0, pickups: 0, secretMemory: false, metNpcs: {} };
-        S.lives = START_LIVES;
+  S.health = START_HEALTH;
         S.wispHinted = false; S.hint = null;
+        S.bloomLessonDone = false;
         S.daily = false; S.dailyMods = null;
         S.practice = false;
+        configureRunLives(S.runMode, false);
         S.rec = []; S.ghost = null; S.ghostPos = null;
         loadLevel(0);
         S.mode = "play";
@@ -3817,27 +4317,29 @@ function tick(dt) {
     return;
   }
 
+  if (S.mode === "play" && inp.talkEdge) advanceTalk();
+
   if (S.mode === "dead") {
     S.deathT += dt;
     updateParticles(dt);
     if (S.deathT > 0.55) {
-      if (S.lives <= 0) {
-        S.mode = "gameover";
-        SFX.gameOver();
-      } else {
-        respawn();
-      }
+      if (S.outOfLives) S.mode = "gameover";
+      else respawn();
     }
     clearJust();
     return;
   }
 
   S.score.time += dt;
-  // echo recording (5Hz on the run clock) + ghost playback
-  while (S.score.time >= S.rec.length * 0.2) {
-    S.rec.push([S.levelIdx, Math.round(S.player.x), Math.round(S.player.y), S.player.facing]);
+  // Competitive runs alone record and replay ghosts. Adventure keeps no trace.
+  if (competitiveRun()) {
+    while (S.score.time >= S.rec.length * 0.2) {
+      S.rec.push([S.levelIdx, Math.round(S.player.x), Math.round(S.player.y), S.player.facing]);
+    }
+    updateGhost();
+  } else {
+    S.ghostPos = null;
   }
-  updateGhost();
   if (S.bannerT > 0) S.bannerT -= dt;
   if (S.hint) { S.hint.t -= dt; if (S.hint.t <= 0) S.hint = null; }
 
@@ -3982,8 +4484,8 @@ function tick(dt) {
       ber.taken = true;
       S.berries++;
       S.score.pickups++;
-      if (S.score.pickups % BERRIES_PER_LIFE === 0)
-        gainLife("The berries remember you. +1 spark.");
+      if (S.score.pickups % BERRIES_PER_HEAL === 0)
+        gainHealth("Eight berries restore 1 health.");
       SFX.berry();
       for (let i = 0; i < 7; i++) {
         const a = Math.random() * Math.PI * 2;
@@ -3995,14 +4497,7 @@ function tick(dt) {
   }
 
   for (const cp of S.checkpoints) {
-    if (!cp.active && overlap(p, cp)) {
-      cp.active = true;
-      S.checkPt = { x: cp.x + 3, y: cp.y - 4 };
-      SFX.check();
-      for (let i = 0; i < 10; i++) {
-        burst(cp.x + 8, cp.y + 4, (Math.random() - 0.5) * 50, -40 - Math.random() * 40, 0.55, rgb(PAL.accent), 2);
-      }
-    }
+    if (!cp.active && checkpointEligible(p, cp)) activateCheckpoint(cp);
   }
 
   updateEnemies(dt);
@@ -4040,7 +4535,7 @@ function tick(dt) {
     } else {
       S.talk.t += dt;
       const cur = nearNpc.lines[S.talk.line];
-      if (S.talk.t > cur.length * 0.035 + 2.4 && S.talk.line < nearNpc.lines.length - 1) {
+      if (S.talk.t > cur.length * TALK_CHAR_TIME + TALK_HOLD_TIME && S.talk.line < nearNpc.lines.length - 1) {
         S.talk.line++;
         S.talk.t = 0;
         SFX.talk();
@@ -4078,15 +4573,19 @@ function tick(dt) {
   // jumps don't bounce the screen, fast downward catch-up so landings read
   if (p.facing === S.lookFace) S.lookHoldT += dt;
   else { S.lookFace = p.facing; S.lookHoldT = 0; }
-  if (S.lookHoldT > CAM_LOOK_DELAY)
+  if (reducedMotion) {
+    S.camLook += (0 - S.camLook) * Math.min(1, 12 * dt);
+  } else if (S.lookHoldT > CAM_LOOK_DELAY) {
     S.camLook += (p.facing * CAM_LOOK - S.camLook) * Math.min(1, CAM_LOOK_EASE * dt);
-  const tcx = p.x + p.w / 2 - W / 2 + S.camLook;
+  }
+  const tcx = cameraTargetX(p);
   S.camX += (tcx - S.camX) * Math.min(1, CAM_X_EASE * dt);
   const pcy = p.y + p.h / 2 - 10;
   const ccy = S.camY + H / 2;
-  let tyc = ccy;
-  if (pcy < ccy - CAM_DEAD_Y) tyc = pcy + CAM_DEAD_Y;
-  else if (pcy > ccy + CAM_DEAD_Y) tyc = pcy - CAM_DEAD_Y;
+  const rootFrameY = rootCameraCenterY(p);
+  let tyc = rootFrameY === null ? ccy : rootFrameY;
+  if (rootFrameY === null && pcy < ccy - CAM_DEAD_Y) tyc = pcy + CAM_DEAD_Y;
+  else if (rootFrameY === null && pcy > ccy + CAM_DEAD_Y) tyc = pcy - CAM_DEAD_Y;
   const vEase = p.vy > 60 ? CAM_DOWN_EASE : CAM_UP_EASE;
   S.camY += (tyc - H / 2 - S.camY) * Math.min(1, vEase * dt);
   S.camX = clamp(S.camX, 0, Math.max(0, WORLD_W - W));
@@ -4135,6 +4634,31 @@ function canvasPos(e) {
   const r = canvas.getBoundingClientRect();
   return { x: (e.clientX - r.left) * (W / r.width), y: (e.clientY - r.top) * (H / r.height) };
 }
+function talkLayout() {
+  if (!S.talk) return null;
+  const npcSy = S.talk.npc.y - S.camY;
+  const compactTouch = TOUCH.active && innerWidth > innerHeight;
+  const bx = compactTouch ? 48 : 10;
+  const bw = compactTouch ? W - 104 : W - 20;
+  const bh = compactTouch ? 56 : 38;
+  return { x: bx, y: npcSy > H * 0.52 ? 6 : H - bh - 5, w: bw, h: bh, compactTouch };
+}
+function talkHitAt(e) {
+  if (!S.talk || (S.mode !== "play" && S.mode !== "reunion")) return false;
+  const p2 = canvasPos(e);
+  const box = talkLayout();
+  const inRect = r => p2.x >= r.x && p2.x <= r.x + r.w && p2.y >= r.y && p2.y <= r.y + r.h;
+  if (box && inRect(box)) return true;
+  const npc = S.talk.npc;
+  const pad = TOUCH.active ? 16 : 8;
+  const size = npc.big ? 36 : 14;
+  return inRect({
+    x: npc.x - S.camX - pad,
+    y: npc.y - S.camY - pad,
+    w: size + pad * 2,
+    h: size + pad * 2,
+  });
+}
 function lbHitAt(e) {
   if (S.mode !== "title" && S.mode !== "win" && S.mode !== "board") return null;
   const p2 = canvasPos(e);
@@ -4151,6 +4675,11 @@ function lbUiHitAt(e) {
       if (p2.x >= rh.x && p2.x <= rh.x + rh.w && p2.y >= rh.y - 7 && p2.y <= rh.y + 3) return { race: rh };
     return null;
   }
+  if (S.mode === "title") {
+    for (const hit of TITLE_HITS)
+      if (p2.x >= hit.x && p2.x <= hit.x + hit.w && p2.y >= hit.y && p2.y <= hit.y + hit.h)
+        return { title: hit };
+  }
   if (S.mode === "title" && DAILY_PANEL &&
       p2.x >= DAILY_PANEL.x && p2.x <= DAILY_PANEL.x + DAILY_PANEL.w &&
       p2.y >= DAILY_PANEL.y && p2.y <= DAILY_PANEL.y + DAILY_PANEL.h) return { daily: true };
@@ -4163,28 +4692,36 @@ function lbUiHitAt(e) {
   return null;
 }
 canvas.addEventListener("click", e => {
+  if (talkHitAt(e)) { advanceTalk(); return; }
   const h = lbHitAt(e);
   if (h) { window.open("https://x.com/" + h.name.slice(1).replace(/[^\w]/g, ""), "_blank"); return; }
   const u = lbUiHitAt(e);
   if (!u) return;
   if (u.tab) { S.boardTab = u.tab; SFX.talk(); }
+  else if (u.title) { S.titleSel = u.title.index; activateTitleItem(u.title.id); }
   else if (u.race) {
     SFX.check();
     fetchGhost(u.race.id).then(fr => {
       if (fr) {
         S.pendingGhost = { frames: fr, name: u.race.name };
+        setRunModePref("speedrun");
+        ghostPref = "leader";
+        try { localStorage.setItem("sd_ghost_pref", ghostPref); } catch (e) {}
         S.mode = "title";
         SFX.oneUp();
       }
     });
   }
-  else if (u.daily && lbOn()) { startDaily(); }
+  else if (u.daily) { if (dailyUnlocked()) startDaily(); else SFX.talk(); }
   else if (u.notes) { S.mode = "notes"; S.notesY = 0; SFX.talk(); }
   else if (u.open && lbOn()) { S.boardFrom = S.mode; S.mode = "board"; SFX.talk(); }
 });
 canvas.addEventListener("mousemove", e => {
-  canvas.style.cursor = (lbHitAt(e) || lbUiHitAt(e)) ? "pointer" : "";
+  const uiHit = lbUiHitAt(e);
+  NOTES_HOVER = !!uiHit?.notes;
+  canvas.style.cursor = (talkHitAt(e) || lbHitAt(e) || uiHit) ? "pointer" : "";
 });
+canvas.addEventListener("mouseleave", () => { NOTES_HOVER = false; });
 
 function blit() {
   ctx.imageSmoothingEnabled = false;
@@ -4202,7 +4739,7 @@ function draw() {
   if (S.mode === "gameover") { drawGameOver(); blit(); return; }
 
   let ox = 0, oy = 0;
-  if (S.shakeT > 0) {
+  if (S.shakeT > 0 && !reducedMotion) {
     const t = S.shakeT / SHAKE_TIME;
     ox = (Math.random() - 0.5) * 2 * S.shakeMag * t;
     oy = (Math.random() - 0.5) * 2 * S.shakeMag * t;
@@ -4238,7 +4775,7 @@ function draw() {
     }
   }
 
-  if (S.ghostPos && S.mode === "play") {
+  if (competitiveRun() && S.ghostPos && S.mode === "play") {
     g.globalAlpha = 0.45;
     drawMap(g, SPRITES.idle1, Math.round(S.ghostPos.x) - 1, Math.round(S.ghostPos.y) - 2, S.ghostPos.facing < 0, ECHO_PAL);
     if (S.ghost && S.ghost.name) {
@@ -4257,6 +4794,7 @@ function draw() {
 
   drawLighting(ox, oy);
   drawForeground();
+  drawBossWarnings();
   if (S.mode !== "credits") drawHUD();
   // THE SHOGGOTH — announced in something like blood
   if (S.shogTitleT > 0 && S.mode === "play") {
@@ -4284,19 +4822,20 @@ function draw() {
     g.textAlign = "left";
   }
 
-  // What took you — big and legible, only during the death pause
+  // Keep the cause visible during the short retry pause.
   if (S.mode === "dead" && S.deathCause) {
     g.textAlign = "center";
     g.fillStyle = "rgba(4,6,10,0.82)";
-    const cw = ("taken by " + S.deathCause).length * 5.2 + 14;
+    const cw = ("hit by " + S.deathCause).length * 5.2 + 14;
     g.fillRect(W / 2 - cw / 2, 48, cw, 16);
     g.fillStyle = "#f0b0a0";
     g.font = "bold 8px monospace";
-    g.fillText("taken by " + S.deathCause, W / 2, 59);
+    g.fillText("hit by " + S.deathCause, W / 2, 59);
     g.textAlign = "left";
   }
   drawTalk();
   drawBanner();
+  drawOpeningLesson();
   drawEndOverlay();
 
   if (S.mode === "pause") {
@@ -4311,16 +4850,21 @@ function draw() {
     g.fillText(LEVELS[S.levelIdx].name, W / 2, 70);
 
     const ids = pauseIds();
+    const compactMenu = ids.length > 6;
+    const menuY = compactMenu ? 80 : 82;
+    const menuStep = compactMenu ? 11 : 12;
     const labels = ids.map(id =>
       id === "resume" ? "RESUME" :
       id === "restart" ? "RESTART CHAMBER" :
       id === "practice" ? "◄ PRACTICE: " + pracName(S.pracSel === 0 ? 1 : S.pracSel) + " ►" :
+      id === "motion" ? "REDUCED MOTION: " + (reducedMotion ? "ON" : "OFF") :
+      id === "touchhand" ? "TOUCH LAYOUT: " + (leftHanded ? "LEFT-HANDED" : "RIGHT-HANDED") :
       id === "newgame" ? "NEW GAME" :
       id === "titlescr" ? "TITLE SCREEN" :
       "◄ " + (S.devLevel + 1) + ". " + LEVELS[S.devLevel].name + " ►");
     g.font = "9px monospace";
     for (let i = 0; i < labels.length; i++) {
-      const oy = 86 + i * 14;
+      const oy = menuY + i * menuStep;
       const sel = i === S.pauseSel;
       g.fillStyle = ids[i] === "devrow" ? (sel ? C.goalOpen : "#6a5060")
         : ids[i] === "practice" ? (sel ? rgb(PALS[0].accent) : C.uiDim)
@@ -4337,11 +4881,11 @@ function draw() {
     if (ids[S.pauseSel] === "practice") {
       g.fillStyle = C.wilt;
       g.font = "7px monospace";
-      g.fillText("starts a fresh run — it won't count for the leaderboard", W / 2, 152);
+      g.fillText("This starts a separate practice run. It won't be submitted.", W / 2, compactMenu ? 158 : 152);
     }
     g.fillStyle = C.uiDim;
     g.font = "7px monospace";
-    g.fillText("Move to choose   Jump to select", W / 2, 163);
+    g.fillText("Move to choose. Press Jump to select.", W / 2, compactMenu ? 171 : 168);
   }
 
   if (S.mode === "clear") {
@@ -4357,13 +4901,13 @@ function draw() {
     g.fillText("Berries  " + S.berries + " / " + S.berriesTotal, W / 2, H / 2 + 8);
     g.fillStyle = rgb(PAL.accent);
     g.font = "8px monospace";
-    g.fillText("+1 spark", W / 2, H / 2 - 26);
+    g.fillText("+1 health", W / 2, H / 2 - 26);
     if (LEVELS[S.levelIdx].clearText && S.winT > 0.6) {
       g.fillStyle = C.uiDim;
       g.font = "8px monospace";
       g.fillText(LEVELS[S.levelIdx].clearText, W / 2, H / 2 + 26);
     }
-    if (S.split) {
+    if (competitiveRun() && S.split) {
       const ahead = S.split.d <= 0;
       g.fillStyle = ahead ? rgb(PALS[0].accent) : "#f08080";
       g.font = "bold 8px monospace";
@@ -4682,12 +5226,11 @@ function drawTalk() {
   if (!S.talk || (S.mode !== "play" && S.mode !== "pause" && S.mode !== "reunion")) return;
   const npc = S.talk.npc;
   const full = npc.lines[S.talk.line];
-  const shown = full.slice(0, Math.floor(S.talk.t / 0.035) + 1);
+  const shown = full.slice(0, Math.floor(S.talk.t / TALK_CHAR_TIME) + 1);
   // If the speaker is in the lower half of the screen, the box goes to the
   // top so it never covers them (Grel lives in a pit, after all)
-  const npcSy = npc.y - S.camY;
-  const bx = 10, bw = W - 20, bh = 38;
-  const by = npcSy > H * 0.52 ? 6 : H - bh - 5;
+  const box = talkLayout();
+  const bx = box.x, by = box.y, bw = box.w, bh = box.h;
   g.fillStyle = "rgba(4,7,12,0.94)";
   g.fillRect(bx, by, bw, bh);
   g.fillStyle = rgb(PAL.accent);
@@ -4697,18 +5240,28 @@ function drawTalk() {
   g.fillStyle = C.title;
   g.font = "bold 8px monospace";
   g.fillText(npc.name, bx + 6, by + 10);
+  g.textAlign = "right";
+  g.fillStyle = shown.length >= full.length ? C.goalOpen : C.uiDim;
+  g.font = "6px monospace";
+  g.fillText(TOUCH.active ? "TAP: NEXT" : gp() ? "Y: NEXT" : "E / ENTER: NEXT", bx + bw - 6, by + 10);
+  g.textAlign = "left";
   g.fillStyle = "#f6efdd";
   g.font = "8px monospace";
-  const maxc = 56;
-  let l1 = shown, l2 = "";
-  if (shown.length > maxc) {
-    let cut = shown.lastIndexOf(" ", maxc);
+  const maxc = box.compactTouch ? 42 : 56;
+  const maxLines = box.compactTouch ? 3 : 2;
+  const wrapped = [];
+  let rest = shown;
+  while (rest && wrapped.length < maxLines) {
+    if (rest.length <= maxc || wrapped.length === maxLines - 1) {
+      wrapped.push(rest);
+      break;
+    }
+    let cut = rest.lastIndexOf(" ", maxc);
     if (cut < 20) cut = maxc;
-    l1 = shown.slice(0, cut);
-    l2 = shown.slice(cut + 1);
+    wrapped.push(rest.slice(0, cut));
+    rest = rest.slice(cut + 1);
   }
-  g.fillText(l1, bx + 6, by + 22);
-  if (l2) g.fillText(l2, bx + 6, by + 32);
+  wrapped.forEach((line, i) => g.fillText(line, bx + 6, by + 22 + i * 10));
   for (let i = 0; i < npc.lines.length; i++) {
     g.fillStyle = i === S.talk.line ? C.ui : "#3a4250";
     g.fillRect(bx + bw - 8 - (npc.lines.length - 1 - i) * 6, by + bh - 6, 4, 2);
@@ -5013,6 +5566,18 @@ function drawChorus(b) {
     if (wsp.dead) continue;
     const wx = Math.round(wsp.x + 4), wy = Math.round(wsp.y + 4);
     const warn = wsp.mode === "warn";
+    if (wsp.mode === "dive") {
+      const speed = Math.hypot(wsp.vx || 0, wsp.vy || 0) || 1;
+      const dx = (wsp.vx || 0) / speed, dy = (wsp.vy || 0) / speed;
+      g.globalAlpha = 0.32;
+      g.fillStyle = "#ff82aa";
+      for (let i = 1; i <= 2; i++) {
+        const tx = Math.round(wx - dx * i * 7), ty = Math.round(wy - dy * i * 7);
+        g.fillRect(tx - 2, ty, 4, 1);
+        g.fillRect(tx, ty - 2, 1, 4);
+      }
+      g.globalAlpha = 1;
+    }
     g.fillStyle = warn ? "#fff0f6" : "#ff82aa";
     g.fillRect(wx - 3, wy - 1, 6, 2);
     g.fillRect(wx - 1, wy - 3, 2, 6);
@@ -5053,6 +5618,46 @@ function drawStrikeMark() {
     g.fillRect(xx - 1, oy + 2, 3, 2);
   }
   g.globalAlpha = 1;
+}
+
+// Boss warnings that must remain legible even when their source is off-camera.
+function drawBossWarnings() {
+  const b = S.boss;
+  if (!b || b.kind !== "unbloomed" || !b.arm || b.arm.warm <= 0) return;
+  const a = b.arm;
+  const fromLeft = a.dir > 0;
+  const tutorial = b.sweepHints <= 2;
+  const boxW = tutorial ? 108 : 34;
+  const boxX = fromLeft ? 4 : W - boxW - 4;
+  const y = clamp(Math.round(a.y + a.h / 2 - S.camY) - 9, 38, H - 36);
+  const progress = 1 - clamp(a.warm / BOSS.WARN, 0, 1);
+  const pulse = reducedMotion ? 1 : 0.78 + Math.sin(S.time * 18) * 0.22;
+
+  g.save();
+  g.globalAlpha = 0.88;
+  g.fillStyle = "rgba(8,7,6,0.82)";
+  g.fillRect(boxX, y, boxW, 19);
+  g.globalAlpha = pulse;
+  g.fillStyle = "#f0a060";
+  if (tutorial) {
+    const tier = a.tier.toUpperCase();
+    g.font = "bold 7px monospace";
+    g.textAlign = fromLeft ? "left" : "right";
+    g.fillText(fromLeft ? "ROOT SWEEP " + tier + " >>" : "<< " + tier + " ROOT SWEEP", fromLeft ? boxX + 5 : boxX + boxW - 5, y + 9);
+  } else {
+    for (let i = 0; i < 3; i++) {
+      const base = fromLeft ? boxX + 7 + i * 8 : boxX + boxW - 9 - i * 8;
+      g.fillRect(base, y + 5, 2, 2);
+      g.fillRect(base + (fromLeft ? 2 : -2), y + 7, 2, 2);
+      g.fillRect(base, y + 9, 2, 2);
+    }
+  }
+  g.globalAlpha = 0.35;
+  g.fillRect(boxX + 5, y + 13, boxW - 10, 2);
+  g.globalAlpha = 1;
+  const fillW = Math.max(1, Math.round((boxW - 10) * progress));
+  g.fillRect(fromLeft ? boxX + 5 : boxX + boxW - 5 - fillW, y + 13, fillW, 2);
+  g.restore();
 }
 
 function drawShoggoth(b) {
@@ -5328,15 +5933,32 @@ function drawBoss() {
       ay += 5;
     }
   }
-  // Sweeping arm
-  if (b.arm && b.arm.warm <= 0) {
+  // Sweeping arm. Its source may be off-camera, so drawBossWarnings also gives
+  // the player a screen-edge direction and the exact remaining danger timer.
+  if (b.arm) {
     const a = b.arm;
-    g.fillStyle = "#6a5a42";
-    for (let s = 0; s < 5; s++) {
-      g.fillRect(Math.round(a.x + s * 6 * -a.dir), Math.round(a.y + 6 + Math.sin(t * 8 + s) * 3), 6, 5);
+    if (a.warm > 0) {
+      const pulse = reducedMotion ? 0.5 : 0.35 + Math.sin(t * 18) * 0.15;
+      g.globalAlpha = pulse;
+      g.fillStyle = "#f0a060";
+      const lineY = Math.round(a.y + a.h / 2);
+      for (let wx = ROOT_X_MIN; wx <= ROOT_X_MAX + ROOT_W; wx += 24)
+        g.fillRect(wx, lineY, 10, 2);
+      for (let s = 0; s < 5; s++) {
+        const sx = a.x + a.dir * (6 + s * 9);
+        g.fillRect(Math.round(sx), Math.round(a.y + 8 + Math.abs(2 - s) * 2), 5, 3);
+      }
+      g.globalAlpha = 1;
+    } else {
+      g.fillStyle = "#6a5a42";
+      for (let row = 0; row < 3; row++) {
+        for (let s = 0; s < 5; s++) {
+          g.fillRect(Math.round(a.x + s * 6 * -a.dir), Math.round(a.y + 3 + row * 7 + Math.sin(t * 8 + s + row) * 2), 6, 4);
+        }
+      }
+      g.fillStyle = "#8a744e";
+      g.fillRect(Math.round(a.x), Math.round(a.y + 3), 8, a.h - 6);
     }
-    g.fillStyle = "#8a744e";
-    g.fillRect(Math.round(a.x), Math.round(a.y + 4), 8, 8);
   }
 
   // Throat slash under the cap
@@ -5631,46 +6253,45 @@ function drawOke() {
 }
 
 function drawHUD() {
-  g.fillStyle = "rgba(8,12,18,0.55)";
-  g.fillRect(4, 4, 46, 12);
-  g.fillStyle = C.berry;
-  g.fillRect(7, 7, 5, 5);
-  g.fillStyle = C.berryHi;
-  g.fillRect(8, 8, 2, 2);
-  g.fillStyle = C.ui;
-  g.font = "8px monospace";
-  g.textAlign = "left";
-  g.fillText(S.berries + "/" + S.berriesTotal, 16, 13);
-
-  // Sparks (lives)
-  g.fillStyle = "rgba(8,12,18,0.55)";
-  g.fillRect(4, 18, 30, 12);
-  g.fillStyle = S.lives > 1 ? C.cap : C.berry;
-  g.fillRect(7, 21, 7, 3);
-  g.fillStyle = S.lives > 1 ? C.capHi : C.berryHi;
-  g.fillRect(8, 21, 3, 1);
-  g.fillStyle = C.bodySh;
-  g.fillRect(9, 24, 3, 3);
-  g.fillStyle = S.lives > 1 || (DEV && S.devInf) ? C.ui : C.berryHi;
-  g.font = "8px monospace";
-  g.fillText(DEV && S.devInf ? "x∞" : "x" + S.lives, 17, 27);
-
   const p = S.player;
   if (!p) return;
-  g.fillStyle = "rgba(8,12,18,0.55)";
-  g.fillRect(W - 38, 4, 34, 19);
-  g.fillStyle = (p.canDash || p.grounded) ? C.bloomHi : C.uiDim;
-  g.fillRect(W - 34, 7, 8, 5);
-  g.fillStyle = (p.canDash || p.grounded) ? C.bloomStem : "#445";
-  g.fillRect(W - 31, 10, 2, 3);
-  g.fillStyle = C.uiDim;
+  const showLives = S.runMode === "adventure";
+  g.fillStyle = "rgba(8,12,18,0.68)";
+  g.fillRect(4, 4, 116, showLives ? 41 : 29);
+  g.fillStyle = C.ui;
+  g.font = "bold 7px monospace";
+  g.textAlign = "left";
+  g.fillText("HEALTH " + (DEV && S.devInf ? "∞" : S.health), 8, 14);
+  for (let i = 0; i < MAX_HEALTH; i++) {
+    const on = DEV && S.devInf || i < S.health;
+    g.fillStyle = on ? (S.health > 1 ? C.capHi : C.berryHi) : "#3a3540";
+    g.fillRect(52 + i * 6, 9, 4, 4);
+  }
+
+  g.fillStyle = C.ui;
   g.font = "7px monospace";
-  g.fillText(p.canDash || p.dashing ? "DASH" : "...", W - 24, 13);
-  // Spore pips — blooms left this airtime
+  g.fillText("BLOOMS " + p.spores, 8, 27);
   for (let i = 0; i < MAX_SPORES; i++) {
     g.fillStyle = i < p.spores ? rgb(PAL.accent) : "#3a4250";
-    g.fillRect(W - 34 + i * 8, 16, 5, 4);
+    g.fillRect(52 + i * 8, 22, 5, 4);
   }
+  g.fillStyle = p.canDash || p.dashing || p.grounded ? C.bloomHi : C.uiDim;
+  g.fillText(p.canDash || p.dashing || p.grounded ? "DASH READY" : "DASH SPENT", 77, 27);
+  if (showLives) {
+    g.fillStyle = S.unlimitedLives ? rgb(PAL.accent) : C.ui;
+    g.fillText("LIVES " + (S.unlimitedLives ? "∞" : S.lives), 8, 39);
+  }
+
+  // Berries are a collectible, not survival state, so they remain separate.
+  g.fillStyle = "rgba(8,12,18,0.55)";
+  g.fillRect(W - 50, 4, 46, 12);
+  g.fillStyle = C.berry;
+  g.fillRect(W - 47, 7, 5, 5);
+  g.fillStyle = C.berryHi;
+  g.fillRect(W - 46, 8, 2, 2);
+  g.fillStyle = C.ui;
+  g.font = "8px monospace";
+  g.fillText(S.berries + "/" + S.berriesTotal, W - 38, 13);
 
   // Boss thorn pips
   if (S.boss && S.boss.state !== "defeated") {
@@ -5684,6 +6305,50 @@ function drawHUD() {
       g.fillRect(W / 2 - 13 + i * 12, 5, 3, 3);
     }
   }
+
+  if (competitiveRun()) {
+    const ty = S.boss && S.boss.state !== "defeated" ? 18 : 4;
+    g.fillStyle = "rgba(8,12,18,0.68)";
+    g.fillRect(W / 2 - 25, ty, 50, 11);
+    g.fillStyle = C.goalOpen;
+    g.font = "bold 7px monospace";
+    g.textAlign = "center";
+    g.fillText(fmtMs(S.score.time * 1000), W / 2, ty + 8);
+    g.textAlign = "left";
+  }
+}
+
+function openingLessonLines() {
+  const jump = gp() ? "A" : TOUCH.active ? "A BUTTON" : "SPACE";
+  const dash = gp() ? "X" : TOUCH.active ? "X BUTTON" : "SHIFT";
+  return [jump + ": JUMP   " + dash + ": AIR DASH", "Air-dash now. The bloom will catch you."];
+}
+
+function drawOpeningLesson() {
+  if (S.mode !== "play" || S.levelIdx !== 0 || S.bloomLessonDone || !S.player || S.player.x < 15 * TILE) return;
+  const lines = openingLessonLines();
+  const x = W / 2 - 101, y = 43, w = 202, h = 31;
+  g.fillStyle = "rgba(8,12,18,0.88)";
+  g.fillRect(x, y, w, h);
+  g.fillStyle = rgb(PAL.accent);
+  g.fillRect(x, y, w, 1);
+  // Tiny demonstration: sporeling, down-arrow, then a bloom catching it.
+  g.fillStyle = C.body;
+  g.fillRect(x + 9, y + 6, 8, 7);
+  g.fillStyle = C.capHi;
+  g.fillRect(x + 8, y + 5, 10, 3);
+  g.fillStyle = C.uiDim;
+  g.fillRect(x + 12, y + 15, 1, 4);
+  g.fillRect(x + 10, y + 18, 5, 1);
+  g.fillStyle = C.bloomHi;
+  g.fillRect(x + 5, y + 23, 17, 3);
+  g.fillStyle = C.ui;
+  g.font = "bold 7px monospace";
+  g.textAlign = "left";
+  g.fillText(lines[0], x + 28, y + 12);
+  g.fillStyle = C.goalOpen;
+  g.font = "7px monospace";
+  g.fillText(lines[1], x + 28, y + 24);
 }
 
 function drawEndOverlay() {
@@ -5697,11 +6362,11 @@ function drawEndOverlay() {
     g.textAlign = "center";
     g.fillStyle = C.title;
     g.font = "bold 9px monospace";
-    g.fillText("MEMORY FOUND — THE FIRST MAP", W / 2, 62);
+    g.fillText("FIRST MAP FOUND", W / 2, 62);
     g.fillStyle = C.ui;
     g.font = "8px monospace";
-    g.fillText("“There was always one more place", W / 2, 74);
-    g.fillText("than the maps could hold.”", W / 2, 83);
+    g.fillText("The first map ends at the Spire wall.", W / 2, 74);
+    g.fillText("Someone drew a door past the edge.", W / 2, 83);
     g.globalAlpha = 1;
   }
 
@@ -5727,25 +6392,24 @@ function drawEndOverlay() {
       g.textAlign = "center";
       g.fillStyle = ink ? "#3a4a40" : C.goalOpen;
       g.font = "8px monospace";
-      g.fillText("“You were never meant to wake her by force.”", W / 2, 44);
+      g.fillText("“I heard you climbing.”", W / 2, 44);
     }
     if (S.endBeat >= 2) {
       g.fillStyle = ink ? "#2a3a30" : C.ui;
       g.font = "8px monospace";
-      g.fillText("“You only had to reach her.”", W / 2, 58);
+      g.fillText("“Thank you for coming.”", W / 2, 58);
     }
   }
 
   if (S.mode === "credits") {
     const lines = [
       ["SPORELING DASH", "bold 14px monospace", C.title],
-      ["A game about going higher", "8px monospace", C.uiDim],
+      ["A platformer about a dash that leaves a temporary platform", "8px monospace", C.uiDim],
       ["", "", ""],
       ["Created by thoughtcrimegpt", "9px monospace", C.ui],
       ["Code, art, and sound by thoughtcrimegpt", "8px monospace", C.ui],
       ["", "", ""],
-      ["Thanks to the sporelings", "8px monospace", C.uiDim],
-      ["who kept climbing", "8px monospace", C.uiDim],
+      ["Thanks for playing", "8px monospace", C.uiDim],
     ];
     const scroll = H + 20 - S.creditsT * 16;
     g.textAlign = "center";
@@ -5786,13 +6450,21 @@ function drawBanner() {
   }
   if (S.hint && S.mode === "play") {
     const a = clamp(Math.min(S.hint.t, 4 - S.hint.t) * 2.5, 0, 1);
+    const words = S.hint.text.split(/\s+/);
+    const lines = [""];
+    for (const word of words) {
+      const next = lines[lines.length - 1] ? lines[lines.length - 1] + " " + word : word;
+      if (next.length > 52 && lines.length < 2) lines.push(word);
+      else lines[lines.length - 1] = next;
+    }
+    const panelH = lines.length > 1 ? 22 : 13;
     g.globalAlpha = a;
     g.fillStyle = "rgba(8,12,18,0.75)";
-    g.fillRect(W / 2 - 110, 24, 220, 13);
+    g.fillRect(W / 2 - 110, 24, 220, panelH);
     g.fillStyle = C.goalOpen;
     g.font = "7px monospace";
     g.textAlign = "center";
-    g.fillText(S.hint.text, W / 2, 33);
+    lines.forEach((line, i) => g.fillText(line, W / 2, 33 + i * 9));
     g.globalAlpha = 1;
   }
 }
@@ -5816,85 +6488,124 @@ function drawTitle() {
   decorMush(48, 132, 1.3);
   decorMush(255, 138, 1.0);
   decorMush(155, 146, 1.6);
+  const titleList = titleIds();
+  const titleSelected = titleCurrentId();
+  TITLE_HITS = [];
+  LB_HITS = [];
+  LB_PANEL = null;
 
-  // Left column — the whole title block stays clear of the leaderboard panel
-  const TCX = 100;
+  // Adventure is the calm default; competitive choices stay explicit at right.
+  const TCX = 94;
   g.save();
-  g.translate(TCX, 92);
+  g.translate(158, 136);
   drawMap(g, ((S.time * 2 | 0) & 1) ? SPRITES.idle1 : SPRITES.idle2, -6, -7, false);
   g.restore();
 
   g.fillStyle = C.title;
   g.font = "bold 15px monospace";
   g.textAlign = "center";
-  g.fillText("SPORELING DASH", TCX, 34);
+  g.fillText("SPORELING DASH", TCX, 25);
 
-  g.fillStyle = C.goalOpen;
+  g.fillStyle = runModePref === "adventure" ? C.goalOpen : C.title;
+  g.font = "bold 8px monospace";
+  g.fillText(runModePref === "adventure" ? "ADVENTURE" : "SPEEDRUN", TCX, 43);
   g.font = "7px monospace";
-  g.fillText("The Mother Bloom has gone quiet. Go wake her.", TCX, 48);
   g.fillStyle = C.ui;
-  g.fillText("Dash in the air — a bloom sprouts", TCX, 60);
-  g.fillText("where you land. Jump off it to chain.", TCX, 69);
+  if (runModePref === "adventure") {
+    g.fillText("Explore and talk without a timer.", TCX, 55);
+    g.fillStyle = C.uiDim;
+    g.fillText(unlimitedLivesPref ? "Lives are unlimited. You can change this below." : "You have three lives. You can change this below.", TCX, 65);
+  } else {
+    g.fillText("The clock runs, and you can submit your time.", TCX, 55);
+    g.fillStyle = C.uiDim;
+    g.fillText("Deaths cost time. You can keep retrying.", TCX, 65);
+  }
+  g.fillStyle = C.ui;
+  g.fillText("If you air-dash, a bloom comes up under you.", TCX, 83);
+  g.fillText("It can catch you, but it wilts fast.", TCX, 93);
   g.fillStyle = C.uiDim;
-  g.fillText("Solid ground restores spores.", TCX, 78);
+  g.fillText("Land on solid ground and you'll get", TCX, 103);
+  g.fillText("your dash and three blooms back.", TCX, 113);
 
-  // Full-width band under the panels: start + practice, unmissable
-  if ((Math.sin(S.time * 4) * 0.5 + 0.5) > 0.28) {
-    g.fillStyle = C.ui;
-    g.font = "bold 10px monospace";
-    g.fillText("Press " + jumpBtnName() + " to start", W / 2, 110);
-  }
-  if (!DEV && (reachGet() > 0 || shogSeen())) {
-    const pn = S.pracSel === 99 ? "THE SHOGGOTH" : S.pracSel > 0 ? LEVELS[S.pracSel].name : null;
-    g.fillStyle = pn ? rgb(PALS[0].accent) : C.uiDim;
-    g.font = "bold 9px monospace";
-    g.fillText(pn ? "◄ ► PRACTICE: " + pn : "◄ ► FULL RUN  ·  arrows for practice", W / 2, 124);
-  }
-  // the cave's own memory — bright enough to invite the click
-  NOTES_HIT = { x: W - 104, y: 79, w: 98, h: 14 };
+  // the cave's own memory — a real desktop button, not a hidden key command
+  NOTES_HIT = { x: W - 136, y: 106, w: 132, h: 23 };
+  const notesActive = NOTES_HOVER || titleSelected === "notes";
+  g.globalAlpha = notesActive ? 0.9 : 0.48;
+  g.fillStyle = notesActive ? "rgba(240,168,136,0.2)" : "rgba(8,12,18,0.72)";
+  g.fillRect(NOTES_HIT.x, NOTES_HIT.y, NOTES_HIT.w, NOTES_HIT.h);
+  g.fillStyle = notesActive ? C.goalOpen : C.title;
+  g.fillRect(NOTES_HIT.x, NOTES_HIT.y, NOTES_HIT.w, 1);
   g.textAlign = "right";
-  g.fillStyle = C.title;
-  g.globalAlpha = 0.75 + Math.sin(S.time * 3) * 0.25;
+  g.fillStyle = notesActive ? C.goalOpen : C.title;
+  g.globalAlpha = notesActive ? 1 : 0.75 + Math.sin(S.time * 3) * 0.25;
   g.font = "bold 7px monospace";
-  g.fillText(TOUCH.active ? "✎ PATCH NOTES — tap" : "✎ PATCH NOTES — N", W - 8, 89);
+  g.fillText(TOUCH.active ? "✎ PATCH NOTES: TAP" : "✎ PATCH NOTES: CLICK", W - 9, 121);
   g.globalAlpha = 1;
+  g.textAlign = "center";
+
+  const menuX = W - 122, menuW = 118;
+  let menuRow = 0;
+  for (let i = 0; i < titleList.length; i++) {
+    const id = titleList[i];
+    if (id === "notes" || id === "daily") continue;
+    const y = 8 + menuRow * 12;
+    const selected = id === titleSelected;
+    const label = id === "adventure" ? (runModePref === "adventure" ? "● ADVENTURE" : "○ ADVENTURE")
+      : id === "speedrun" ? (runModePref === "speedrun" ? "● SPEEDRUN" : "○ SPEEDRUN")
+      : id === "lives" ? "LIVES: " + (unlimitedLivesPref ? "UNLIMITED" : ADVENTURE_LIVES)
+      : id === "levelselect" ? "LEVEL: " + adventureLevelName()
+      : id === "ghost" ? "GHOST: " + (ghostPref === "personal" ? "PERSONAL BEST" : ghostPref === "leader" ? "LEADERBOARD" : "OFF")
+      : id === "start" ? (DEV ? "START TEST" : "START " + runModePref.toUpperCase())
+      : id === "devlevel" ? "TEST LEVEL: " + (S.devLevel + 1) + ". " + LEVELS[S.devLevel].name
+      : id === "devhealth" ? "DAMAGE: " + (S.devInf ? "OFF" : "ON")
+      : id === "practice" ? (S.pracSel > 0 ? "PRACTICE: " + pracName(S.pracSel) : "FULL RUN")
+      : id === "board" ? "LEADERBOARDS"
+      : "THE PALE ROOT";
+    g.globalAlpha = selected ? 0.92 : 0.66;
+    g.fillStyle = selected ? "rgba(240,168,136,0.2)" : "rgba(8,12,18,0.7)";
+    g.fillRect(menuX, y, menuW, 11);
+    if (selected) {
+      g.fillStyle = C.goalOpen;
+      g.fillRect(menuX, y, 2, 11);
+    }
+    g.globalAlpha = 1;
+    g.fillStyle = selected ? C.goalOpen : C.uiDim;
+    g.font = (id === "devlevel" || id === "practice" || id === "ghost" || id === "lives" || id === "levelselect") ? "bold 6px monospace" : "bold 7px monospace";
+    g.textAlign = "left";
+    g.fillText((selected ? "› " : "  ") + label, menuX + 5, y + 8);
+    TITLE_HITS.push({ id, index: i, x: menuX, y, w: menuW, h: 11 });
+    menuRow++;
+  }
   g.textAlign = "center";
 
   g.fillStyle = C.uiDim;
   g.font = "7px monospace";
-  g.fillText(TOUCH.active
-    ? "Stick to move + aim   A Jump   X Dash"
-    : "Move WASD/Arrows/Stick   Jump Space/A   Dash Shift/J/X/RB   M music", W / 2, 176);
+  const controlLines = titleControlLines();
+  const controlY = controlLines.length === 1 ? 176 : 168;
+  controlLines.forEach((line, i) => g.fillText(line, W / 2, controlY + i * 9));
 
-  drawLbPanel();
-
-  // Today's dream — one compact card, bottom left
-  DAILY_PANEL = null;
-  if (lbOn()) {
-    g.textAlign = "left";
-    g.fillStyle = "rgba(8,12,18,0.82)";
-    g.fillRect(4, 130, 182, 36);
-    g.fillStyle = C.goalOpen;
-    g.fillRect(4, 130, 182, 1);
-    g.fillStyle = C.title;
-    g.font = "bold 7px monospace";
-    g.fillText("☾ THE PALE ROOT — the Mother's trial", 9, 139);
-    g.font = "7px monospace";
-    if (dailyUnlocked()) {
-      DAILY_PANEL = { x: 4, y: 130, w: 182, h: 36 };
-      g.fillStyle = rgb(PALS[0].accent);
-      g.fillText("pure platforming · two mercies · one board, forever", 9, 149);
-      g.fillStyle = C.goalOpen;
-      g.fillText((gp() ? "D / Y — descend" : TOUCH.active ? "tap here — descend" : "D — descend") +
-        (S.pendingGhost ? "   · echo armed" : ""), 9, 159);
-    } else {
-      g.fillStyle = C.uiDim;
-      g.fillText("the Root waits past the ending...", 9, 149);
-      g.fillStyle = "#6a5060";
-      g.fillText("🔒 wake the Mother first", 9, 159);
-    }
-    g.textAlign = "center";
+  // New Game+ remains visible before it unlocks, so the completed-game route
+  // is promised without dropping an unexplained competitive option on players.
+  const rootReady = dailyUnlocked();
+  DAILY_PANEL = { x: 4, y: 132, w: 132, h: 32 };
+  const rootSelected = titleSelected === "daily";
+  g.textAlign = "left";
+  g.fillStyle = rootSelected ? "rgba(240,168,136,0.2)" : "rgba(8,12,18,0.76)";
+  g.fillRect(DAILY_PANEL.x, DAILY_PANEL.y, DAILY_PANEL.w, DAILY_PANEL.h);
+  if (rootSelected) {
+    g.fillStyle = rootReady ? C.goalOpen : C.uiDim;
+    g.fillRect(DAILY_PANEL.x, DAILY_PANEL.y, 2, DAILY_PANEL.h);
   }
+  g.fillStyle = rootReady ? rgb(PAL.accent) : C.uiDim;
+  g.font = "bold 6px monospace";
+  g.fillText("NEW GAME+", 10, 141);
+  g.fillStyle = rootReady ? C.goalOpen : C.title;
+  g.font = "bold 8px monospace";
+  g.fillText("THE PALE ROOT", 10, 151);
+  g.fillStyle = C.uiDim;
+  g.font = "6px monospace";
+  g.fillText(rootReady ? "Unlocked. Press to climb." : "Beat the game to continue.", 10, 160);
+  g.textAlign = "center";
 
   if (DEV) {
     g.textAlign = "left";
@@ -5905,9 +6616,9 @@ function drawTitle() {
     g.fillText("TEST MODE", 9, 13);
     g.fillStyle = C.ui;
     g.font = "7px monospace";
-    g.fillText("◄► " + (S.devLevel + 1) + ". " + LEVELS[S.devLevel].name, 9, 22);
+    g.fillText(runModePref === "speedrun" ? "FULL RUN: THE HOLLOW" : "◄► " + (S.devLevel + 1) + ". " + LEVELS[S.devLevel].name, 9, 22);
     g.fillStyle = S.devInf ? rgb(PALS[0].accent) : C.uiDim;
-    g.fillText("▲▼ sparks: " + (S.devInf ? "UNLIMITED" : "normal"), 9, 31);
+    g.fillText("▲▼ damage: " + (S.devInf ? "OFF" : "ON"), 9, 31);
     g.textAlign = "center";
   }
 }
@@ -5921,12 +6632,11 @@ function drawGameOver() {
   g.fillStyle = C.wilt;
   g.font = "bold 16px monospace";
   g.textAlign = "center";
-  g.fillText("THE SPARK GOES OUT", W / 2, 58);
+  g.fillText(S.outOfLives ? "NO LIVES LEFT" : "THAT RUN IS OVER", W / 2, 58);
 
   g.fillStyle = C.uiDim;
   g.font = "8px monospace";
-  g.fillText("The dark keeps its maps.", W / 2, 80);
-  g.fillText("The Mother keeps waiting.", W / 2, 90);
+  g.fillText(S.outOfLives ? "Start again, or choose Unlimited Lives on the title." : "You can start another run from the title screen.", W / 2, 82);
 
   g.fillStyle = C.ui;
   g.font = "9px monospace";
@@ -5935,13 +6645,13 @@ function drawGameOver() {
   if (S.deathCause) {
     g.fillStyle = "#f0b0a0";
     g.font = "bold 9px monospace";
-    g.fillText("Taken by " + S.deathCause, W / 2, 137);
+    g.fillText("Last hit: " + S.deathCause, W / 2, 137);
   }
 
   if ((Math.sin(S.time * 4) * 0.5 + 0.5) > 0.28) {
     g.fillStyle = C.uiDim;
     g.font = "8px monospace";
-    g.fillText("Jump to try again", W / 2, 150);
+    g.fillText(S.practice ? "Press Jump to retry practice." : "Press Jump to return to the title.", W / 2, 150);
   }
 }
 
@@ -5968,7 +6678,7 @@ function drawLbPanel(tall) {
   g.fillRect(px, 4, pw, 1);
   g.fillStyle = C.title;
   g.font = "bold 7px monospace";
-  g.fillText(slot === "daily" ? "☾ THE PALE ROOT" : slot === "full" ? "FULL BLOOM 100%" : "FASTEST — ANY%", px + 5, 14);
+  g.fillText(slot === "daily" ? "☾ THE PALE ROOT" : slot === "full" ? "FULL BLOOM 100%" : "FASTEST ANY%", px + 5, 14);
   g.font = "7px monospace";
   if (!list || !list.length) {
     g.fillStyle = C.uiDim;
@@ -6049,7 +6759,7 @@ function drawNotes() {
   g.textAlign = "center";
   g.fillStyle = C.uiDim;
   g.font = "7px monospace";
-  g.fillText("▲ ▼ scroll   ·   " + jumpBtnName() + " — back", W / 2, H - 11);
+  g.fillText("▲ ▼ scroll   ·   " + jumpBtnName() + ": back", W / 2, H - 11);
 }
 
 // The full leaderboard screen — complete names, tab between the two boards
@@ -6090,7 +6800,7 @@ function drawBoard() {
   g.font = "8px monospace";
   if (!list || !list.length) {
     g.fillStyle = C.uiDim;
-    g.fillText(list ? "no runs yet — be the first" : "loading...", 18, 60);
+  g.fillText(list ? "No runs have been submitted yet." : "Loading...", 18, 60);
   } else {
     for (let i = 0; i < Math.min(14, list.length); i++) {
       const ry = 54 + i * 8.4;
@@ -6117,7 +6827,7 @@ function drawBoard() {
   g.textAlign = "center";
   g.fillStyle = C.uiDim;
   g.font = "7px monospace";
-  g.fillText("◄ ► switch   ·   ▸ race that echo   ·   " + jumpBtnName() + " — back", W / 2, H - 11);
+  g.fillText("◄ ► change board   ·   ▸ choose ghost   ·   " + jumpBtnName() + " back", W / 2, H - 11);
 }
 
 function drawWin() {
@@ -6125,7 +6835,8 @@ function drawWin() {
   g.drawImage(farCv, 0, 0);
   drawSpores("far");
   drawSpores("near");
-  drawLbPanel(true);
+  if (competitiveRun()) drawLbPanel(true);
+  else { LB_HITS = []; LB_PANEL = null; }
 
   // Everything else lives in the left column now
   g.textAlign = "left";
@@ -6135,11 +6846,10 @@ function drawWin() {
 
   g.fillStyle = C.goalOpen;
   g.font = "7px monospace";
-  g.fillText("“...you came. Little spark, you came.”", 10, 42);
-  g.fillText("“The ones you freed are singing", 10, 52);
-  g.fillText("  again. Listen.”", 10, 61);
+  g.fillText("“You're here. I heard every landing.", 10, 42);
+  g.fillText("  And you brought the others home.”", 10, 53);
   g.fillStyle = C.uiDim;
-  g.fillText("— THE MOTHER BLOOM", 10, 72);
+  g.fillText("THE MOTHER BLOOM", 10, 72);
 
   g.fillStyle = C.ui;
   g.font = "8px monospace";
@@ -6150,11 +6860,11 @@ function drawWin() {
   g.fillText("Voices    " + met + " / " + TOTAL_NPCS, 10, 112);
   g.fillText("Memory    " + (S.score.secretMemory ? "1" : "0") + " / 1", 10, 123);
   g.fillText("Deaths    " + S.score.deaths, 10, 134);
-  g.fillText("Time      " + m + ":" + (s < 10 ? "0" : "") + s, 10, 145);
+  if (competitiveRun()) g.fillText("Time      " + m + ":" + (s < 10 ? "0" : "") + s, 10, 145);
   if (S.practice) {
     g.fillStyle = C.uiDim;
     g.font = "7px monospace";
-    g.fillText("PRACTICE RUN — the board only takes full runs", 10, 155);
+    g.fillText("Practice runs aren't submitted.", 10, 155);
   }
 
   if (S.lbConfirm) {
@@ -6167,33 +6877,155 @@ function drawWin() {
     g.font = "7px monospace";
     g.fillText("Submit to the public leaderboard?", 10, 151);
     g.fillStyle = C.goalOpen;
-    g.fillText("Exact @handle = clickable X link", 10, 161);
+    g.fillText("An exact @handle will link to X.", 10, 161);
     g.fillStyle = C.title;
-    g.fillText(dashBtnName() + " — yes    " + jumpBtnName() + " — no", 10, 171);
+    g.fillText(dashBtnName() + ": yes    " + jumpBtnName() + ": no", 10, 171);
   } else {
-    if (lbOn()) {
+    if (lbOn() && competitiveRun()) {
       const blink = S.lbMsg || (Math.sin(S.time * 5) * 0.5 + 0.5) > 0.25;
       if (blink) {
         g.fillStyle = S.lbMsg ? rgb(PALS[0].accent) : C.goalOpen;
         g.font = "7px monospace";
-        g.fillText(S.lbMsg || "Press " + dashBtnName() + " — submit your time", 10, 160);
+        g.fillText(S.lbMsg || "Press " + dashBtnName() + " to submit your time.", 10, 160);
       }
+    } else if (!competitiveRun()) {
+      g.fillStyle = C.goalOpen;
+      g.font = "7px monospace";
+      g.fillText("Adventure complete. No time was submitted.", 10, 160);
     } else if (met < TOTAL_NPCS) {
       g.fillStyle = C.uiDim;
       g.font = "7px monospace";
-      g.fillText("Someone never got to say hello.", 10, 160);
+      g.fillText("You missed someone on the way up.", 10, 160);
     }
 
     if ((Math.sin(S.time * 4) * 0.5 + 0.5) > 0.28) {
       g.fillStyle = C.uiDim;
       g.font = "7px monospace";
-      g.fillText(jumpBtnName() + " — title screen", 10, 172);
+      g.fillText(jumpBtnName() + " returns to the title screen.", 10, 172);
     }
   }
   g.textAlign = "center";
 }
 
 // ── Loop ───────────────────────────────────────────────────────────────────
+function applyDevFixture() {
+  if (!DEV) return false;
+  let fixture = "", params = null;
+  try {
+    params = new URLSearchParams(location.search);
+    fixture = params.get("fixture") || "";
+  } catch (e) {}
+  if (params && params.get("touch") === "1") {
+    TOUCH.active = true;
+    document.getElementById("touch").hidden = false;
+    leftHanded = params.get("hand") === "left";
+    applyTouchLayout();
+    resize();
+  }
+  if (!fixture) return false;
+
+  const placePlayer = (x, y) => {
+    const p = S.player;
+    Object.assign(p, {
+      x, y, vx: 0, vy: 0, invuln: 99, grounded: false,
+      dashing: false, canDash: true, spores: MAX_SPORES, chainN: 0,
+    });
+    S.camLook = 0;
+    S.camX = clamp(x + p.w / 2 - W / 2, 0, Math.max(0, WORLD_W - W));
+    S.camY = clamp(y + p.h / 2 - H / 2, 0, Math.max(0, WORLD_H - H));
+  };
+  const openLevel = index => {
+    loadLevel(index);
+    S.mode = "play";
+    S.bannerT = 0;
+    S.hint = null;
+    S.talk = null;
+    S.bloomLessonDone = true;
+  };
+
+  if (fixture === "opening") {
+    openLevel(0);
+    S.bloomLessonDone = false;
+    placePlayer(15 * TILE, 8 * TILE - S.player.h);
+    S.player.grounded = true;
+    return true;
+  }
+  if (fixture === "bloom") {
+    openLevel(0);
+    placePlayer(20 * TILE, 6 * TILE);
+    S.player.vx = 95;
+    spawnBloom(S.player);
+    return true;
+  }
+  if (fixture === "checkpoint") {
+    openLevel(0);
+    const cp = S.checkpoints[0];
+    placePlayer(cp.x + 4, cp.y - 8);
+    activateCheckpoint(cp);
+    return true;
+  }
+  if (fixture === "dialogue") {
+    openLevel(0);
+    const npc = S.npcs[0];
+    placePlayer(npc.x + 8, npc.y);
+    S.talk = { npc, line: 0, t: npc.lines[0].length * 0.035 };
+    S.score.metNpcs[npc.name] = true;
+    return true;
+  }
+  if (fixture === "chorus-open" || fixture === "chorus-dive") {
+    openLevel(LEVELS.findIndex(level => level.boss === "chorus"));
+    const b = S.boss;
+    updateChorus(0);
+    placePlayer(b.x - 92, b.y - 7);
+    if (fixture === "chorus-open") {
+      b.state = "gather";
+      b.t = 0;
+      for (const wsp of b.wisps) {
+        wsp.dead = false;
+        wsp.mode = "gathered";
+        wsp.x = b.x - 4;
+        wsp.y = b.y - 4;
+      }
+      S.hint = { text: "The heart is glowing. Dash straight through it.", t: 99 };
+    } else {
+      b.state = "dives";
+      b.t = 0.6;
+      for (let i = 0; i < 3; i++) {
+        const wsp = b.wisps[i];
+        const angle = -0.4 + i * 0.4;
+        wsp.mode = "dive";
+        wsp.t = 0.35;
+        wsp.x = b.x - 56 + i * 12;
+        wsp.y = b.y - 32 + i * 14;
+        wsp.vx = Math.cos(angle) * CHORUS.DIVE_V;
+        wsp.vy = Math.sin(angle) * CHORUS.DIVE_V;
+      }
+    }
+    return true;
+  }
+  if (fixture.startsWith("root-")) {
+    const later = fixture.endsWith("-later");
+    const tier = fixture.slice(5).replace(/-later$/, "");
+    if (!ROOT_TIERS[tier]) return false;
+    openLevel(LEVELS.findIndex(level => level.boss === "unbloomed"));
+    const band = ROOT_TIERS[tier];
+    const b = S.boss;
+    b.pips = tier === "mid" ? 2 : 1;
+    b.state = "attack";
+    b.t = 0;
+    b.arm = null;
+    b.sweepSide = false;
+    b.sweepHints = later ? 2 : 0;
+    bossStartAttack(b);
+    b.arm.tier = tier;
+    b.arm.y = band.y;
+    placePlayer(25 * TILE, band.y - 18);
+    S.camY = clamp(band.y + band.h / 2 - H / 2, 0, Math.max(0, WORLD_H - H));
+    return true;
+  }
+  return false;
+}
+
 let last = performance.now() / 1000;
 let acc = 0;
 
@@ -6217,10 +7049,41 @@ lbRefresh();
 try {
   const raceId = new URLSearchParams(location.search).get("race");
   if (raceId && lbOn())
-    fetchGhost(raceId).then(fr => { if (fr) S.pendingGhost = { frames: fr, name: "the challenger" }; });
+    fetchGhost(raceId).then(fr => {
+      if (fr) {
+        S.pendingGhost = { frames: fr, name: "the challenger" };
+        setRunModePref("speedrun");
+        ghostPref = "leader";
+        try { localStorage.setItem("sd_ghost_pref", ghostPref); } catch (e) {}
+      }
+    });
 } catch (e) {}
 loadLevel(0);
 S.mode = "title";
+S.titleSel = titleIds().indexOf("start");
+applyDevFixture();
+// Narrow local-only bridge for repeatable browser playtests. It is never
+// attached on the deployed site, and exposes no credentials or network hooks.
+if (DEV) globalThis.__SPORELING_DEV__ = {
+  snapshot: () => ({
+    mode: S.mode, level: S.levelIdx, boss: S.boss?.kind || null,
+    rootTier: S.boss?.arm?.tier || null, rootWarning: S.boss?.arm?.warm || 0,
+  }),
+  metrics: devMetricsSnapshot,
+  cueUnbloomedSweep(fromLeft = true, tier = "ground") {
+    const b = S.boss;
+    if (!b || b.kind !== "unbloomed" || !ROOT_TIERS[tier]) return false;
+    b.pips = 1;
+    b.sweepSide = !fromLeft;
+    b.state = "attack";
+    b.t = 0;
+    b.arm = null;
+    bossStartAttack(b);
+    b.arm.tier = tier;
+    b.arm.y = ROOT_TIERS[tier].y;
+    return { fromLeft: b.arm.dir > 0, tier, warning: b.arm.warm };
+  },
+};
 requestAnimationFrame(frame);
 })();
 </script>
