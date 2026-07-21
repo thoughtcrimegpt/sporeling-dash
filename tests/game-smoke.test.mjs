@@ -634,17 +634,18 @@ test("mobile title controls stay visible and auxiliary screens always have a Bac
   assert.deepEqual(opened, [], "Back wins even if a review link hitbox overlaps it");
 });
 
-test("the title opens all ten exact linked reviews and the Patch Notes label matches its click target", () => {
+test("the title opens all eleven exact linked reviews and the Patch Notes label matches its click target", () => {
   const { api } = bootGame({ hostname: "thoughtcrimegpt.github.io" });
   const expected = [
+    { quote: "game of the year", handle: "@JasonBotterill" },
     { quote: "This looks fun as fuck", handle: "@yacineMTB" },
     { quote: "this is dope i like the mushroom guy", handle: "@boneGPT" },
     { quote: "have you guys seen this? Commantha Biden is in it", handle: "@Duffmantha" },
+    { quote: "This mf cares about the player base", handle: "@th1nkp0l" },
     { quote: "\"coo game\" - special k", handle: "@specialkdelslay" },
     { quote: "Wow, this game is great! Such amazing story and character development.", handle: "@Ken67547214" },
     { quote: "I’ve played and interacted with this little game more than anything else anyone I know has ever made", handle: "@brostoevksy" },
     { quote: "#SpirelingDash #typo #PSpirelingDash #typoagain #SporelingDash ok got it in the end because it keeps doing this and i cannot see til too late", handle: "@CommanthaBiden" },
-    { quote: "game of the year", handle: "@JasonBotterill" },
     { quote: "no half-measures", handle: "@CommanthaBiden" },
     { quote: "much more satisfying this time around!", handle: "@TylerCLaprade" },
   ];
