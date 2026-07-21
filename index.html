@@ -969,6 +969,7 @@ const PATCH_NOTES = [
     "· Air-dash blooms now sit under your landing path instead of behind it.",
     "· The opening chamber teaches the air-dash on a safe, required gap.",
     "· Easy, Normal, and Hard now change health and berry healing without ending a run.",
+    "· Eight redundant checkpoints were removed, leaving ten earned saves across the full route.",
     "· Speedrun is now called Timed Run; Any% and 100% remain its leaderboard categories.",
     "· Level instructions, hints, dialogue, and boss warnings no longer draw over each other.",
     "· Adventure level select appears after the first clear. Timed Run always starts at level one.",
@@ -1593,7 +1594,7 @@ const LEVELS = [
       seg(44, 52, 8);
       seg(53, 63, 13);
       for (let c = 54; c <= 62; c++) set(c, 12, "S");           // spike pit — the test
-      seg(64, 70, 8); set(66, 7, "C");
+      seg(64, 70, 8);
       // The Splinters: single-tile stones over spikes — precision hops + one chain
       seg(71, 84, 13);
       for (let c = 72; c <= 83; c++) set(c, 12, "S");
@@ -1637,7 +1638,7 @@ const LEVELS = [
       seg(96, 110, 15); for (let c = 97; c <= 109; c++) set(c, 14, "S");
       rect(98, 11, 98, 14); rect(101, 9, 101, 14); rect(104, 11, 104, 14); rect(107, 8, 107, 14);
       seg(111, 119, 12);
-      set(2, 11, "P"); set(23, 11, "C"); set(41, 11, "C"); set(115, 10, "G");
+      set(2, 11, "P"); set(41, 11, "C"); set(115, 10, "G");
       set(5, 11, "B"); set(8, 4, "B"); set(16, 9, "B"); set(34, 3, "B");
       set(55, 8, "B"); set(68, 11, "B"); set(90, 11, "B"); set(113, 11, "B");
       set(101, 8, "B");                                       // atop the tallest spire
@@ -1726,7 +1727,7 @@ const LEVELS = [
       seg(119, 127, 10);
       set(77, 9, "."); set(77, 8, "B");                       // one-tile gap in the spiked ceiling — thread it
       set(109, 6, "B"); set(121, 9, "B"); set(111, 11, "f");
-      set(2, 11, "P"); set(34, 12, "C"); set(66, 12, "C"); set(123, 8, "G");
+      set(2, 11, "P"); set(66, 12, "C"); set(123, 8, "G");
       set(5, 11, "B"); set(28, 11, "B"); set(43, 8, "B");
       set(48, 5, "B"); set(91, 9, "B");
       set(57, 14, "B");                                       // deep in the spike chasm — glide dip
@@ -1761,7 +1762,6 @@ const LEVELS = [
       rect(75, 2, 95, 6);                                     // low run C — two tiles. hop small.
       rect(52, 9, 53, 10, "."); set(52, 10, "S"); set(53, 10, "S");
       set(3, 8, "P");
-      set(40, 8, "C"); set(72, 8, "C");
       set(96, 7, "G");
       set(41, 3, "B"); set(73, 3, "B");                       // alcove prizes
       set(25, 7, "B"); set(60, 7, "B"); set(88, 7, "B");      // grabbed mid-hop
@@ -1799,7 +1799,7 @@ const LEVELS = [
       rect(12, 3, 20, 3);
       rect(32, 4, 32, 10); rect(35, 4, 35, 10);               // grip practice: twin walls before the throat
       set(33, 5, "B");
-      set(3, 30, "P"); set(45, 23, "C"); set(39, 8, "C"); set(16, 1, "G");
+      set(3, 30, "P"); set(39, 8, "C"); set(16, 1, "G");
       set(50, 30, "B"); set(11, 15, "B"); set(49, 12, "B"); set(27, 4, "B"); set(52, 28, "B");
       set(54, 18, "B");                                       // right-wall shaft — cling on the skip route
       set(50, 6, "B");                                        // high in the open shaft — spore-limited chain
@@ -1829,7 +1829,7 @@ const LEVELS = [
       seg(55, 74, 16);
       seg(75, 90, 19); for (let c = 76; c <= 89; c++) set(c, 18, "S");
       seg(91, 109, 14);
-      set(3, 15, "P"); set(27, 15, "C"); set(93, 13, "C"); set(106, 12, "G");
+      set(3, 15, "P"); set(27, 15, "C"); set(106, 12, "G");
       set(20, 8, "B"); set(47, 5, "B"); set(66, 12, "B"); set(84, 8, "B"); set(103, 10, "B");
       set(30, 15, "s"); set(46, 7, "s"); set(62, 15, "s"); set(70, 15, "s"); set(98, 13, "s");
       set(16, 13, "n"); set(21, 11, "n"); set(44, 13, "n");
@@ -1855,7 +1855,7 @@ const LEVELS = [
     map: buildLevel(28, 68, ({ set, rect }) => {
       rect(0, 0, 27, 1);                                      // ceiling
       rect(0, 0, 0, 67); rect(27, 0, 27, 67);                 // shaft walls
-      rect(1, 8, 8, 8); set(3, 7, "P"); set(6, 7, "C");       // the lip — step off and fall
+      rect(1, 8, 8, 8); set(3, 7, "P");                         // the lip — step off and fall
       // Teeth: alternating shelves, spikes up — weave the gaps on the way down
       rect(1, 14, 14, 14); for (let c = 1; c <= 14; c++) set(c, 13, "S");
       rect(13, 24, 26, 24); for (let c = 13; c <= 26; c++) set(c, 23, "S");
