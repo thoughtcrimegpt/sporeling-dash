@@ -32,7 +32,7 @@ Every completed run qualifies for the Any% board. Collecting every berry, meetin
 
 Finishing the main game unlocks The Pale Root: one long climb, two checkpoints, and its own leaderboard. Clearing the Pale Root unlocks The Reach, a separate five-part trial built around bloom chains, enemy refunds, wall work, and speed. It has exactly two checkpoints.
 
-The Reach has separate Any% and Full boards. Full Reach requires the summit keepsake during that attempt. Each board keeps its own champion ghost and personal-best ghost.
+The leaderboard names each route directly: Any%, 100%, Pale Root, Reach Any%, and Reach Full. Reach Full requires the summit keepsake during that attempt. Each Reach board keeps its own champion ghost and personal-best ghost.
 
 ## Chambers
 
@@ -78,4 +78,4 @@ npm test
 npm run audit:route
 ```
 
-`npm run dev` serves the same single-file game locally at `http://127.0.0.1:8765/` with DEV tools enabled. `npm test` runs the dependency-free game checks, including progression, secret-room return, keepsake persistence, checkpoint budgets, Reach fuel spacing, and checkpoint-to-checkpoint Reach route probes in the real game engine. `npm run audit:route` runs the scripted chamber route probe.
+`npm run dev` serves the same single-file game locally at `http://127.0.0.1:8765/` with DEV tools enabled. The local Test Level selector cycles through every chamber, secret room, and standalone trial in either mode. Test Damage can be switched off locally, but neither test control exists or works on the deployed game. `npm test` runs the dependency-free game checks, including progression, secret-room return, keepsake persistence, checkpoint budgets, Reach fuel spacing, and checkpoint-to-checkpoint Reach route probes in the real game engine. `npm run audit:route` runs the scripted chamber route probe.

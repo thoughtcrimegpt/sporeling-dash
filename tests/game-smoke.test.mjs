@@ -661,12 +661,11 @@ test("Adventure is the persistent default and Timed Run remains an explicit choi
   assert.equal(saved.api.titleIds().includes("ghost"), true);
   assert.equal(saved.api.titleIds().includes("difficulty"), false, "Timed Run has one fixed ruleset");
   assert.equal(saved.api.titleIds().includes("levelselect"), false, "Timed Run never offers level select");
+  assert.equal(saved.api.titleIds().includes("devlevel"), true, "local TEST LEVEL remains available in Timed Run");
+  saved.api.S.devLevel = saved.api.LEVELS.length - 1;
   saved.api.startTitleRun();
   assert.equal(saved.api.S.runMode, "speedrun");
-  assert.equal(saved.api.titleIds().includes("devlevel"), false, "even TEST LEVEL stays out of Timed Run");
-  saved.api.S.devLevel = 4;
-  saved.api.startTitleRun();
-  assert.equal(saved.api.S.levelIdx, 0, "the dev build also forces Timed Run to begin at The Hollow");
+  assert.equal(saved.api.S.levelIdx, saved.api.LEVELS.length - 1, "the local selector can open the final standalone trial");
   assert.equal(saved.api.competitiveRun(), true);
   assert.equal(saved.api.S.ghost, null, "even Timed Run starts without a ghost by default");
 
@@ -676,6 +675,41 @@ test("Adventure is the persistent default and Timed Run remains an explicit choi
   const timedLabels = saved.api.g.operations.filter(op => op.type === "fillText").map(op => op.value);
   assert.ok(timedLabels.includes("TIMED RUN"));
   assert.ok(timedLabels.includes("All clears: Any%. Everything: 100%."));
+});
+
+test("DEV exposes every level while its damage override cannot leak to production", () => {
+  const local = bootGame();
+  assert.equal(local.api.titleIds().includes("devlevel"), true);
+  assert.equal(local.api.titleIds().includes("devhealth"), true);
+  local.api.S.devLevel = local.api.LEVELS.length - 1;
+  local.api.startTitleRun();
+  assert.equal(local.api.S.levelIdx, local.api.REACH_INDEX);
+  local.api.S.devInf = true;
+  local.api.S.health = 3;
+  local.api.S.player.invuln = 0;
+  local.api.hurtPlayer(local.api.S.player.x + 100, "test hit");
+  assert.equal(local.api.S.health, 3, "Test Damage Off prevents local damage");
+
+  const deployed = bootGame({ hostname: "thoughtcrimegpt.github.io" });
+  assert.equal(deployed.api.titleIds().includes("devlevel"), false);
+  assert.equal(deployed.api.titleIds().includes("devhealth"), false);
+  assert.equal(deployed.api.pauseIds().includes("devrow"), false);
+  deployed.api.S.devInf = true;
+  deployed.api.S.health = 3;
+  deployed.api.S.player.invuln = 0;
+  deployed.api.hurtPlayer(deployed.api.S.player.x + 100, "test hit");
+  assert.equal(deployed.api.S.health, 2, "the local damage flag has no effect on the deployed host");
+});
+
+test("leaderboard tabs name every category without abbreviations", () => {
+  const { api } = bootGame();
+  api.S.mode = "board";
+  api.g.operations.length = 0;
+  api.draw();
+  const labels = api.g.operations.filter(op => op.type === "fillText").map(op => op.value);
+  for (const label of ["ANY%", "100%", "PALE ROOT", "REACH ANY%", "REACH FULL"])
+    assert.ok(labels.includes(label), `missing ${label} leaderboard tab`);
+  assert.equal(labels.includes("R FULL"), false);
 });
 
 test("Adventure level select unlocks after a clear and never appears in Timed Run", () => {
@@ -1420,8 +1454,9 @@ test("the browser-test bridge exists locally and is absent on the deployed host"
 });
 
 test("local browser fixtures expose visual states without creating a production route", () => {
-  const timedTitle = bootGame({ search: "?mode=timed" });
+  const timedTitle = bootGame({ search: "?mode=timed&testlevel=999" });
   assert.equal(timedTitle.api.runModePref, "speedrun");
+  assert.equal(timedTitle.api.S.devLevel, timedTitle.api.LEVELS.length - 1);
   timedTitle.api.g.operations.length = 0;
   timedTitle.api.draw();
   assert.ok(timedTitle.api.g.operations.some(op => op.type === "fillText" && op.value === "TIMED RUN"));
@@ -1451,6 +1486,10 @@ test("local browser fixtures expose visual states without creating a production 
   const chorusNotice = bootGame({ search: "?fixture=level-notice&level=" + chorusIndex });
   assert.equal(chorusNotice.api.S.levelIdx, chorusIndex);
   assert.ok(chorusNotice.api.S.hint, "a level-specific instruction is active after its title");
+
+  const reachBoard = bootGame({ search: "?fixture=board&tab=reach_full" });
+  assert.equal(reachBoard.api.S.mode, "board");
+  assert.equal(reachBoard.api.S.boardTab, "reach_full");
 
   const bloom = bootGame({ search: "?fixture=bloom" });
   assert.equal(bloom.api.S.blooms.length, 1);

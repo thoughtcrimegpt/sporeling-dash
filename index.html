@@ -702,6 +702,7 @@ function stepAdventureLevel(dir) {
   S.advStart = wrap(S.advStart + (dir < 0 ? -1 : 1), max + 1);
 }
 const adventureLevelName = () => (S.advStart + 1) + ". " + LEVELS[S.advStart].name.replace(/^THE /, "");
+const devLevelLabel = () => (S.devLevel + 1) + "/" + LEVELS.length + " " + LEVELS[S.devLevel].name.replace(/^THE /, "");
 
 const pauseIds = () => {
   const ids = ["resume", "restart"];
@@ -722,7 +723,7 @@ const titleIds = () => {
     ids.push("ghost");
   }
   ids.push("start");
-  if (DEV && runModePref === "adventure") ids.push("devlevel");
+  if (DEV) ids.push("devlevel");
   if (DEV) ids.push("devhealth");
   if (lbOn()) ids.push("board");
   ids.push("daily");
@@ -771,7 +772,7 @@ function startTitleRun() {
   } else if (S.runMode === "speedrun") {
     runNotice = "Timed Run started. Checkpoint retries stay on while the clock runs.";
   }
-  const startLevel = DEV ? (S.runMode === "speedrun" ? 0 : S.devLevel) : S.runMode === "adventure" ? clamp(S.advStart, 0, reachGet()) : 0;
+  const startLevel = DEV ? S.devLevel : S.runMode === "adventure" ? clamp(S.advStart, 0, reachGet()) : 0;
   loadLevel(startLevel);
   S.mode = "play";
   if (runNotice) queueNotice(runNotice, 3.5, NOTICE_PRIORITY.RUN);
@@ -1055,6 +1056,11 @@ const PATCH_NOTES_SOURCE_ARCHIVE = [
   ]},
 ];
 const PATCH_NOTES = [
+  { v: "V4.5.2  Clear test and board labels", d: "2026-07-20 DEV", lines: [
+    "· Leaderboard tabs now say Any%, 100%, Pale Root, Reach Any%, and Reach Full.",
+    "· Local test mode can open every chamber, secret room, and standalone trial.",
+    "· The damage override is labeled Test Damage and remains local-only.",
+  ]},
   { v: "V4.5.1  Touch menus", d: "2026-07-20 DEV", lines: [
     "· The title now uses a clear Adventure or Timed selector above a large Play button.",
     "· Every pause option can be tapped, including the left and right practice arrows.",
@@ -5301,7 +5307,7 @@ function draw() {
       id === "touchhand" ? "TOUCH LAYOUT: " + (leftHanded ? "LEFT-HANDED" : "RIGHT-HANDED") :
       id === "newgame" ? "NEW GAME" :
       id === "titlescr" ? "TITLE SCREEN" :
-      "◄ " + (S.devLevel + 1) + ". " + LEVELS[S.devLevel].name + " ►");
+      "◄ TEST " + devLevelLabel() + " ►");
     g.font = "9px monospace";
     for (let i = 0; i < labels.length; i++) {
       const rowY = menuY + i * menuStep;
@@ -5314,6 +5320,7 @@ function draw() {
       g.fillStyle = ids[i] === "devrow" ? (sel ? C.goalOpen : "#6a5060")
         : ids[i] === "practice" ? (sel ? rgb(PALS[0].accent) : C.uiDim)
         : (sel ? C.title : C.uiDim);
+      g.font = ids[i] === "devrow" ? "bold 6px monospace" : "9px monospace";
       g.fillText(labels[i], W / 2, oy);
       if (ids[i] === "practice" || ids[i] === "devrow") {
         const third = rowW / 3;
@@ -7086,8 +7093,8 @@ function drawTitle() {
       : id === "reachcategory" ? "REACH BOARD: " + (S.reachCategory === "reach_full" ? "FULL" : "ANY%")
       : id === "reach" ? "START THE REACH"
       : id === "start" ? "PLAY"
-      : id === "devlevel" ? "TEST LEVEL: " + (S.devLevel + 1) + ". " + LEVELS[S.devLevel].name
-      : id === "devhealth" ? "DAMAGE: " + (S.devInf ? "OFF" : "ON")
+      : id === "devlevel" ? "TEST LEVEL: " + devLevelLabel()
+      : id === "devhealth" ? "TEST DAMAGE: " + (S.devInf ? "OFF" : "ON")
       : id === "practice" ? (S.pracSel > 0 ? "PRACTICE: " + pracName(S.pracSel) : "FULL RUN")
       : id === "board" ? "LEADERBOARDS"
       : "THE PALE ROOT";
@@ -7104,7 +7111,7 @@ function drawTitle() {
     }
     g.globalAlpha = 1;
     g.fillStyle = id === "start" ? (selected ? C.goalOpen : rgb(PALS[0].accent)) : selected ? C.goalOpen : C.uiDim;
-    g.font = id === "start" ? "bold 9px monospace" : (id === "devlevel" || id === "practice" || id === "ghost" || id === "difficulty" || id === "levelselect" || id === "reachcategory" ||
+    g.font = id === "start" ? "bold 9px monospace" : id === "devlevel" ? "bold 5px monospace" : (id === "practice" || id === "ghost" || id === "difficulty" || id === "levelselect" || id === "reachcategory" ||
       (id === "start" && runModePref === "speedrun")) ? "bold 6px monospace" : "bold 7px monospace";
     g.textAlign = id === "start" ? "center" : "left";
     g.fillText(id === "start" ? label : (selected ? "› " : "  ") + label,
@@ -7146,15 +7153,10 @@ function drawTitle() {
   if (DEV) {
     g.textAlign = "left";
     g.fillStyle = "rgba(8,12,18,0.8)";
-    g.fillRect(4, 4, 128, 32);
+    g.fillRect(4, 4, 50, 12);
     g.fillStyle = C.goalOpen;
     g.font = "bold 7px monospace";
     g.fillText("TEST MODE", 9, 13);
-    g.fillStyle = C.ui;
-    g.font = "7px monospace";
-    g.fillText(runModePref === "speedrun" ? "FULL RUN: THE HOLLOW" : "◄► " + (S.devLevel + 1) + ". " + LEVELS[S.devLevel].name, 9, 22);
-    g.fillStyle = S.devInf ? rgb(PALS[0].accent) : C.uiDim;
-    g.fillText("▲▼ damage: " + (S.devInf ? "OFF" : "ON"), 9, 31);
     g.textAlign = "center";
   }
 }
@@ -7324,17 +7326,19 @@ function drawBoard() {
 
   // tabs
   RACE_HITS = [];
-  const tabs = [["any", "ANY", 38], ["full", "FULL", 42], ["daily", "ROOT", 42], ["reach", "REACH", 50], ["reach_full", "R FULL", 58]];
-  let tx = W / 2 - 132;
+  const tabs = [["any", "ANY%", 30], ["full", "100%", 32], ["daily", "PALE ROOT", 58], ["reach", "REACH ANY%", 66], ["reach_full", "REACH FULL", 66]];
+  const tabGap = 4;
+  const tabsWidth = tabs.reduce((sum, tab) => sum + tab[2], 0) + tabGap * (tabs.length - 1);
+  let tx = (W - tabsWidth) / 2;
   for (const [tab, label, tw] of tabs) {
     const active = S.boardTab === tab;
     g.fillStyle = active ? rgb(PALS[0].accent) : "rgba(30,38,50,0.9)";
     g.fillRect(tx, 27, tw, 13);
     g.fillStyle = active ? "#10151d" : C.uiDim;
-    g.font = "bold 7px monospace";
+    g.font = "bold 6px monospace";
     g.fillText(label, tx + tw / 2, 36);
     BOARD_TABS.push({ x: tx, y: 27, w: tw, h: 13, tab });
-    tx += tw + 8;
+    tx += tw + tabGap;
   }
 
   const list = LB_CACHE[S.boardTab];
@@ -7506,6 +7510,8 @@ function applyDevFixture() {
     configureRunRules("adventure");
   }
   if (params && params.get("mode") === "timed") runModePref = "speedrun";
+  if (params && params.has("testlevel"))
+    S.devLevel = clamp(parseInt(params.get("testlevel") || "0", 10) || 0, 0, LEVELS.length - 1);
   if (params && params.get("touch") === "1") {
     TOUCH.active = true;
     document.getElementById("touch").hidden = false;
@@ -7540,6 +7546,14 @@ function applyDevFixture() {
     S.mode = "play";
     S.bannerT = 0;
     updateNoticeQueue(0);
+    return true;
+  }
+
+  if (fixture === "board") {
+    const requestedTab = params.get("tab") || "any";
+    S.boardTab = ["any", "full", "daily", "reach", "reach_full"].includes(requestedTab) ? requestedTab : "any";
+    S.boardFrom = "title";
+    S.mode = "board";
     return true;
   }
 
