@@ -2218,10 +2218,11 @@ const LEVELS = [
       rect(57, 116, 61, 116); rect(57, 106, 61, 106);
       set(57, 132, "S"); set(62, 122, "S"); set(57, 112, "S"); set(62, 102, "S");
       set(60, 130, "f"); set(59, 120, "f"); set(60, 110, "f"); set(59, 101, "f");
-      rect(48, 96, 62, 98);
+      // Cap the left face but leave the right shaft open into the Gale.
+      rect(48, 96, 54, 98);
 
       // 4. Gale: move left through the fast lane, then snap back up the broken return.
-      rect(48, 91, 62, 92); rect(34, 87, 43, 88); rect(20, 91, 31, 92); rect(2, 87, 17, 88);
+      rect(48, 91, 58, 92); rect(34, 87, 43, 88); rect(20, 91, 31, 92); rect(2, 87, 17, 88);
       set(54, 90, "E"); set(39, 86, "k"); set(26, 90, "E"); set(13, 86, "k");
       set(46, 84, "w"); set(32, 82, "w"); set(18, 83, "w");
       rect(1, 84, 6, 86);

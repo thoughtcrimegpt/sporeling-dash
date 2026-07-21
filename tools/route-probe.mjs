@@ -65,16 +65,28 @@ const ROUTE_WAYPOINTS = {
     { name: "crown", x: 21 * 16, y: 8 * 16 - 10, rx: 64 },
   ],
   "THE REACH": [
+    { name: "step-off fuel", x: 20 * 16, y: 141 * 16 - 10, rx: 64 },
     { name: "first span", x: 59 * 16, y: 142 * 16 - 10, rx: 74 },
-    { name: "spire middle", x: 59 * 16, y: 116 * 16 - 10, rx: 66 },
-    { name: "spire crown", x: 53 * 16, y: 96 * 16 - 10, rx: 92 },
-    { name: "gale middle", x: 39 * 16, y: 87 * 16 - 10, rx: 86 },
-    { name: "gale turn", x: 4 * 16, y: 84 * 16 - 10, rx: 74 },
-    { name: "gale return", x: 15 * 16, y: 70 * 16 - 10, rx: 88 },
+    { name: "spire base", x: 60 * 16, y: 130 * 16 - 10, rx: 72 },
+    { name: "spire middle", x: 59 * 16, y: 120 * 16 - 10, rx: 72 },
+    { name: "spire upper shelf", x: 60 * 16, y: 110 * 16 - 10, rx: 76 },
+    { name: "spire crown", x: 59 * 16, y: 101 * 16 - 10, rx: 82 },
+    { name: "gale entry", x: 54 * 16, y: 90 * 16 - 10, rx: 68 },
+    { name: "gale middle", x: 39 * 16, y: 86 * 16 - 10, rx: 72 },
+    { name: "gale far lane", x: 18 * 16, y: 83 * 16 - 10, rx: 72 },
+    { name: "gale turn", x: 9 * 16, y: 79 * 16 - 10, rx: 70 },
+    { name: "gale return", x: 23 * 16, y: 68 * 16 - 10, rx: 82 },
     { name: "gale checkpoint", x: 55 * 16, y: 57 * 16 - 10, rx: 118 },
-    { name: "last reach walls", x: 22 * 16, y: 38 * 16 - 10, rx: 94 },
-    { name: "upper chain", x: 32 * 16, y: 22 * 16 - 10, rx: 110 },
-    { name: "summit shelf", x: 52 * 16, y: 13 * 16 - 10, rx: 94 },
+    { name: "last reach entry", x: 53 * 16, y: 52 * 16 - 10, rx: 68, clearRadius: 44 },
+    { name: "last reach turn", x: 44 * 16, y: 46 * 16 - 10, rx: 68, clearRadius: 44 },
+    { name: "last reach walls", x: 31 * 16, y: 41 * 16 - 10, rx: 68, clearRadius: 44 },
+    { name: "left wall", x: 22 * 16, y: 36 * 16 - 10, rx: 68, clearRadius: 44 },
+    { name: "upper left", x: 14 * 16, y: 31 * 16 - 10, rx: 68, clearRadius: 44 },
+    { name: "upper turn", x: 23 * 16, y: 26 * 16 - 10, rx: 68, clearRadius: 44 },
+    { name: "upper chain", x: 33 * 16, y: 22 * 16 - 10, rx: 68, clearRadius: 44 },
+    { name: "last enemy", x: 43 * 16, y: 18 * 16 - 10, rx: 68, clearRadius: 44 },
+    { name: "summit lip", x: 57 * 16, y: 13 * 16 - 10, rx: 58 },
+    { name: "summit shelf", x: 52 * 16, y: 12 * 16 - 10, rx: 88 },
     { name: "crown", x: 59 * 16, y: 8 * 16 - 10, rx: 64 },
   ],
 };
@@ -114,7 +126,11 @@ function stateKey(s) {
 function reachedWaypoint(s, waypoint) {
   const p = s.player;
   const verticalReached = waypoint.down ? p.y >= waypoint.y - 22 : p.y <= waypoint.y + 22;
-  return verticalReached && Math.abs(p.x + p.w / 2 - waypoint.x) <= waypoint.rx;
+  const horizontalReached = Math.abs(p.x + p.w / 2 - waypoint.x) <= waypoint.rx;
+  if (!verticalReached || !horizontalReached) return false;
+  if (waypoint.clearRadius && (s.enemies || []).some(e =>
+    !e.dead && Math.hypot(e.x + e.w / 2 - waypoint.x, e.y + e.h / 2 - waypoint.y) <= waypoint.clearRadius)) return false;
+  return true;
 }
 
 function advanceWaypoint(s, waypoints, start) {
@@ -147,6 +163,9 @@ export function probeRoute(levelName, {
   beamWidth = 120,
   maxSteps = 700,
   startActions = [],
+  start = null,
+  waypoints: waypointOverride = null,
+  finishAtLastWaypoint = false,
 } = {}) {
   const startedAt = Date.now();
   const { api } = bootGame();
@@ -157,9 +176,15 @@ export function probeRoute(levelName, {
     throw new Error(`${levelName} does not use a normal goal route`);
 
   api.prepareRouteProbe(levelIndex, level.trial === "reach");
+  if (start) {
+    Object.assign(api.S.player, {
+      x: start.x, y: start.y, vx: 0, vy: 0, grounded: false,
+      dashing: false, canDash: true, spores: api.MAX_SPORES, chainN: 0, invuln: 0,
+    });
+  }
   let initialRaw = api.captureRouteState();
   let initial = JSON.parse(initialRaw);
-  const waypoints = ROUTE_WAYPOINTS[levelName] || [];
+  const waypoints = waypointOverride || ROUTE_WAYPOINTS[levelName] || [];
   let initialWaypoint = advanceWaypoint(initial, waypoints, 0);
   for (let step = 0; step < startActions.length; step++) {
     const actionIndex = startActions[step];
@@ -198,6 +223,13 @@ export function probeRoute(levelName, {
         if (state.mode !== "play") continue;
         if (state.player.y > api.WORLD_H + 16) continue;
         const waypoint = advanceWaypoint(state, waypoints, node.waypoint);
+        if (finishAtLastWaypoint && waypoint >= waypoints.length) {
+          return {
+            ok: true, level: levelName, steps: step + 1, expanded,
+            seconds: state.score.time, actions: [...node.path, actionIndex],
+            elapsedMs: Date.now() - startedAt,
+          };
+        }
         const candidate = { raw, state, path: [...node.path, actionIndex], waypoint };
         if (rank(state, goal, waypoints, waypoint, goalDown, profile) < rank(best.state, goal, waypoints, best.waypoint, goalDown, profile)) best = candidate;
         const key = `${waypoint}|${stateKey(state)}`;
@@ -232,6 +264,57 @@ export function probeRoute(levelName, {
     actions: best.path,
     elapsedMs: Date.now() - startedAt,
   };
+}
+
+export function probeReachChunk(chunk, options = {}) {
+  const T = 16;
+  const chunks = [
+    {
+      start: null,
+      waypoints: [
+        { name: "step-off fuel", x: 20 * T, y: 141 * T - 10, rx: 64 },
+        { name: "first span checkpoint", x: 59 * T, y: 142 * T - 10, rx: 74 },
+      ],
+    },
+    {
+      start: { x: 59 * T + 3, y: 141 * T + 4 },
+      waypoints: [
+        { name: "spire base", x: 60 * T, y: 130 * T - 10, rx: 72 },
+        { name: "spire middle", x: 59 * T, y: 120 * T - 10, rx: 72 },
+        { name: "spire upper shelf", x: 60 * T, y: 110 * T - 10, rx: 76 },
+        { name: "spire crown", x: 59 * T, y: 101 * T - 10, rx: 82 },
+        { name: "gale entry", x: 54 * T, y: 90 * T - 10, rx: 68 },
+        { name: "gale middle", x: 39 * T, y: 86 * T - 10, rx: 72 },
+        { name: "gale far lane", x: 18 * T, y: 83 * T - 10, rx: 72 },
+        { name: "gale turn", x: 9 * T, y: 79 * T - 10, rx: 70 },
+        { name: "gale return", x: 23 * T, y: 68 * T - 10, rx: 82 },
+        { name: "gale checkpoint", x: 55 * T, y: 57 * T - 10, rx: 118 },
+      ],
+    },
+    {
+      start: { x: 59 * T + 3, y: 56 * T + 4 },
+      waypoints: [
+        { name: "last reach entry", x: 53 * T, y: 52 * T - 10, rx: 68, clearRadius: 44 },
+        { name: "last reach turn", x: 44 * T, y: 46 * T - 10, rx: 68, clearRadius: 44 },
+        { name: "last reach walls", x: 31 * T, y: 41 * T - 10, rx: 68, clearRadius: 44 },
+        { name: "left wall", x: 22 * T, y: 36 * T - 10, rx: 68, clearRadius: 44 },
+        { name: "upper left", x: 14 * T, y: 31 * T - 10, rx: 68, clearRadius: 44 },
+        { name: "upper turn", x: 23 * T, y: 26 * T - 10, rx: 68, clearRadius: 44 },
+        { name: "upper chain", x: 33 * T, y: 22 * T - 10, rx: 68, clearRadius: 44 },
+        { name: "last enemy", x: 43 * T, y: 18 * T - 10, rx: 68, clearRadius: 44 },
+        { name: "summit lip", x: 57 * T, y: 13 * T - 10, rx: 58 },
+        { name: "summit shelf", x: 52 * T, y: 12 * T - 10, rx: 88 },
+        { name: "crown", x: 59 * T, y: 8 * T - 10, rx: 64 },
+      ],
+    },
+  ];
+  if (!chunks[chunk]) throw new Error("Unknown Reach chunk: " + chunk);
+  return probeRoute("THE REACH", {
+    beamWidth: options.beamWidth || 12,
+    maxSteps: options.maxSteps || 700,
+    ...chunks[chunk],
+    finishAtLastWaypoint: true,
+  });
 }
 
 export function replayRoute(levelName, actions, { includeEnemies = false } = {}) {
