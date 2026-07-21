@@ -134,6 +134,7 @@ globalThis.__SD_TEST__ = {
   bossStartAttack, bossLanded, nextRootTier, cameraTargetX, rootCameraCenterY,
   draw, drawBossWarnings, frame, g, moveAxis, resize, respawn,
   restartCurrentChamber, solidBlocked, spawnShoggoth, startPracticeRun, tick, touchingWallDir,
+  resetReachFinalFuel, updateReachFinalFuelReset,
   devMetricsSnapshot, recordDevAttempt, toggleReducedMotion, toggleTouchHand, syncTouchVisibility, touchPulse,
   updateBarrow, updateBoss, updateChorus, updateShoggoth,
   setTestMap(rows) {
@@ -925,6 +926,39 @@ test("The Reach hides collectible HUD state and rejects outer-wall clinging", ()
   assert.notEqual(api.touchingWallDir(p), 0, "interior Reach walls remain climbable");
 });
 
+test("the final Reach enemy connectors reset after a landed fallback", () => {
+  const { api } = bootGame({ initialStorage: { sd_root_cleared: "1" } });
+  api.startReach();
+  const finalEnemies = () => api.S.enemies.filter(e => e.spawnY < 56 * api.TILE);
+  const expected = finalEnemies().map(e => [e.t, e.spawnX, e.spawnY]);
+  const lowerEnemy = api.S.enemies.find(e => e.spawnY >= 56 * api.TILE);
+  assert.ok(expected.length > 0, "the final climb has enemy connectors");
+  assert.ok(lowerEnemy, "an earlier-section enemy is available as a preservation check");
+
+  api.S.player.y = 53 * api.TILE;
+  api.S.player.grounded = false;
+  assert.equal(api.updateReachFinalFuelReset(api.S.player), false);
+  assert.equal(api.S.reachFinalFuelArmed, true);
+
+  api.S.enemies = api.S.enemies.filter(e => e.spawnY >= 56 * api.TILE);
+  api.S.eshots.push({ x: 1, y: 1, vx: 0, vy: 0, w: 1, h: 1 });
+  api.S.player.y = 56 * api.TILE;
+  assert.equal(api.updateReachFinalFuelReset(api.S.player), false,
+    "falling past the route does not reset enemies in midair");
+  assert.equal(finalEnemies().length, 0);
+
+  api.S.player.grounded = true;
+  assert.equal(api.updateReachFinalFuelReset(api.S.player), true);
+  assert.deepEqual(finalEnemies().map(e => [e.t, e.spawnX, e.spawnY]), expected);
+  assert.equal(api.S.enemies.includes(lowerEnemy), true, "earlier Reach enemies remain untouched");
+  assert.equal(api.S.eshots.length, 0, "stale final-climb projectiles are cleared");
+  assert.equal(api.S.reachFinalFuelArmed, false);
+
+  assert.equal(api.updateReachFinalFuelReset(api.S.player), false,
+    "standing below the climb cannot repeatedly duplicate connectors");
+  assert.equal(finalEnemies().length, expected.length);
+});
+
 test("both secret rooms return to the exact host route they came from", () => {
   const { api } = bootGame();
   const bloomheart = api.LEVELS.findIndex(level => level.name === "THE BLOOMHEART");
@@ -1496,6 +1530,10 @@ test("local browser fixtures expose visual states without creating a production 
   const reachBoard = bootGame({ search: "?fixture=board&tab=reach" });
   assert.equal(reachBoard.api.S.mode, "board");
   assert.equal(reachBoard.api.S.boardTab, "reach");
+
+  const reachFallback = bootGame({ search: "?fixture=reach&section=5&fallback=1" });
+  assert.equal(reachFallback.api.S.levelIdx, reachFallback.api.REACH_INDEX);
+  assert.equal(reachFallback.api.S.hint?.text, "The last climb resets.");
 
   const bloom = bootGame({ search: "?fixture=bloom" });
   assert.equal(bloom.api.S.blooms.length, 1);

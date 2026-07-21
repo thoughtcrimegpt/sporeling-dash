@@ -1056,6 +1056,10 @@ const PATCH_NOTES_SOURCE_ARCHIVE = [
   ]},
 ];
 const PATCH_NOTES = [
+  { v: "V4.5.4  Reach retries", d: "2026-07-21 DEV", lines: [
+    "· Falling back from the final Reach climb now restores that section's enemy connectors.",
+    "· The reset waits until the player lands below the climb and does not alter earlier sections.",
+  ]},
   { v: "V4.5.3  One Reach", d: "2026-07-21 DEV", lines: [
     "· The Reach has no collectibles and only one leaderboard: get to the crown.",
     "· The four keepsakes stay in the main game and its hidden rooms for optional 100% runs.",
@@ -2336,6 +2340,7 @@ const S = {
   devLevel: 0, devInf: false, devAx: 0, devAy: 0,
   boardTab: "any", boardAx: 0, boardFrom: "title", notesY: 0,
   daily: false, dailyMods: null, reachTrial: false,
+  reachFinalFuelArmed: false,
   practice: false, pracSel: 0, advStart: 0,
   rec: [], ghost: null, ghostPos: null, pendingGhost: null, split: null,
   fallen: [], stoppedHint: false,
@@ -2479,6 +2484,7 @@ function loadLevel(idx) {
   S.berries = 0; S.berriesTotal = 0;
   S.berryList = []; S.keepsakeList = []; S.checkpoints = []; S.descentMercy = null; S.blooms = []; S.particles = []; S.trail = [];
   S.goal = null; S.goalOpen = 0; S.winT = 0; S.deathT = 0;
+  S.reachFinalFuelArmed = false;
   S.shakeT = 0; S.freezeT = 0; S.jumpHeldForCut = false;
   S.bannerT = 2.4;
   if (L.unlockText) queueNotice(L.unlockText, 3.6, NOTICE_PRIORITY.TUTORIAL);
@@ -3035,22 +3041,55 @@ const ENEMY_NAMES = {
   slug: "a slug", puff: "a spore puff", wisp: "a wisp",
   skitter: "a skitter", spitter: "a spitter", mine: "a sporemine",
 };
-function spawnEnemies() {
+const REACH_FINAL_FUEL_CEILING = 56 * TILE;
+const REACH_FINAL_ARM_Y = 54 * TILE;
+const REACH_FINAL_RESET_Y = 55 * TILE;
+
+function enemyFromSpawn(sp) {
   const sm = dMod("restless") ? 1.35 : 1;   // RESTLESS: everything hurries
-  S.enemies = ENEMY_SPAWNS.map(sp => {
-    if (sp.t === "slug")
-      return { t: "slug", x: sp.x, y: sp.y, w: 12, h: 8, dir: 1, speed: (sp.fast ? 44 : 22) * sm, fast: sp.fast, ph: Math.random() * 6, pauseT: 0 };
-    if (sp.t === "puff")
-      return { t: "puff", cx: sp.x, cy: sp.y, x: sp.x, y: sp.y, w: 10, h: 10, ph: Math.random() * 6 };
-    if (sp.t === "skitter")
-      return { t: "skitter", x: sp.x, y: sp.y, w: 12, h: 6, dir: Math.random() < 0.5 ? -1 : 1, speed: 165 * sm * (sp.hard ? 1.2 : 1), ph: Math.random() * 6, pauseT: 0 };
-    if (sp.t === "spitter")
-      return { t: "spitter", x: sp.x, y: sp.y, w: 12, h: 12, hard: sp.hard, cd: (sp.hard ? 0.6 : 1) + Math.random(), ph: Math.random() * 6 };
-    if (sp.t === "mine")
-      return { t: "mine", cx: sp.x, cy: sp.y, x: sp.x, y: sp.y, w: 10, h: 10, armT: 0, ph: Math.random() * 6 };
-    return { t: "wisp", x: sp.x, y: sp.y, hx: sp.x, hy: sp.y, w: 8, h: 8, ph: Math.random() * 6 };
-  });
+  let e;
+  if (sp.t === "slug")
+    e = { t: "slug", x: sp.x, y: sp.y, w: 12, h: 8, dir: 1, speed: (sp.fast ? 44 : 22) * sm, fast: sp.fast, ph: Math.random() * 6, pauseT: 0 };
+  else if (sp.t === "puff")
+    e = { t: "puff", cx: sp.x, cy: sp.y, x: sp.x, y: sp.y, w: 10, h: 10, ph: Math.random() * 6 };
+  else if (sp.t === "skitter")
+    e = { t: "skitter", x: sp.x, y: sp.y, w: 12, h: 6, dir: Math.random() < 0.5 ? -1 : 1, speed: 165 * sm * (sp.hard ? 1.2 : 1), ph: Math.random() * 6, pauseT: 0 };
+  else if (sp.t === "spitter")
+    e = { t: "spitter", x: sp.x, y: sp.y, w: 12, h: 12, hard: sp.hard, cd: (sp.hard ? 0.6 : 1) + Math.random(), ph: Math.random() * 6 };
+  else if (sp.t === "mine")
+    e = { t: "mine", cx: sp.x, cy: sp.y, x: sp.x, y: sp.y, w: 10, h: 10, armT: 0, ph: Math.random() * 6 };
+  else
+    e = { t: "wisp", x: sp.x, y: sp.y, hx: sp.x, hy: sp.y, w: 8, h: 8, ph: Math.random() * 6 };
+  e.spawnX = sp.x;
+  e.spawnY = sp.y;
+  return e;
+}
+
+function spawnEnemies() {
+  S.enemies = ENEMY_SPAWNS.map(enemyFromSpawn);
   S.eshots = [];
+}
+
+function resetReachFinalFuel() {
+  if (!S.reachTrial || S.levelIdx !== REACH_INDEX) return false;
+  const lowerEnemies = S.enemies.filter(e => e.spawnY >= REACH_FINAL_FUEL_CEILING);
+  const finalSpawns = ENEMY_SPAWNS.filter(sp => sp.y < REACH_FINAL_FUEL_CEILING);
+  S.enemies = lowerEnemies.concat(finalSpawns.map(enemyFromSpawn));
+  S.eshots = [];
+  return true;
+}
+
+function updateReachFinalFuelReset(p) {
+  if (!S.reachTrial || S.levelIdx !== REACH_INDEX) {
+    S.reachFinalFuelArmed = false;
+    return false;
+  }
+  if (p.y < REACH_FINAL_ARM_Y) S.reachFinalFuelArmed = true;
+  if (!S.reachFinalFuelArmed || !p.grounded || p.y <= REACH_FINAL_RESET_Y) return false;
+  S.reachFinalFuelArmed = false;
+  if (!resetReachFinalFuel()) return false;
+  queueNotice("The last climb resets.", 2.2, NOTICE_PRIORITY.STATUS);
+  return true;
 }
 
 function killEnemy(e, byDash) {
@@ -4845,6 +4884,8 @@ function tick(dt) {
   if (p.animT > 0.1) { p.animT = 0; p.frame = (p.frame + 1) & 3; }
 
   if (p.invuln > 0) p.invuln -= dt;
+
+  updateReachFinalFuelReset(p);
 
   for (const b of S.blooms) { b.life -= dt; b.age += dt; }
   for (const b of S.blooms) {
@@ -7558,6 +7599,14 @@ function applyDevFixture() {
     ];
     placePlayer(anchors[section][0], anchors[section][1]);
     S.player.grounded = true;
+    if (params.get("fallback") === "1") {
+      resetNotices();
+      S.bannerT = 0;
+      S.reachFinalFuelArmed = true;
+      S.enemies = S.enemies.filter(e => e.spawnY >= REACH_FINAL_FUEL_CEILING);
+      updateReachFinalFuelReset(S.player);
+      updateNoticeQueue(0);
+    }
     return true;
   }
 

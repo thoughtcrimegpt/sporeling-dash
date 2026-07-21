@@ -140,6 +140,7 @@ globalThis.__SD_TEST__ = {
   bossStartAttack, bossLanded, nextRootTier, cameraTargetX, rootCameraCenterY,
   draw, drawBossWarnings, frame, g, moveAxis, resize, respawn,
   restartCurrentChamber, solidBlocked, spawnShoggoth, startPracticeRun, tick, touchingWallDir,
+  resetReachFinalFuel, updateReachFinalFuelReset,
   devMetricsSnapshot, recordDevAttempt, toggleReducedMotion, toggleTouchHand, syncTouchVisibility, touchPulse,
   updateBarrow, updateBoss, updateChorus, updateShoggoth,
   prepareRouteProbe(index, includeEnemies = false) {
