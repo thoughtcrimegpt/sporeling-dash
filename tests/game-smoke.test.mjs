@@ -161,6 +161,7 @@ globalThis.__SD_TEST__ = {
   get TITLE_HITS() { return TITLE_HITS; },
   get PAUSE_HITS() { return PAUSE_HITS; },
   get WIN_HITS() { return WIN_HITS; },
+  get REVIEW_HITS() { return REVIEW_HITS; },
   get FINISHERS_CACHE() { return FINISHERS_CACHE; },
   get WORLD_H() { return WORLD_H; },
   get WORLD_W() { return WORLD_W; },
@@ -589,7 +590,7 @@ test("touch title uses a segmented mode control and a large Play target", () => 
 });
 
 test("mobile title controls stay visible and auxiliary screens always have a Back tap", () => {
-  const { api, element } = bootGame();
+  const { api, context, element } = bootGame();
   api.TOUCH.active = true;
   api.S.mode = "title";
   api.syncTouchVisibility();
@@ -620,8 +621,17 @@ test("mobile title controls stay visible and auxiliary screens always have a Bac
 
   api.S.mode = "reviews";
   api.draw();
+  const opened = [];
+  context.open = url => opened.push(url);
+  api.REVIEW_HITS.push({
+    x: api.SCREEN_BACK_HIT.x,
+    y: api.SCREEN_BACK_HIT.y + api.SCREEN_BACK_HIT.h / 2,
+    w: api.SCREEN_BACK_HIT.w,
+    handle: "@yacineMTB",
+  });
   tapBack();
   assert.equal(api.S.mode, "title");
+  assert.deepEqual(opened, [], "Back wins even if a review link hitbox overlaps it");
 });
 
 test("the title opens all eight exact linked reviews and the Patch Notes label matches its click target", () => {

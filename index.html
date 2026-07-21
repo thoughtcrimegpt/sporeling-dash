@@ -1082,7 +1082,10 @@ const PATCH_NOTES_SOURCE_ARCHIVE = [
   ]},
 ];
 const PATCH_NOTES = [
-  { v: "V4.5.8  Reviews and finishers", d: "2026-07-21 DEV", lines: [
+  { v: "V4.5.9  Back means back", d: "2026-07-21 19:58 UTC", lines: [
+    "· Reviews now returns to the title before any profile link can react.",
+  ]},
+  { v: "V4.5.8  Reviews and finishers", d: "2026-07-21 19:27 UTC", lines: [
     "· The title has a Reviews screen with eight linked player quotes.",
     "· Adventure finishers can add a public name before the credits roll.",
     "· The credits list finishers in order and use a darker, clearer backdrop.",
@@ -5393,19 +5396,22 @@ function lbUiHitAt(e) {
 }
 canvas.addEventListener("click", e => {
   if (talkHitAt(e)) { advanceTalk(); return; }
-  const review = reviewHitAt(e);
-  if (review) { window.open("https://x.com/" + review.handle.slice(1), "_blank"); return; }
-  const h = lbHitAt(e);
-  if (h) { window.open("https://x.com/" + h.name.slice(1).replace(/[^\w]/g, ""), "_blank"); return; }
+  // Back owns its whole touch target. Check it before review/profile links so
+  // a phone tap can never escape to X instead of returning to the title.
   const u = lbUiHitAt(e);
-  if (!u) return;
-  if (u.back) {
+  if (u && u.back) {
     touchPulse("screen", "back");
     S.mode = S.mode === "board" ? (S.boardFrom || "title") : "title";
     releaseTransientInput();
     SFX.talk();
+    return;
   }
-  else if (u.tab) { S.boardTab = u.tab; SFX.talk(); }
+  const review = reviewHitAt(e);
+  if (review) { window.open("https://x.com/" + review.handle.slice(1), "_blank"); return; }
+  const h = lbHitAt(e);
+  if (h) { window.open("https://x.com/" + h.name.slice(1).replace(/[^\w]/g, ""), "_blank"); return; }
+  if (!u) return;
+  if (u.tab) { S.boardTab = u.tab; SFX.talk(); }
   else if (u.title) {
     S.titleSel = u.title.index;
     touchPulse("title", u.title.id);
