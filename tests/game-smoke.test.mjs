@@ -264,6 +264,37 @@ test("every chamber loads with safe runtime objects and a working respawn", () =
   }
 });
 
+test("checkpoint spacing keeps each retry stretch meaningful", () => {
+  const { api } = bootGame();
+  const expected = new Map([
+    ["THE HOLLOW", 1],
+    ["ROTROOT CHASM", 1],
+    ["THE SPIRE", 1],
+    ["MYCEL GARDENS", 1],
+    ["THE SKITTERWAY", 0],
+    ["THE BROODNEST", 0],
+    ["THE BLOOMHEART", 1],
+    ["THE MARROW", 1],
+    ["THE CHORUS HALL", 0],
+    ["THE SWALLOW", 0],
+    ["THE MOTHER'S THROAT", 0],
+    ["THE UNDRAWN MAP", 0],
+    ["THE PALE ROOT", 2],
+  ]);
+
+  let total = 0;
+  for (const level of api.LEVELS) {
+    const count = level.map.join("").split("C").length - 1;
+    total += count;
+    assert.equal(count, expected.get(level.name), `${level.name} keeps its intentional checkpoint budget`);
+  }
+  assert.equal(total, 8, "the route uses one checkpoint per normal chamber and two only in the Pale Root marathon");
+
+  const hollowCheckpoint = api.LEVELS[0].map.findIndex(row => row.includes("C"));
+  assert.equal(hollowCheckpoint, 7, "The Hollow checkpoint stays on its supported platform row");
+  assert.equal(api.LEVELS[0].map[7].indexOf("C"), 66, "The Hollow checkpoint comes after the first spike-pit test");
+});
+
 test("focus loss pauses play, clears stale controls, and requires neutral re-entry", () => {
   const { api, element, events } = bootGame();
   api.S.mode = "play";
