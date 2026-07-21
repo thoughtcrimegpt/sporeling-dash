@@ -1056,6 +1056,10 @@ const PATCH_NOTES_SOURCE_ARCHIVE = [
   ]},
 ];
 const PATCH_NOTES = [
+  { v: "V4.5.5  Frog", d: "2026-07-21 DEV", lines: [
+    "· FROG now waits in The Pressed Garden beneath a pile of old hardware.",
+    "· FROG makes frog noises. The sporeling cannot understand him.",
+  ]},
   { v: "V4.5.4  Reach retries", d: "2026-07-21 DEV", lines: [
     "· Falling back from the final Reach climb now restores that section's enemy connectors.",
     "· The reset waits until the player lands below the climb and does not alter earlier sections.",
@@ -2183,6 +2187,17 @@ const LEVELS = [
       rect(3, 9, 8, 9); rect(15, 8, 20, 8);
       set(2, 10, "P"); set(12, 11, "K");
     }),
+    npcs: [{
+      c: 18, r: 7, name: "FROG", sprite: "frog",
+      lines: [
+        "Ribbit.",
+        "Brrrup.",
+        "Krrrk-krrrk.",
+        "I can't understand you.",
+        "Ribbit.",
+      ],
+      speakers: [null, null, null, "YOU", null],
+    }],
   },
   {
     name: "THE REACH", pal: 7, gauntlet: true, trial: "reach",
@@ -2303,7 +2318,7 @@ const WILT_PAL = {
   O: "#463e50", C: "#665a72", H: "#847494", D: "#544a60",
   B: "#988aa0", S: "#766a82", E: "#2a2230", W: "#aca0b4", R: "#867890",
 };
-const NPC_H = { keeper: 14, twins: 10, moth: 10, granny: 14, echo: 12, grel: 14, dog: 14, jb: 14 };
+const NPC_H = { keeper: 14, twins: 10, moth: 10, granny: 14, echo: 12, grel: 14, dog: 14, jb: 14, frog: 16 };
 
 // ── State ──────────────────────────────────────────────────────────────────
 let LEVEL = [], ROWS = 0, COLS = 0, WORLD_W = 0, WORLD_H = 0, PAL = PALS[0];
@@ -5666,6 +5681,52 @@ function drawNPCs() {
       g.fillRect(x + 2, Math.round(y - 3 + hb), 1, 2);         // inner ear
       g.fillStyle = "#d8a040";
       g.fillRect(x + 1, Math.round(y + 1 + hb), 1, 1);         // amber eye
+    } else if (n.sprite === "frog") {
+      // FROG — broad green face, camera-like eyes, and scavenged hardware.
+      const hb = Math.round(bob * 0.35);
+      const skin = "#526b43", skinHi = "#789064", skinLo = "#263a2b";
+      const metal = "#728589", metalHi = "#a9bcc0", metalLo = "#34474c";
+      g.fillStyle = skinLo;
+      g.fillRect(x + 1, y + 7 + hb, 16, 9);                    // squat body
+      g.fillStyle = skin;
+      g.fillRect(x - 1, y + 4 + hb, 18, 9);                   // wide head
+      g.fillRect(x + 2, y + 1 + hb, 12, 5);
+      g.fillStyle = skinHi;
+      g.fillRect(x + 2, y + 10 + hb, 13, 2);                  // heavy lower lip
+      g.fillStyle = skinLo;
+      g.fillRect(x + 3, y + 9 + hb, 12, 1);                   // flat mouth
+
+      // Oversized mechanical eye housings from the profile picture.
+      g.fillStyle = metalLo;
+      g.fillRect(x - 4, y + 1 + hb, 7, 7);
+      g.fillRect(x + 14, y + 1 + hb, 7, 7);
+      g.fillStyle = metal;
+      g.fillRect(x - 3, y + hb, 6, 7);
+      g.fillRect(x + 14, y + hb, 6, 7);
+      g.fillStyle = metalHi;
+      g.fillRect(x - 2, y + 1 + hb, 4, 2);
+      g.fillRect(x + 15, y + 1 + hb, 4, 2);
+      g.fillStyle = "#10171a";
+      g.fillRect(x - 1, y + 3 + hb, 3, 3);
+      g.fillRect(x + 15, y + 3 + hb, 3, 3);
+      g.fillStyle = "#77d8e0";
+      g.fillRect(x, y + 3 + hb, 1, 1);
+      g.fillStyle = "#b85c62";
+      g.fillRect(x + 16, y + 3 + hb, 1, 1);
+
+      // A tiny circuit box, tape, and loose wires on the crown.
+      g.fillStyle = "#202a2d";
+      g.fillRect(x + 3, y - 3 + hb, 11, 5);
+      g.fillStyle = metal;
+      g.fillRect(x + 5, y - 4 + hb, 7, 2);
+      g.fillStyle = metalHi;
+      g.fillRect(x + 6, y - 3 + hb, 2, 1);
+      g.fillStyle = "#657a67";
+      g.fillRect(x + 4, y + 1 + hb, 1, 4);
+      g.fillRect(x + 12, y + 1 + hb, 1, 3);
+      g.fillStyle = "#14191c";
+      g.fillRect(x + 5, y + 14, 2, 2);
+      g.fillRect(x + 10, y + 13, 1, 3);
     } else if (n.sprite === "jb") {
       // JB — swept dark hair, sunset coat, and the satchel he carries everywhere
       const hair = "#251918", hairHi = "#452721", skin = "#c97948";
@@ -5748,7 +5809,7 @@ function drawTalk() {
   g.textAlign = "left";
   g.fillStyle = C.title;
   g.font = "bold 8px monospace";
-  g.fillText(npc.name, bx + 6, by + 10);
+  g.fillText(npc.speakers?.[S.talk.line] || npc.name, bx + 6, by + 10);
   g.textAlign = "right";
   g.fillStyle = shown.length >= full.length ? C.goalOpen : C.uiDim;
   g.font = "6px monospace";
@@ -6652,7 +6713,7 @@ function collectLights() {
     else out.push({ x: e.x + 6, y: e.y + 4, r: 12, a: 0.3, col: "224,232,180", ga: 0.04 });
   }
   for (const n of S.npcs)
-    out.push({ x: n.x + 6, y: n.y + 4, r: 28, a: 0.65, col: n.sprite === "echo" ? "184,216,248" : n.sprite === "grel" ? "240,240,246" : "240,200,120", ga: 0.07 });
+    out.push({ x: n.x + 6, y: n.y + 4, r: 28, a: 0.65, col: n.sprite === "echo" ? "184,216,248" : n.sprite === "grel" ? "240,240,246" : n.sprite === "frog" ? "134,196,142" : "240,200,120", ga: 0.07 });
   if (S.memoryObj && !S.score.secretMemory)
     out.push({ x: S.memoryObj.x + 7, y: S.memoryObj.y + 8, r: 34, a: 0.8, col: rgbs(PAL.accent), ga: 0.1 });
   for (const d of levelDoors())
@@ -7671,8 +7732,9 @@ function applyDevFixture() {
     openLevel(npcLevel);
     const npc = requestedNpc ? S.npcs.find(actor => actor.name === requestedNpc) : S.npcs[0];
     if (!npc) return false;
+    const requestedLine = clamp(parseInt(params.get("line") || "0", 10) || 0, 0, npc.lines.length - 1);
     placePlayer(npc.x - 24, npc.y);
-    S.talk = { npc, line: 0, t: npc.lines[0].length * 0.035 };
+    S.talk = { npc, line: requestedLine, t: npc.lines[requestedLine].length * 0.035 };
     S.score.metNpcs[npc.name] = true;
     return true;
   }

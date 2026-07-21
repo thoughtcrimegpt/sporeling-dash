@@ -48,7 +48,7 @@ The leaderboard names each route directly: Any%, 100%, Pale Root, and The Reach.
 10. The Swallow
 11. The Mother's Throat — the Unbloomed and Shoggoth
 
-The Undrawn Map is hidden above the Spire. A second hidden room sits beyond the Bloomheart's risky right-wall route. The Pale Root unlocks after the main game is beaten; The Reach appears only after the Pale Root is cleared.
+The Undrawn Map is hidden above the Spire. A second hidden room sits beyond the Bloomheart's risky right-wall route. FROG lives there beneath a pile of old hardware and only makes frog noises. The Pale Root unlocks after the main game is beaten; The Reach appears only after the Pale Root is cleared.
 
 ## Keepsakes
 

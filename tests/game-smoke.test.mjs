@@ -1564,6 +1564,17 @@ test("local browser fixtures expose visual states without creating a production 
   assert.equal(jbDialogue.api.S.talk.npc.name, "JB");
   assert.equal(jbDialogue.api.LEVELS[jbDialogue.api.S.levelIdx].name, "THE MARROW");
 
+  const frogDialogue = bootGame({ search: "?fixture=dialogue&npc=FROG" });
+  assert.equal(frogDialogue.api.S.talk.npc.name, "FROG");
+  assert.equal(frogDialogue.api.LEVELS[frogDialogue.api.S.levelIdx].name, "THE PRESSED GARDEN");
+
+  const frogReply = bootGame({ search: "?fixture=dialogue&npc=FROG&line=3" });
+  assert.equal(frogReply.api.S.talk.line, 3);
+  frogReply.api.g.operations.length = 0;
+  frogReply.api.draw();
+  assert.ok(frogReply.api.g.operations.some(op => op.type === "fillText" && op.value === "YOU"));
+  assert.ok(frogReply.api.g.operations.some(op => op.type === "fillText" && op.value === "I can't understand you."));
+
   const chorusOpen = bootGame({ search: "?fixture=chorus-open" });
   assert.equal(chorusOpen.api.S.boss.kind, "chorus");
   assert.equal(chorusOpen.api.S.boss.state, "gather");
@@ -1931,10 +1942,17 @@ test("dialogue stays readable and every resident has a concrete voice", () => {
   assert.match(voice("THE ECHO"), /wisps|stay out of your way/);
   assert.match(voice("GREL"), /view|counting/);
   assert.match(voice("JB"), /bridge pins|Mother Bloom's voice|shows you an eye/);
+  assert.match(voice("FROG"), /Ribbit|Brrrup|Krrrk-krrrk/);
 
   const marrow = api.LEVELS.find(level => level.name === "THE MARROW");
   const jb = marrow.npcs.find(npc => npc.name === "JB");
   assert.deepEqual([jb.c, jb.r, jb.sprite], [50, 7, "jb"], "JB waits on The Marrow's safe high ledge");
+
+  const pressedGarden = api.LEVELS.find(level => level.name === "THE PRESSED GARDEN");
+  const frog = pressedGarden.npcs.find(npc => npc.name === "FROG");
+  assert.deepEqual([frog.c, frog.r, frog.sprite], [18, 7, "frog"]);
+  assert.equal(frog.speakers[3], "YOU");
+  assert.equal(frog.lines[3], "I can't understand you.");
 });
 
 test("dialogue lines can be finished and advanced by keyboard, controller, or tap", () => {
