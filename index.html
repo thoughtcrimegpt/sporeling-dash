@@ -969,7 +969,7 @@ const PATCH_NOTES = [
     "· Air-dash blooms now sit under your landing path instead of behind it.",
     "· The opening chamber teaches the air-dash on a safe, required gap.",
     "· Easy, Normal, and Hard now change health and berry healing without ending a run.",
-    "· Eight redundant checkpoints were removed, leaving ten earned saves across the full route.",
+    "· Each chamber now has at most one checkpoint; the Pale Root alone keeps two.",
     "· Speedrun is now called Timed Run; Any% and 100% remain its leaderboard categories.",
     "· Level instructions, hints, dialogue, and boss warnings no longer draw over each other.",
     "· Adventure level select appears after the first clear. Timed Run always starts at level one.",
@@ -1594,13 +1594,13 @@ const LEVELS = [
       seg(44, 52, 8);
       seg(53, 63, 13);
       for (let c = 54; c <= 62; c++) set(c, 12, "S");           // spike pit — the test
-      seg(64, 70, 8);
+      seg(64, 70, 8); set(66, 7, "C");                        // earned after the first spike-pit test
       // The Splinters: single-tile stones over spikes — precision hops + one chain
       seg(71, 84, 13);
       for (let c = 72; c <= 83; c++) set(c, 12, "S");
       rect(73, 9, 73, 9); rect(76, 7, 76, 7); rect(79, 9, 79, 9); rect(82, 6, 82, 6);
       seg(85, 95, 8);
-      set(2, 9, "P"); set(28, 7, "C"); set(91, 6, "G");
+      set(2, 9, "P"); set(91, 6, "G");
       set(5, 9, "B"); set(19, 7, "B"); set(31, 7, "B");
       set(45, 7, "B"); set(47, 4, "B"); set(65, 7, "B"); set(88, 7, "B");
       set(76, 4, "B");                                        // above the splinters
@@ -1633,7 +1633,7 @@ const LEVELS = [
       seg(73, 88, 15); for (let c = 73; c <= 88; c++) set(c, 14, "S");
       rect(78, 11, 79, 15); set(78, 10, "S"); set(79, 10, "S"); // spike pillars
       rect(84, 11, 85, 15); set(84, 10, "S"); set(85, 10, "S");
-      seg(89, 95, 12); set(91, 11, "C");
+      seg(89, 95, 12);
       // The Rootspires: one-tile pillar tops over spikes, rising and falling
       seg(96, 110, 15); for (let c = 97; c <= 109; c++) set(c, 14, "S");
       rect(98, 11, 98, 14); rect(101, 9, 101, 14); rect(104, 11, 104, 14); rect(107, 8, 107, 14);
@@ -1720,7 +1720,7 @@ const LEVELS = [
       rect(71, 7, 84, 8); for (let c = 72; c <= 83; c++) set(c, 9, "S"); // spiked-ceiling corridor
       seg(71, 84, 14);
       seg(85, 88, 12); seg(89, 95, 10);
-      seg(96, 102, 10); set(99, 9, "C");
+      seg(96, 102, 10);
       // The Drift: scattered stones over spikes — glide is the way
       seg(103, 118, 17); for (let c = 104; c <= 117; c++) set(c, 16, "S");
       rect(105, 12, 106, 12); rect(109, 9, 109, 9); rect(112, 12, 113, 12); rect(116, 8, 116, 8);

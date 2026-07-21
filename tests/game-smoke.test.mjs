@@ -268,9 +268,9 @@ test("checkpoint spacing keeps each retry stretch meaningful", () => {
   const { api } = bootGame();
   const expected = new Map([
     ["THE HOLLOW", 1],
-    ["ROTROOT CHASM", 2],
+    ["ROTROOT CHASM", 1],
     ["THE SPIRE", 1],
-    ["MYCEL GARDENS", 2],
+    ["MYCEL GARDENS", 1],
     ["THE SKITTERWAY", 0],
     ["THE BROODNEST", 0],
     ["THE BLOOMHEART", 1],
@@ -288,7 +288,11 @@ test("checkpoint spacing keeps each retry stretch meaningful", () => {
     total += count;
     assert.equal(count, expected.get(level.name), `${level.name} keeps its intentional checkpoint budget`);
   }
-  assert.equal(total, 10, "the route uses ten earned checkpoints instead of eighteen near-automatic saves");
+  assert.equal(total, 8, "the route uses one checkpoint per normal chamber and two only in the Pale Root marathon");
+
+  const hollowCheckpoint = api.LEVELS[0].map.findIndex(row => row.includes("C"));
+  assert.equal(hollowCheckpoint, 7, "The Hollow checkpoint stays on its supported platform row");
+  assert.equal(api.LEVELS[0].map[7].indexOf("C"), 66, "The Hollow checkpoint comes after the first spike-pit test");
 });
 
 test("focus loss pauses play, clears stale controls, and requires neutral re-entry", () => {
