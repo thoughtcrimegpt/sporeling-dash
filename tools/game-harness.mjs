@@ -124,12 +124,13 @@ export function bootGame({
   const source = scripts[0].replace(marker, `
 globalThis.__SD_TEST__ = {
   S, LEVELS, PATCH_NOTES, BARROW, BOSS, CHORUS, SHOG, ROOT_TIERS, ROOT_TIER_ORDER,
-  FIXED_DT, MAX_FRAME_DT, MAX_SPORES, START_HEALTH, MAX_HEALTH, ADVENTURE_LIVES,
-  ADVENTURE_DIFFICULTIES, ADVENTURE_RULES, SPEEDRUN_RULES,
+  FIXED_DT, MAX_FRAME_DT, MAX_SPORES, START_HEALTH, MAX_HEALTH,
+  ADVENTURE_DIFFICULTIES, ADVENTURE_RULES, TIMED_RUN_RULES, NOTICE_PRIORITY,
   keys, just, TOUCH, touchPrev, padPrev,
   canvas, handleFocusLoss, handleFocusReturn, loadLevel, pauseIds, titleIds, readInput,
   activateTitleItem, startTitleRun, setRunModePref, cycleGhostPref, competitiveRun, applyDevFixture,
-  dailyUnlocked, stepAdventureLevel, adventureLevelName, cycleAdventureDifficulty, configureRunLives,
+  dailyUnlocked, stepAdventureLevel, adventureLevelName, cycleAdventureDifficulty, configureRunRules,
+  queueNotice, resetNotices, updateNoticeQueue, noticeBlocked, rootWarningActive, openingLessonNeeded,
   advanceTalk, talkHitAt, talkLayout,
   chamberClear, submitScore, checkpointEligible, checkpointPathClear, activateCheckpoint,
   gainHealth, hurtPlayer, killPlayer,
