@@ -4,7 +4,7 @@ A fungal platformer built in a single HTML file.
 
 The Mother Bloom has gone quiet. Dash in mid-air and a mushroom platform grows under your landing path. Jump from it and dash again before it wilts.
 
-The main Adventure crosses 11 chambers, introduces wall-cling and spore-glide, and ends in a three-stage run of the Chorus, the Swallow, and the Unbloomed. There is also a hidden chamber and an unlockable Pale Root gauntlet.
+The main Adventure crosses 11 chambers, introduces wall-cling and spore-glide, and ends in a three-stage run of the Chorus, the Swallow, and the Unbloomed. Two hidden rooms, five persistent keepsakes, the Pale Root, and The Reach sit outside that route.
 
 **Play:** https://thoughtcrimegpt.github.io/sporeling-dash/
 
@@ -26,11 +26,13 @@ Deaths return you to the latest checkpoint and restore the current difficulty's 
 
 Timed Run always starts in The Hollow with 4 health. Its original sparse checkpoint layout stays intact, and the clock keeps running through deaths. Ghosts are off by default; players can opt into a personal-best or leaderboard ghost.
 
-Every completed run qualifies for the Any% board. Collecting every berry, meeting every resident, and finding the secret memory also qualifies for the 100% board.
+Every completed run qualifies for the Any% board. Collecting every berry, meeting every resident, finding the secret memory, and owning all five keepsakes also qualifies for the 100% board.
 
 ### New Game+
 
-Finishing the main game unlocks The Pale Root: one long climb, two checkpoints, and its own leaderboard.
+Finishing the main game unlocks The Pale Root: one long climb, two checkpoints, and its own leaderboard. Clearing the Pale Root unlocks The Reach, a separate five-part trial built around bloom chains, enemy refunds, wall work, and speed. It has exactly two checkpoints.
+
+The Reach has separate Any% and Full boards. Full Reach requires the summit keepsake during that attempt. Each board keeps its own champion ghost and personal-best ghost.
 
 ## Chambers
 
@@ -46,7 +48,11 @@ Finishing the main game unlocks The Pale Root: one long climb, two checkpoints, 
 10. The Swallow
 11. The Mother's Throat — the Unbloomed and Shoggoth
 
-The Undrawn Map is hidden outside the main route. The Pale Root unlocks after the main game is beaten.
+The Undrawn Map is hidden above the Spire. A second hidden room sits beyond the Bloomheart's risky right-wall route. The Pale Root unlocks after the main game is beaten; The Reach appears only after the Pale Root is cleared.
+
+## Keepsakes
+
+Five keepsakes persist on the device that found them. They are placed on the Rotroot tall-wall route, in the Skitterway alcove, beside a Swallow molar, inside the Bloomheart secret room, and at the Reach summit. The HUD shows the current collection total.
 
 ## Controls
 
@@ -72,4 +78,4 @@ npm test
 npm run audit:route
 ```
 
-`npm run dev` serves the same single-file game locally at `http://127.0.0.1:8765/` with DEV tools enabled. `npm test` runs the dependency-free game checks. `npm run audit:route` runs the scripted chamber route probe.
+`npm run dev` serves the same single-file game locally at `http://127.0.0.1:8765/` with DEV tools enabled. `npm test` runs the dependency-free game checks, including progression, secret-room return, keepsake persistence, checkpoint budgets, and Reach fuel spacing. `npm run audit:route` runs the scripted chamber route probe.

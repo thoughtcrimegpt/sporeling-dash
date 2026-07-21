@@ -117,15 +117,17 @@ function bootGame({ hostname = "127.0.0.1", protocol = "http:", search = "", ini
   const source = scripts[0].replace(marker, `
 globalThis.__SD_TEST__ = {
   S, LEVELS, PATCH_NOTES, BARROW, BOSS, CHORUS, SHOG, ROOT_TIERS, ROOT_TIER_ORDER,
+  MAIN_LAST_INDEX, UNDRAWN_INDEX, PALE_ROOT_INDEX, PRESSED_GARDEN_INDEX, REACH_INDEX,
+  KEEPSAKE_IDS, TOTAL_KEEPSAKES,
   FIXED_DT, MAX_FRAME_DT, MAX_SPORES, START_HEALTH, MAX_HEALTH, TILE,
   ADVENTURE_DIFFICULTIES, ADVENTURE_RULES, TIMED_RUN_RULES, NOTICE_PRIORITY,
   keys, just, TOUCH, touchPrev, padPrev,
   canvas, handleFocusLoss, handleFocusReturn, loadLevel, pauseIds, titleIds, readInput,
-  activateTitleItem, startTitleRun, setRunModePref, cycleGhostPref, competitiveRun, applyDevFixture,
-  dailyUnlocked, stepAdventureLevel, adventureLevelName, cycleAdventureDifficulty, configureRunRules,
+  activateTitleItem, startTitleRun, startDaily, startReach, setRunModePref, cycleGhostPref, competitiveRun, applyDevFixture,
+  dailyUnlocked, rootCleared, reachCleared, stepAdventureLevel, adventureLevelName, cycleAdventureDifficulty, cycleReachCategory, configureRunRules,
   queueNotice, resetNotices, updateNoticeQueue, noticeBlocked, rootWarningActive, openingLessonNeeded,
   advanceTalk, talkHitAt, talkLayout, titleControlLines,
-  chamberClear, submitScore, checkpointEligible, checkpointPathClear, activateCheckpoint,
+  chamberClear, submitScore, mainFullEligible, checkpointEligible, checkpointPathClear, activateCheckpoint, enterSecret, exitSecret,
   mercyRetriesEnabled, updateDescentMercy,
   gainHealth, hurtPlayer, killPlayer,
   bloomPlacement, spawnBloom, openingLessonLines,
@@ -152,6 +154,7 @@ globalThis.__SD_TEST__ = {
   get runModePref() { return runModePref; },
   get ghostPref() { return ghostPref; },
   get adventureDifficultyPref() { return adventureDifficultyPref; },
+  get reachCategoryPref() { return reachCategoryPref; },
   get DAILY_PANEL() { return DAILY_PANEL; },
   get WORLD_H() { return WORLD_H; },
   get WORLD_W() { return WORLD_W; },
@@ -198,7 +201,8 @@ test("every route has valid exits and the Pale Root keeps an open structural spi
       assert.equal(goals.length, 0, `${level.name} exits through its boss`);
     } else if (level.secret) {
       assert.equal(goals.length, 0, `${level.name} exits through its hidden return`);
-      assert.equal(memories.length, 1, `${level.name} contains its one purpose`);
+      const purposes = memories.length + positions(level, "K").length;
+      assert.equal(purposes, 1, `${level.name} contains its one purpose`);
     } else {
       assert.equal(goals.length, 1, `${level.name} has one route exit`);
     }
@@ -211,7 +215,7 @@ test("every route has valid exits and the Pale Root keeps an open structural spi
       assert.ok(supportWithin(level, goal, 3), `${level.name} goal can be reached from support`);
   }
 
-  const root = api.LEVELS.find(level => level.gauntlet);
+  const root = api.LEVELS.find(level => level.name === "THE PALE ROOT");
   assert.ok(root, "the Pale Root gauntlet exists");
   const spawn = positions(root, "P")[0];
   const goal = positions(root, "G")[0];
@@ -222,7 +226,7 @@ test("every route has valid exits and the Pale Root keeps an open structural spi
 
   for (let r = goal.r + 1; r < spawn.r; r++) {
     const interior = root.map[r].slice(1, -1);
-    assert.ok(interior.includes(".") || /[PCGBM]/.test(interior), `Pale Root row ${r} does not seal the climb`);
+    assert.ok(interior.includes(".") || /[PCGBMK]/.test(interior), `Pale Root row ${r} does not seal the climb`);
   }
 
   const routeBands = [
@@ -282,6 +286,8 @@ test("checkpoint spacing keeps each retry stretch meaningful", () => {
     ["THE MOTHER'S THROAT", 0],
     ["THE UNDRAWN MAP", 0],
     ["THE PALE ROOT", 2],
+    ["THE PRESSED GARDEN", 0],
+    ["THE REACH", 2],
   ]);
 
   let total = 0;
@@ -290,7 +296,7 @@ test("checkpoint spacing keeps each retry stretch meaningful", () => {
     total += count;
     assert.equal(count, expected.get(level.name), `${level.name} keeps its intentional checkpoint budget`);
   }
-  assert.equal(total, 8, "the route uses one checkpoint per normal chamber and two only in the Pale Root marathon");
+  assert.equal(total, 10, "the main route stays sparse and each standalone marathon has two checkpoints");
 
   const hollowCheckpoint = api.LEVELS[0].map.findIndex(row => row.includes("C"));
   assert.equal(hollowCheckpoint, 7, "The Hollow checkpoint stays on its supported platform row");
@@ -710,7 +716,138 @@ test("The Pale Root remains visible as locked New Game+ content", () => {
   unlocked.api.activateTitleItem("daily");
   assert.equal(unlocked.api.S.mode, "play");
   assert.equal(unlocked.api.S.daily, true);
-  assert.equal(unlocked.api.S.levelIdx, unlocked.api.LEVELS.length - 1);
+  assert.equal(unlocked.api.S.levelIdx, unlocked.api.PALE_ROOT_INDEX);
+});
+
+test("The Reach stays outside the eleven-chamber route and unlocks only after the Pale Root", () => {
+  const mainNames = [
+    "THE HOLLOW", "ROTROOT CHASM", "THE SPIRE", "MYCEL GARDENS", "THE SKITTERWAY",
+    "THE BROODNEST", "THE BLOOMHEART", "THE MARROW", "THE CHORUS HALL", "THE SWALLOW",
+    "THE MOTHER'S THROAT",
+  ];
+  const locked = bootGame({ initialStorage: { sd_beaten: "1" } });
+  assert.equal(locked.api.MAIN_LAST_INDEX, 10);
+  assert.deepEqual(JSON.parse(JSON.stringify(locked.api.LEVELS.slice(0, 11).map(level => level.name))), mainNames);
+  assert.equal(locked.api.titleIds().includes("reach"), false, "beating the main route alone does not reveal the Reach");
+
+  locked.api.startDaily();
+  locked.api.chamberClear();
+  locked.api.tick(2.1);
+  assert.equal(locked.storage.get("sd_root_cleared"), "1");
+  assert.equal(locked.api.titleIds().includes("reach"), true);
+
+  locked.api.S.reachCategory = "reach";
+  locked.api.startReach();
+  assert.equal(locked.api.S.mode, "play");
+  assert.equal(locked.api.S.reachTrial, true);
+  assert.equal(locked.api.S.levelIdx, locked.api.REACH_INDEX);
+  locked.api.S.score.time = 10;
+  locked.api.S.rec = [[locked.api.REACH_INDEX, 30, 40, 1]];
+  locked.api.chamberClear();
+  locked.api.tick(2.1);
+  assert.equal(locked.storage.get("sd_reach_done"), "1");
+  assert.ok(JSON.parse(locked.storage.get("sd_reach_pb")).frames);
+
+  locked.api.cycleReachCategory(1);
+  assert.equal(locked.storage.get("sd_reach_category"), "reach_full");
+  locked.api.startReach();
+  locked.api.S.score.reachKeepsake = true;
+  locked.api.S.score.time = 12;
+  locked.api.S.rec = [[locked.api.REACH_INDEX, 50, 60, 1]];
+  locked.api.chamberClear();
+  locked.api.tick(2.1);
+  assert.ok(JSON.parse(locked.storage.get("sd_reach_full_pb")).frames);
+  assert.notEqual(locked.storage.get("sd_reach_pb"), locked.storage.get("sd_reach_full_pb"),
+    "Reach Any% and Full Reach keep different personal-best records");
+});
+
+test("five persistent keepsakes gate completion and the Reach keepsake remains attempt-specific", () => {
+  const { api, storage } = bootGame();
+  const placements = api.LEVELS.filter(level => level.keepsakeId).map(level => [level.name, level.keepsakeId]);
+  assert.deepEqual(JSON.parse(JSON.stringify(placements)), [
+    ["ROTROOT CHASM", "rotroot-wall"],
+    ["THE SKITTERWAY", "skitter-alcove"],
+    ["THE SWALLOW", "swallow-molar"],
+    ["THE PRESSED GARDEN", "bloomheart-margin"],
+    ["THE REACH", "reach-summit"],
+  ]);
+  assert.equal(new Set(api.KEEPSAKE_IDS).size, 5);
+
+  api.loadLevel(api.LEVELS.findIndex(level => level.name === "ROTROOT CHASM"));
+  const item = api.S.keepsakeList[0];
+  api.S.mode = "play";
+  api.S.player.x = item.x; api.S.player.y = item.y; api.S.player.invuln = 99;
+  api.tick(api.FIXED_DT);
+  assert.deepEqual(JSON.parse(storage.get("sd_keepsakes")), ["rotroot-wall"]);
+
+  api.loadLevel(api.LEVELS.findIndex(level => level.name === "ROTROOT CHASM"));
+  assert.equal(api.S.keepsakeList.length, 0, "ordinary keepsakes stay collected");
+  api.loadLevel(api.REACH_INDEX);
+  assert.equal(api.S.keepsakeList.length, 1, "the summit keepsake reappears for Full Reach attempts");
+
+  api.S.daily = false; api.S.reachTrial = false;
+  api.S.score.berries = 1; api.S.score.total = 1; api.S.score.secretMemory = true;
+  api.S.score.metNpcs = {};
+  for (const level of api.LEVELS) for (const npc of level.npcs || []) api.S.score.metNpcs[npc.name] = true;
+  api.S.keepsakes = api.KEEPSAKE_IDS.slice(0, 4);
+  assert.equal(api.mainFullEligible(), false, "four keepsakes cannot enter the main Full board");
+  api.S.keepsakes = [...api.KEEPSAKE_IDS];
+  assert.equal(api.mainFullEligible(), true, "all five keepsakes complete the main Full gate");
+});
+
+test("both secret rooms return to the exact host route they came from", () => {
+  const { api } = bootGame();
+  const bloomheart = api.LEVELS.findIndex(level => level.name === "THE BLOOMHEART");
+  api.loadLevel(bloomheart);
+  api.S.mode = "play";
+  api.S.player.x = 55 * api.TILE - api.S.player.w;
+  api.S.player.y = 6 * api.TILE;
+  api.S.player.vx = 0; api.S.player.vy = 0; api.S.player.invuln = 99;
+  api.tick(api.FIXED_DT);
+  assert.equal(api.S.levelIdx, api.PRESSED_GARDEN_INDEX);
+  api.S.player.x = 22 * api.TILE;
+  api.S.player.y = 8 * api.TILE;
+  api.S.player.vx = 0; api.S.player.vy = 0;
+  api.tick(api.FIXED_DT);
+  assert.equal(api.S.levelIdx, bloomheart);
+  assert.ok(Math.abs(api.S.player.x - 52 * api.TILE) < 0.01);
+
+  api.loadLevel(2);
+  api.enterSecret(api.UNDRAWN_INDEX, { x: 88, y: 54 });
+  assert.equal(api.S.levelIdx, api.UNDRAWN_INDEX);
+  api.exitSecret();
+  assert.equal(api.S.levelIdx, 2);
+  assert.equal(api.S.player.x, 88);
+  assert.equal(api.S.player.y, 54);
+});
+
+test("The Reach has five fuel-led segments and exactly two earned checkpoints", () => {
+  const { api } = bootGame();
+  const reach = api.LEVELS[api.REACH_INDEX];
+  assert.equal(reach.map.length, 150);
+  assert.equal(reach.map[0].length, 64);
+  const cells = reach.map.join("");
+  assert.equal((cells.match(/C/g) || []).length, 2);
+  assert.equal((cells.match(/K/g) || []).length, 1);
+  assert.equal((cells.match(/G/g) || []).length, 1);
+  const checkpoints = [];
+  reach.map.forEach((row, r) => { for (let c = 0; c < row.length; c++) if (row[c] === "C") checkpoints.push([c, r]); });
+  assert.deepEqual(checkpoints, [[59, 56], [59, 141]], "checkpoints end the First Span and the Gale");
+
+  const chains = [
+    [[12,142],[20,140],[28,142],[36,140],[44,142],[52,140]],
+    [[60,130],[59,120],[60,110],[59,101]],
+    [[54,90],[46,84],[39,86],[32,82],[26,90],[18,83],[13,86]],
+    [[9,79],[17,73],[23,68],[33,63],[47,59]],
+    [[53,52],[44,46],[31,41],[22,36],[14,31],[23,26],[33,22],[43,18]],
+  ];
+  for (const [index, chain] of chains.entries()) {
+    for (const [c, r] of chain)
+      assert.match(reach.map[r][c], /[fwsEk]/, `segment ${index + 1} fuel exists at ${c},${r}`);
+    for (let i = 1; i < chain.length; i++)
+      assert.ok(Math.hypot(chain[i][0] - chain[i - 1][0], chain[i][1] - chain[i - 1][1]) <= 18,
+        `segment ${index + 1} never exceeds a full three-bloom reach between fuel nodes`);
+  }
 });
 
 test("mode and ghost preferences persist", () => {
@@ -1703,7 +1840,7 @@ test("core instructions use plain sentences instead of the old slogan copy", () 
 
 test("the visible patch history uses plain factual copy", () => {
   const { api } = bootGame();
-  assert.match(api.PATCH_NOTES[0].v, /^V4\.4/);
+  assert.match(api.PATCH_NOTES[0].v, /^V4\.5/);
   for (const block of api.PATCH_NOTES) {
     assert.equal(block.v.includes("—"), false, `patch title uses an em-dash slogan: ${block.v}`);
     for (const line of block.lines) {

@@ -64,6 +64,19 @@ const ROUTE_WAYPOINTS = {
     { name: "last weave", x: 12 * 16, y: 14 * 16 - 10, rx: 72 },
     { name: "crown", x: 21 * 16, y: 8 * 16 - 10, rx: 64 },
   ],
+  "THE REACH": [
+    { name: "first span", x: 59 * 16, y: 142 * 16 - 10, rx: 74 },
+    { name: "spire middle", x: 59 * 16, y: 116 * 16 - 10, rx: 66 },
+    { name: "spire crown", x: 53 * 16, y: 96 * 16 - 10, rx: 92 },
+    { name: "gale middle", x: 39 * 16, y: 87 * 16 - 10, rx: 86 },
+    { name: "gale turn", x: 4 * 16, y: 84 * 16 - 10, rx: 74 },
+    { name: "gale return", x: 15 * 16, y: 70 * 16 - 10, rx: 88 },
+    { name: "gale checkpoint", x: 55 * 16, y: 57 * 16 - 10, rx: 118 },
+    { name: "last reach walls", x: 22 * 16, y: 38 * 16 - 10, rx: 94 },
+    { name: "upper chain", x: 32 * 16, y: 22 * 16 - 10, rx: 110 },
+    { name: "summit shelf", x: 52 * 16, y: 13 * 16 - 10, rx: 94 },
+    { name: "crown", x: 59 * 16, y: 8 * 16 - 10, rx: 64 },
+  ],
 };
 
 function press(api, action) {
@@ -143,7 +156,7 @@ export function probeRoute(levelName, {
   if (level.boss || level.secret || !level.map.join("").includes("G"))
     throw new Error(`${levelName} does not use a normal goal route`);
 
-  api.prepareRouteProbe(levelIndex);
+  api.prepareRouteProbe(levelIndex, level.trial === "reach");
   let initialRaw = api.captureRouteState();
   let initial = JSON.parse(initialRaw);
   const waypoints = ROUTE_WAYPOINTS[levelName] || [];
@@ -160,7 +173,7 @@ export function probeRoute(levelName, {
   }
   const goal = initial.goal;
   const goalDown = initial.player.y < goal.y;
-  const profile = levelName === "THE PALE ROOT"
+  const profile = levelName === "THE PALE ROOT" || levelName === "THE REACH"
     ? { overshootWeight: 0, horizontalWeight: 0.22 }
     : { overshootWeight: 0.15, horizontalWeight: 0.55 };
   let beam = [{ raw: initialRaw, state: initial, path: [...startActions], waypoint: initialWaypoint }];
@@ -247,7 +260,7 @@ export const actionNames = actions => actions.map(index => ACTIONS[index].name);
 
 if (process.argv[1] && import.meta.url === pathToFileURL(resolve(process.argv[1])).href) {
   const levelName = process.argv.slice(2).join(" ") || "THE HOLLOW";
-  const defaults = levelName === "THE PALE ROOT"
+  const defaults = levelName === "THE PALE ROOT" || levelName === "THE REACH"
     ? { beamWidth: 12, maxSteps: 1800 }
     : { beamWidth: 12, maxSteps: 600 };
   const result = probeRoute(levelName, defaults);
