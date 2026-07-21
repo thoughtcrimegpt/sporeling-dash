@@ -980,6 +980,7 @@ const PATCH_NOTES = [
     "· The Unbloomed now sends roots across the ground, middle, and upper arena.",
     "· Chorus Hall names the glowing-heart opening, and diving wisps travel farther.",
     "· Control labels now show keyboard, controller, or touch buttons separately.",
+    "· JB now repairs the shifting bridge in The Marrow.",
   ]},
   { v: "V4.3.8  Controls and boss warnings", d: "2026-07-20", lines: [
     "· Patch Notes became a large clickable target on desktop.",
@@ -1657,6 +1658,7 @@ const LEVELS = [
         "I keep a journal. One sentence a day, because if I let myself write two I'll be here all night.",
         "'Small climber came through today. Good feet. Bad sense of danger.' That's today's.",
         "Somebody wrote M.H. at the bottom of the old entries. I don't know who, and yes, I've looked.",
+        "JB went on ahead with a bag of bridge pins. He said something below kept asking if he was listening.",
         "Come back if you find out. Tomorrow's sentence can wait.",
       ],
     }, {
@@ -1836,6 +1838,15 @@ const LEVELS = [
       set(58, 11, "n"); set(80, 12, "n"); set(86, 14, "n");
     }),
     clearText: "The bridge stops moving. You're clear.",
+    npcs: [{
+      c: 50, r: 7, name: "JB", sprite: "jb",
+      lines: [
+        "Commantha sent you? Good. Tell her the bridge pins held.",
+        "Bone pegs, root-cord, iron clamps. I packed enough to rebuild this thing twice.",
+        "Something under the bridge kept pulling the clamps through the cracks. Then it used Mother Bloom's voice.",
+        "If it shows you an eye, get above it.",
+      ],
+    }],
   },
   {
     name: "THE CHORUS HALL", pal: 10, boss: "chorus",
@@ -2032,12 +2043,12 @@ const WILT_PAL = {
   O: "#463e50", C: "#665a72", H: "#847494", D: "#544a60",
   B: "#988aa0", S: "#766a82", E: "#2a2230", W: "#aca0b4", R: "#867890",
 };
-const NPC_H = { keeper: 14, twins: 10, moth: 10, granny: 14, echo: 12, grel: 14, dog: 14 };
+const NPC_H = { keeper: 14, twins: 10, moth: 10, granny: 14, echo: 12, grel: 14, dog: 14, jb: 14 };
 
 // ── State ──────────────────────────────────────────────────────────────────
 let LEVEL = [], ROWS = 0, COLS = 0, WORLD_W = 0, WORLD_H = 0, PAL = PALS[0];
 let DECOR = [], SPORES = [], SPIKES = [], STATIC_LIGHTS = [], ENEMY_SPAWNS = [];
-const REUNION_SPRITES = { "BARNABY": "keeper", "GREL": "grel", "COMMANTHA": "dog", "THE TWINS": "twins", "THE CARTOGRAPHER": "moth", "GRANNY MOREL": "granny", "THE ECHO": "echo" };
+const REUNION_SPRITES = { "BARNABY": "keeper", "GREL": "grel", "COMMANTHA": "dog", "THE TWINS": "twins", "THE CARTOGRAPHER": "moth", "GRANNY MOREL": "granny", "THE ECHO": "echo", "JB": "jb" };
 const REUNION_LINES = {
   "BARNABY": "You made it. Good. Saves me climbing up after you.",
   "GREL": "Best view in the cave. I knew you'd make the last jump.",
@@ -2046,6 +2057,7 @@ const REUNION_LINES = {
   "THE CARTOGRAPHER": "Route forty-two reaches the crown. I'll need more paper.",
   "GRANNY MOREL": "Sit down, dear. Heroics look exhausting.",
   "THE ECHO": "You brought me back. I didn't think that was allowed.",
+  "JB": "I fixed the bridge. You fixed the rest. Fair enough.",
 };
 const CARTOGRAPHER_SECRET_LINE = "You found the room past the Spire wall. I knew that margin looked wrong.";
 let terrainCv = null, skyCv = null, farCv = null, midCv = null;
@@ -5255,6 +5267,34 @@ function drawNPCs() {
       g.fillRect(x + 2, Math.round(y - 3 + hb), 1, 2);         // inner ear
       g.fillStyle = "#d8a040";
       g.fillRect(x + 1, Math.round(y + 1 + hb), 1, 1);         // amber eye
+    } else if (n.sprite === "jb") {
+      // JB — swept dark hair, sunset coat, and the satchel he carries everywhere
+      const hair = "#251918", hairHi = "#452721", skin = "#c97948";
+      const shirt = "#a85f2b", shirtHi = "#d08a42", bag = "#1d1919";
+      const hb = Math.round(bob * 0.4);
+      g.fillStyle = shirt;
+      g.fillRect(x + 2, y + 7, 10, 7);                         // ochre coat
+      g.fillStyle = shirtHi;
+      g.fillRect(x + 3, y + 9, 2, 1); g.fillRect(x + 8, y + 8, 2, 1);
+      g.fillRect(x + 6, y + 12, 2, 1);                        // worn floral marks
+      g.fillStyle = bag;
+      g.fillRect(x + 3, y + 7, 1, 2); g.fillRect(x + 4, y + 9, 1, 2);
+      g.fillRect(x + 5, y + 11, 1, 3);                        // cross-body strap
+      g.fillRect(x + 9, y + 10, 4, 4);                        // satchel
+      g.fillStyle = skin;
+      g.fillRect(x + 3, y + 1 + hb, 8, 7);                    // face
+      g.fillRect(x + 11, y + 4 + hb, 2, 2);                   // profile nose
+      g.fillRect(x + 2, y + 4 + hb, 2, 2);                    // ear
+      g.fillStyle = hair;
+      g.fillRect(x + 1, y + 1 + hb, 3, 5);                    // swept back
+      g.fillRect(x + 2, y - 1 + hb, 9, 3);
+      g.fillRect(x + 8, y - 2 + hb, 4, 2);
+      g.fillRect(x + 10, y - 1 + hb, 3, 2);
+      g.fillStyle = hairHi;
+      g.fillRect(x + 4, y + hb, 5, 1);
+      g.fillStyle = C.eye;
+      g.fillRect(x + 8, y + 3 + hb, 3, 1);                    // brow
+      g.fillRect(x + 9, y + 4 + hb, 1, 1);                    // eye
     } else if (n.sprite === "grel") {
       // Three pale pointy-eared friends — the first believers
       const line = "#1a1a20";
@@ -7044,9 +7084,15 @@ function applyDevFixture() {
     return true;
   }
   if (fixture === "dialogue") {
-    openLevel(0);
-    const npc = S.npcs[0];
-    placePlayer(npc.x + 8, npc.y);
+    const requestedNpc = (params.get("npc") || "").toUpperCase();
+    const npcLevel = requestedNpc
+      ? LEVELS.findIndex(level => (level.npcs || []).some(npc => npc.name === requestedNpc))
+      : 0;
+    if (npcLevel < 0) return false;
+    openLevel(npcLevel);
+    const npc = requestedNpc ? S.npcs.find(actor => actor.name === requestedNpc) : S.npcs[0];
+    if (!npc) return false;
+    placePlayer(npc.x - 24, npc.y);
     S.talk = { npc, line: 0, t: npc.lines[0].length * 0.035 };
     S.score.metNpcs[npc.name] = true;
     return true;
