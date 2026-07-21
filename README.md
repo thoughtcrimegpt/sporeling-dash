@@ -4,7 +4,9 @@ A tiny fungal platformer in a single HTML file.
 
 The Mother Bloom has gone quiet. Dash in mid-air and a mushroom platform blooms where you land — jump off it to chain across the void before it wilts. Six chambers, strange residents, the things the previous sporelings became, and a frightened guardian at the bottom of it all.
 
-Wall-cling, spore-glide, a lives system, a secret somewhere off the map, and **live leaderboards** — any% and full completion. Submit your time from the victory screen.
+Wall-cling, spore-glide, three Adventure difficulties, a secret somewhere off the map, and **live leaderboards** — any% and full completion. Submit your time from the victory screen.
+
+Adventure offers Easy (unlimited lives, 5 health), Normal (3 lives, 4 health), and Hard (1 life, 3 health). Speedrun uses 4 health and unlimited checkpoint retries while the timer keeps running.
 
 **Play:** https://thoughtcrimegpt.github.io/sporeling-dash/
 
@@ -12,7 +14,7 @@ Wall-cling, spore-glide, a lives system, a secret somewhere off the map, and **l
 
 |            | Keyboard            | Gamepad      |
 |------------|---------------------|--------------|
-| Move       | WASD / Arrows       | Stick / D-pad|
+| Move       | A / D or Left / Right | Stick / D-pad|
 | Jump       | Space / Z / K       | A / B        |
 | Dash       | Shift / J           | X / RB / LB  |
 | Pause      | Esc / P             | Start        |

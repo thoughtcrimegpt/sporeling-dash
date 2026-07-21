@@ -118,10 +118,11 @@ function bootGame({ hostname = "127.0.0.1", protocol = "http:", search = "", ini
 globalThis.__SD_TEST__ = {
   S, LEVELS, PATCH_NOTES, BARROW, BOSS, CHORUS, SHOG, ROOT_TIERS, ROOT_TIER_ORDER,
   FIXED_DT, MAX_FRAME_DT, MAX_SPORES, START_HEALTH, MAX_HEALTH, ADVENTURE_LIVES,
+  ADVENTURE_DIFFICULTIES, ADVENTURE_RULES, SPEEDRUN_RULES,
   keys, just, TOUCH, touchPrev, padPrev,
   canvas, handleFocusLoss, handleFocusReturn, loadLevel, pauseIds, titleIds, readInput,
   activateTitleItem, startTitleRun, setRunModePref, cycleGhostPref, competitiveRun, applyDevFixture,
-  dailyUnlocked, stepAdventureLevel, adventureLevelName, toggleUnlimitedLives, configureRunLives,
+  dailyUnlocked, stepAdventureLevel, adventureLevelName, cycleAdventureDifficulty, configureRunLives,
   advanceTalk, talkHitAt, talkLayout, titleControlLines,
   chamberClear, submitScore, checkpointEligible, checkpointPathClear, activateCheckpoint,
   gainHealth, hurtPlayer, killPlayer,
@@ -148,7 +149,7 @@ globalThis.__SD_TEST__ = {
   get leftHanded() { return leftHanded; },
   get runModePref() { return runModePref; },
   get ghostPref() { return ghostPref; },
-  get unlimitedLivesPref() { return unlimitedLivesPref; },
+  get adventureDifficultyPref() { return adventureDifficultyPref; },
   get DAILY_PANEL() { return DAILY_PANEL; },
   get WORLD_H() { return WORLD_H; },
   get WORLD_W() { return WORLD_W; },
@@ -403,7 +404,7 @@ test("Adventure is the persistent default and Speedrun remains an explicit choic
   assert.equal(fresh.api.runModePref, "adventure");
   assert.equal(fresh.api.ghostPref, "off");
   assert.equal(fresh.api.titleIds().includes("ghost"), false, "ghost setup stays out of the Adventure menu");
-  assert.equal(fresh.api.titleIds().includes("lives"), true, "Adventure exposes its lives choice");
+  assert.equal(fresh.api.titleIds().includes("difficulty"), true, "Adventure exposes its difficulty choice");
   assert.equal(fresh.api.titleIds().includes("levelselect"), false, "level select stays hidden before the first clear");
   fresh.api.startTitleRun();
   assert.equal(fresh.api.S.runMode, "adventure");
@@ -413,7 +414,7 @@ test("Adventure is the persistent default and Speedrun remains an explicit choic
   const saved = bootGame({ initialStorage: { sd_run_mode: "speedrun", sd_ghost_pref: "off" } });
   assert.equal(saved.api.runModePref, "speedrun");
   assert.equal(saved.api.titleIds().includes("ghost"), true);
-  assert.equal(saved.api.titleIds().includes("lives"), false, "Speedrun has fixed retry rules");
+  assert.equal(saved.api.titleIds().includes("difficulty"), false, "Speedrun has one fixed ruleset");
   assert.equal(saved.api.titleIds().includes("levelselect"), false, "Speedrun never offers level select");
   saved.api.startTitleRun();
   assert.equal(saved.api.S.runMode, "speedrun");
@@ -455,37 +456,88 @@ test("Adventure level select unlocks after a clear and never appears in Speedrun
   assert.equal(api.pauseIds().includes("practice"), false, "Speedrun pause has no level-select shortcut");
 });
 
-test("Adventure offers explicit unlimited or three-life rules", () => {
+test("Adventure difficulty controls lives and health while Speedrun stays fixed", () => {
   const { api, storage } = bootGame({ hostname: "thoughtcrimegpt.github.io" });
-  assert.equal(api.unlimitedLivesPref, true);
-  assert.equal(api.titleIds().includes("lives"), true);
-  api.activateTitleItem("lives");
-  assert.equal(api.unlimitedLivesPref, false);
-  assert.equal(storage.get("sd_adventure_unlimited_lives"), "0");
+  assert.equal(api.adventureDifficultyPref, "normal");
+  assert.equal(api.titleIds().includes("difficulty"), true);
   api.startTitleRun();
   assert.equal(api.S.unlimitedLives, false);
-  assert.equal(api.S.lives, api.ADVENTURE_LIVES);
+  assert.equal(api.S.lives, 3);
+  assert.equal(api.S.health, 4);
+  assert.equal(api.S.maxHealth, 4);
+  assert.equal(api.S.berriesPerHeal, 12);
 
-  for (const remaining of [2, 1, 0]) {
-    api.S.player.invuln = 0;
-    api.S.health = 1;
-    api.killPlayer("test hazard");
-    assert.equal(api.S.lives, remaining);
-    api.S.deathT = 0.56;
-    api.tick(api.FIXED_DT);
-    assert.equal(api.S.mode, remaining ? "play" : "gameover");
-  }
+  api.S.mode = "title";
+  api.activateTitleItem("difficulty");
+  assert.equal(api.adventureDifficultyPref, "hard");
+  assert.equal(storage.get("sd_adventure_difficulty"), "hard");
+  api.startTitleRun();
+  assert.equal(api.S.unlimitedLives, false);
+  assert.equal(api.S.lives, 1);
+  assert.equal(api.S.health, 3);
+  assert.equal(api.S.maxHealth, 3);
+  assert.equal(api.S.berriesPerHeal, 16);
+  api.S.player.invuln = 0;
+  api.S.health = 1;
+  api.killPlayer("test hazard");
+  assert.equal(api.S.lives, 0);
+  api.S.deathT = 0.56;
+  api.tick(api.FIXED_DT);
+  assert.equal(api.S.mode, "gameover");
   api.g.operations.length = 0;
   api.draw();
   assert.ok(api.g.operations.some(op => op.type === "fillText" && op.value === "NO LIVES LEFT"));
 
+  const easy = bootGame({ hostname: "thoughtcrimegpt.github.io", initialStorage: {
+    sd_adventure_difficulty: "easy",
+  } });
+  easy.api.startTitleRun();
+  assert.equal(easy.api.S.unlimitedLives, true);
+  assert.equal(easy.api.S.lives, -1);
+  assert.equal(easy.api.S.health, 5);
+  assert.equal(easy.api.S.maxHealth, 5);
+  assert.equal(easy.api.S.berriesPerHeal, 8);
+
   const speedrun = bootGame({ hostname: "thoughtcrimegpt.github.io", initialStorage: {
     sd_run_mode: "speedrun",
-    sd_adventure_unlimited_lives: "0",
+    sd_adventure_difficulty: "hard",
   } });
   speedrun.api.startTitleRun();
   assert.equal(speedrun.api.S.unlimitedLives, true, "Speedrun keeps fixed unlimited checkpoint retries");
   assert.equal(speedrun.api.S.lives, -1);
+  assert.equal(speedrun.api.S.health, 4);
+  assert.equal(speedrun.api.S.maxHealth, 4);
+  assert.equal(speedrun.api.S.berriesPerHeal, 12);
+  assert.equal(speedrun.api.S.levelIdx, 0);
+});
+
+test("each Adventure difficulty uses its own berry healing interval and health cap", () => {
+  const expected = {
+    easy: { health: 5, berries: 8 },
+    normal: { health: 4, berries: 12 },
+    hard: { health: 3, berries: 16 },
+  };
+
+  for (const [difficulty, rules] of Object.entries(expected)) {
+    const { api } = bootGame({ initialStorage: { sd_adventure_difficulty: difficulty } });
+    api.startTitleRun();
+    api.S.health = api.S.maxHealth - 1;
+    api.S.score.pickups = rules.berries - 1;
+    api.S.berryList = [{
+      x: api.S.player.x, y: api.S.player.y, w: 8, h: 8, taken: false,
+    }];
+    api.tick(api.FIXED_DT);
+    assert.equal(api.S.health, rules.health, difficulty + " heals at its configured berry interval");
+    assert.equal(api.S.maxHealth, rules.health);
+    assert.equal(api.S.berriesPerHeal, rules.berries);
+    assert.equal(api.S.hint.text, rules.berries + " berries restore 1 health.");
+
+    api.gainHealth();
+    assert.equal(api.S.health, rules.health, difficulty + " cannot grow beyond its health cap");
+    api.S.health--;
+    api.chamberClear();
+    assert.equal(api.S.health, rules.health, difficulty + " restores one health after a chamber clear");
+  }
 });
 
 test("The Pale Root remains visible as locked New Game+ content", () => {
@@ -513,7 +565,7 @@ test("The Pale Root remains visible as locked New Game+ content", () => {
   assert.equal(unlocked.api.S.levelIdx, unlocked.api.LEVELS.length - 1);
 });
 
-test("mode and ghost preferences persist without identity data", () => {
+test("mode and ghost preferences persist", () => {
   const { api, storage } = bootGame();
   api.setRunModePref("speedrun");
   assert.equal(storage.get("sd_run_mode"), "speedrun");
@@ -578,7 +630,8 @@ test("competitive timing, splits, recording, and submission stay out of Adventur
 });
 
 test("unlimited Adventure retries from the latest checkpoint without exhausting a run", () => {
-  const { api } = bootGame();
+  const { api } = bootGame({ initialStorage: { sd_adventure_difficulty: "easy" } });
+  api.startTitleRun();
   const checkpoint = { ...api.S.checkPt };
   Object.assign(api.S.player, { x: checkpoint.x + 80, y: checkpoint.y - 30, vx: 90, vy: 120 });
   api.S.mode = "dead";
@@ -588,7 +641,7 @@ test("unlimited Adventure retries from the latest checkpoint without exhausting 
   assert.equal(api.S.mode, "play");
   assert.equal(api.S.player.x, checkpoint.x);
   assert.equal(api.S.player.y, checkpoint.y);
-  assert.equal(api.S.health, api.START_HEALTH, "each retry restores the hit buffer");
+  assert.equal(api.S.health, 5, "each retry restores the Easy health buffer");
 });
 
 test("checkpoints credit close passes from open directions without reaching through walls", () => {
@@ -651,9 +704,9 @@ test("every placed checkpoint has at least one clear forgiving approach", () => 
   }
 });
 
-test("the HUD groups health, bloom cost, dash state, and the selected lives rule", () => {
+test("the HUD shows only the active health cap alongside blooms, dash state, and lives", () => {
   const { api } = bootGame();
-  api.S.mode = "play";
+  api.startTitleRun();
   api.S.health = 3;
   api.S.player.spores = 2;
   api.S.player.canDash = true;
@@ -664,7 +717,11 @@ test("the HUD groups health, bloom cost, dash state, and the selected lives rule
   assert.ok(labels.includes("HEALTH 3"));
   assert.ok(labels.includes("BLOOMS 2"));
   assert.ok(labels.includes("DASH READY"));
-  assert.ok(labels.includes("LIVES ∞"), "Adventure makes unlimited lives explicit during play");
+  assert.ok(labels.includes("LIVES 3"), "Normal Adventure makes its life count explicit during play");
+  const healthPips = api.g.operations.filter(op =>
+    op.type === "fillRect" && op.y === 9 && op.width === 4 && op.height === 4 && op.x >= 52
+  );
+  assert.equal(healthPips.length, 4, "Normal draws four health marks rather than the old nine-mark meter");
   const health = textOps.find(op => op.value === "HEALTH 3");
   const blooms = textOps.find(op => op.value === "BLOOMS 2");
   assert.equal(health.x, blooms.x, "survival and bloom resource share one HUD column");
@@ -918,6 +975,11 @@ test("the browser-test bridge exists locally and is absent on the deployed host"
 });
 
 test("local browser fixtures expose visual states without creating a production route", () => {
+  const hardTitle = bootGame({ search: "?difficulty=hard" });
+  assert.equal(hardTitle.api.S.mode, "title");
+  assert.equal(hardTitle.api.adventureDifficultyPref, "hard");
+  assert.equal(hardTitle.api.S.maxHealth, 3);
+
   const opening = bootGame({ search: "?fixture=opening" });
   assert.equal(opening.api.S.mode, "play");
   assert.equal(opening.api.S.levelIdx, 0);
@@ -928,6 +990,11 @@ test("local browser fixtures expose visual states without creating a production 
   assert.equal(touch.api.TOUCH.active, true);
   assert.equal(touch.element("touch").hidden, false);
   assert.equal(touch.element("touch").classList.contains("left-handed"), true);
+
+  const hardOpening = bootGame({ search: "?fixture=opening&difficulty=hard" });
+  assert.equal(hardOpening.api.S.maxHealth, 3);
+  assert.equal(hardOpening.api.S.health, 3);
+  assert.equal(hardOpening.api.S.berriesPerHeal, 16);
 
   const bloom = bootGame({ search: "?fixture=bloom" });
   assert.equal(bloom.api.S.blooms.length, 1);
@@ -964,11 +1031,12 @@ test("local browser fixtures expose visual states without creating a production 
 
   const deployed = bootGame({
     hostname: "thoughtcrimegpt.github.io",
-    search: "?fixture=root-upper",
+    search: "?fixture=root-upper&difficulty=hard",
   });
   assert.equal(deployed.api.S.mode, "title");
   assert.equal(deployed.api.S.levelIdx, 0);
   assert.equal(deployed.api.S.boss, null);
+  assert.equal(deployed.api.adventureDifficultyPref, "normal", "DEV-only query options do not alter the deployed title");
 });
 
 test("DEV attempt metrics are bounded, minimal, session-only, and disabled when deployed", () => {
@@ -1010,7 +1078,7 @@ test("practice retries restore a fresh chamber without changing full-run resourc
   assert.equal(api.S.mode, "play");
   assert.equal(api.S.practice, true);
   assert.equal(api.S.levelIdx, bossIndex);
-  assert.equal(api.S.health, api.START_HEALTH);
+  assert.equal(api.S.health, api.S.maxHealth);
   assert.equal(api.S.score.time, 0);
   assert.equal(api.S.boss.pips, 3);
   assert.match(api.S.hint.text, /Practice restarted/);
@@ -1019,7 +1087,7 @@ test("practice retries restore a fresh chamber without changing full-run resourc
   api.S.health = 1;
   api.restartCurrentChamber();
   assert.equal(api.S.boss.kind, "shoggoth");
-  assert.equal(api.S.health, api.START_HEALTH);
+  assert.equal(api.S.health, api.S.maxHealth);
 
   api.S.practice = false;
   api.S.health = 2;

@@ -149,11 +149,19 @@ const CHAIN_WILT = [1, 0.75, 0.5];
 const SHAKE_MAG = 2.5;
 const SHAKE_TIME = 0.14;
 
-// Health is a per-attempt hit buffer. Death always retries from the checkpoint.
-const START_HEALTH = 5;
-const MAX_HEALTH = 9;
-const BERRIES_PER_HEAL = 8;
-const ADVENTURE_LIVES = 3;
+// Adventure difficulty controls the complete survival economy. Speedrun keeps
+// one fixed ruleset so leaderboard times remain directly comparable.
+const START_HEALTH = 4;          // Normal and Speedrun
+const MAX_HEALTH = 5;            // absolute cap; the active cap can be lower
+const BERRIES_PER_HEAL = 12;     // Normal and Speedrun
+const ADVENTURE_LIVES = 3;       // Normal
+const ADVENTURE_DIFFICULTIES = ["easy", "normal", "hard"];
+const ADVENTURE_RULES = Object.freeze({
+  easy:   Object.freeze({ lives: -1, health: 5, berriesPerHeal: 8 }),
+  normal: Object.freeze({ lives: 3,  health: 4, berriesPerHeal: 12 }),
+  hard:   Object.freeze({ lives: 1,  health: 3, berriesPerHeal: 16 }),
+});
+const SPEEDRUN_RULES = Object.freeze({ lives: -1, health: 4, berriesPerHeal: 12 });
 
 // ── Palettes (one per level) ───────────────────────────────────────────────
 const PALS = [
@@ -682,7 +690,7 @@ const pauseIds = () => {
 const titleIds = () => {
   const ids = ["adventure", "speedrun"];
   if (runModePref === "adventure") {
-    ids.push("lives");
+    ids.push("difficulty");
     if (reachGet() > 0) ids.push("levelselect");
   } else {
     ids.push("ghost");
@@ -704,7 +712,6 @@ function titleCurrentId() {
 
 function startTitleRun() {
   S.score = { berries: 0, total: 0, deaths: 0, time: 0, freed: 0, pickups: 0, secretMemory: false, metNpcs: {} };
-  S.health = START_HEALTH;
   S.wispHinted = false; S.hint = null;
   S.bloomLessonDone = false;
   S.daily = false; S.dailyMods = null;
@@ -747,7 +754,7 @@ function activateTitleItem(id) {
   if (id === "start") startTitleRun();
   else if (id === "adventure") { setRunModePref("adventure"); SFX.talk(); }
   else if (id === "speedrun") { setRunModePref("speedrun"); SFX.talk(); }
-  else if (id === "lives") { toggleUnlimitedLives(); SFX.talk(); }
+  else if (id === "difficulty") { cycleAdventureDifficulty(1); SFX.talk(); }
   else if (id === "levelselect") { stepAdventureLevel(1); SFX.talk(); }
   else if (id === "ghost") { cycleGhostPref(1); SFX.talk(); }
   else if (id === "notes") { S.mode = "notes"; S.notesY = 0; SFX.talk(); }
@@ -760,7 +767,6 @@ function activateTitleItem(id) {
 // A fresh practice run at the chosen chamber — clearly not board-eligible
 function startPracticeRun(sel) {
   S.score = { berries: 0, total: 0, deaths: 0, time: 0, freed: 0, pickups: 0, secretMemory: false, metNpcs: {} };
-        S.health = START_HEALTH;
   S.wispHinted = false;
   S.bloomLessonDone = sel !== 0;
   S.daily = false; S.dailyMods = null;
@@ -795,7 +801,9 @@ function startDaily() {
   S.runMode = "speedrun";
   configureRunLives("speedrun", false);
   S.dailyMods = [];   // the trial needs no tricks — the climb is the whole test
-  S.health = dMod("petal") ? 1 : dMod("sparks2") ? 2 : START_HEALTH;
+  if (dMod("petal")) S.maxHealth = 1;
+  else if (dMod("sparks2")) S.maxHealth = 2;
+  S.health = S.maxHealth;
   S.rec = []; S.ghost = null; S.ghostPos = null;
   if (ghostPref === "leader" && GHOST_CACHE.daily)
     S.ghost = { frames: GHOST_CACHE.daily.frames, name: GHOST_CACHE.daily.name };
@@ -961,7 +969,7 @@ const PATCH_NOTES = [
     "· Adventure is the default. Speedrun and ghosts are separate choices.",
     "· Air-dash blooms now sit under your landing path instead of behind it.",
     "· The opening chamber teaches the air-dash on a safe, required gap.",
-    "· Checkpoints accept close passes, and Adventure can use unlimited lives or three lives.",
+    "· Adventure now has Easy, Normal, and Hard rules for health, lives, and berry healing.",
     "· Adventure level select appears after the first clear. Speedrun always starts at level one.",
     "· The Pale Root remains visible as locked New Game+ content until the main game is beaten.",
     "· Health, blooms, and dash readiness now share one HUD panel.",
@@ -1301,14 +1309,14 @@ const RUN_MODES = ["adventure", "speedrun"];
 const GHOST_PREFS = ["off", "personal", "leader"];
 let runModePref = "adventure";
 let ghostPref = "off";
-let unlimitedLivesPref = true;
+let adventureDifficultyPref = "normal";
 try {
   const savedMode = localStorage.getItem("sd_run_mode");
   const savedGhost = localStorage.getItem("sd_ghost_pref");
-  const savedLives = localStorage.getItem("sd_adventure_unlimited_lives");
+  const savedDifficulty = localStorage.getItem("sd_adventure_difficulty");
   if (RUN_MODES.includes(savedMode)) runModePref = savedMode;
   if (GHOST_PREFS.includes(savedGhost)) ghostPref = savedGhost;
-  if (savedLives === "0") unlimitedLivesPref = false;
+  if (ADVENTURE_DIFFICULTIES.includes(savedDifficulty)) adventureDifficultyPref = savedDifficulty;
 } catch (e) {}
 
 function setRunModePref(mode) {
@@ -1324,15 +1332,23 @@ function cycleGhostPref(dir = 1) {
   return ghostPref;
 }
 
-function toggleUnlimitedLives() {
-  unlimitedLivesPref = !unlimitedLivesPref;
-  try { localStorage.setItem("sd_adventure_unlimited_lives", unlimitedLivesPref ? "1" : "0"); } catch (e) {}
-  return unlimitedLivesPref;
+function cycleAdventureDifficulty(dir = 1) {
+  const i = ADVENTURE_DIFFICULTIES.indexOf(adventureDifficultyPref);
+  adventureDifficultyPref = ADVENTURE_DIFFICULTIES[
+    (i + (dir < 0 ? -1 : 1) + ADVENTURE_DIFFICULTIES.length) % ADVENTURE_DIFFICULTIES.length
+  ];
+  try { localStorage.setItem("sd_adventure_difficulty", adventureDifficultyPref); } catch (e) {}
+  return adventureDifficultyPref;
 }
 
 function configureRunLives(mode, practice) {
-  S.unlimitedLives = mode !== "adventure" || practice || unlimitedLivesPref;
-  S.lives = S.unlimitedLives ? -1 : ADVENTURE_LIVES;
+  const rules = mode === "adventure" ? ADVENTURE_RULES[adventureDifficultyPref] : SPEEDRUN_RULES;
+  S.difficulty = mode === "adventure" ? adventureDifficultyPref : "speedrun";
+  S.maxHealth = rules.health;
+  S.berriesPerHeal = rules.berriesPerHeal;
+  S.health = S.maxHealth;
+  S.unlimitedLives = practice || rules.lives < 0;
+  S.lives = S.unlimitedLives ? -1 : rules.lives;
   S.outOfLives = false;
 }
 
@@ -2059,7 +2075,8 @@ const S = {
   rec: [], ghost: null, ghostPos: null, pendingGhost: null, split: null,
   fallen: [], stoppedHint: false,
   jumpHeldForCut: false,
-  health: START_HEALTH, unlimitedLives: true, lives: -1, outOfLives: false,
+  health: START_HEALTH, maxHealth: START_HEALTH, berriesPerHeal: BERRIES_PER_HEAL,
+  difficulty: "normal", unlimitedLives: false, lives: ADVENTURE_LIVES, outOfLives: false,
   score: { berries: 0, total: 0, deaths: 0, time: 0, freed: 0, pickups: 0, secretMemory: false, metNpcs: {} },
 };
 const TOTAL_NPCS = LEVELS.reduce((a, L) => a + (L.npcs ? L.npcs.length : 0), 0);
@@ -3044,7 +3061,7 @@ function chamberClear() {
   }
   S.score.berries += S.berries;
   S.score.total += S.berriesTotal;
-  if (S.health < MAX_HEALTH) S.health++;
+  if (S.health < S.maxHealth) S.health++;
   SFX.clear();
 }
 
@@ -3885,7 +3902,7 @@ function startReunion() {
 }
 
 function gainHealth(msg) {
-  if (S.health < MAX_HEALTH) {
+  if (S.health < S.maxHealth) {
     S.health++;
     S.hint = { text: msg || "Recovered 1 health.", t: 2.5 };
   }
@@ -3940,7 +3957,7 @@ function respawn() {
   p.canDash = true; p.spores = MAX_SPORES; p.chainN = 0; p.grounded = false;
   p.grip = GRIP_TIME; p.wallCoyote = 0; p.wjLock = 0; p.gliding = false; p.sliding = false;
   p.coyote = 0; p.jumpBuf = 0; p.dashBuf = 0;
-  S.health = START_HEALTH;
+  S.health = S.maxHealth;
   p.invuln = 0.5;
   S.blooms = [];
   spawnEnemies();
@@ -4079,8 +4096,8 @@ function tick(dt) {
     } else if (cur === "practice") {
       if (right) { stepPrac(1, true); SFX.talk(); }
       if (left) { stepPrac(-1, true); SFX.talk(); }
-    } else if (cur === "lives" && (right || left)) {
-      toggleUnlimitedLives(); SFX.talk();
+    } else if (cur === "difficulty" && (right || left)) {
+      cycleAdventureDifficulty(right ? 1 : -1); SFX.talk();
     } else if (cur === "levelselect") {
       if (right) { stepAdventureLevel(1); SFX.talk(); }
       if (left) { stepAdventureLevel(-1); SFX.talk(); }
@@ -4296,7 +4313,6 @@ function tick(dt) {
         toggleTouchHand();
       } else if (cur === "newgame") {
         S.score = { berries: 0, total: 0, deaths: 0, time: 0, freed: 0, pickups: 0, secretMemory: false, metNpcs: {} };
-  S.health = START_HEALTH;
         S.wispHinted = false; S.hint = null;
         S.bloomLessonDone = false;
         S.daily = false; S.dailyMods = null;
@@ -4484,8 +4500,8 @@ function tick(dt) {
       ber.taken = true;
       S.berries++;
       S.score.pickups++;
-      if (S.score.pickups % BERRIES_PER_HEAL === 0)
-        gainHealth("Eight berries restore 1 health.");
+      if (S.score.pickups % S.berriesPerHeal === 0)
+        gainHealth(S.berriesPerHeal + " berries restore 1 health.");
       SFX.berry();
       for (let i = 0; i < 7; i++) {
         const a = Math.random() * Math.PI * 2;
@@ -6262,7 +6278,7 @@ function drawHUD() {
   g.font = "bold 7px monospace";
   g.textAlign = "left";
   g.fillText("HEALTH " + (DEV && S.devInf ? "∞" : S.health), 8, 14);
-  for (let i = 0; i < MAX_HEALTH; i++) {
+  for (let i = 0; i < S.maxHealth; i++) {
     const on = DEV && S.devInf || i < S.health;
     g.fillStyle = on ? (S.health > 1 ? C.capHi : C.berryHi) : "#3a3540";
     g.fillRect(52 + i * 6, 9, 4, 4);
@@ -6512,9 +6528,14 @@ function drawTitle() {
   g.font = "7px monospace";
   g.fillStyle = C.ui;
   if (runModePref === "adventure") {
+    const rules = ADVENTURE_RULES[adventureDifficultyPref];
     g.fillText("Explore and talk without a timer.", TCX, 55);
     g.fillStyle = C.uiDim;
-    g.fillText(unlimitedLivesPref ? "Lives are unlimited. You can change this below." : "You have three lives. You can change this below.", TCX, 65);
+    g.fillText(adventureDifficultyPref === "easy"
+      ? "Easy: unlimited lives, " + rules.health + " health."
+      : adventureDifficultyPref === "normal"
+        ? "Normal: " + rules.lives + " lives, " + rules.health + " health."
+        : "Hard: " + rules.lives + " life, " + rules.health + " health.", TCX, 65);
   } else {
     g.fillText("The clock runs, and you can submit your time.", TCX, 55);
     g.fillStyle = C.uiDim;
@@ -6552,7 +6573,7 @@ function drawTitle() {
     const selected = id === titleSelected;
     const label = id === "adventure" ? (runModePref === "adventure" ? "● ADVENTURE" : "○ ADVENTURE")
       : id === "speedrun" ? (runModePref === "speedrun" ? "● SPEEDRUN" : "○ SPEEDRUN")
-      : id === "lives" ? "LIVES: " + (unlimitedLivesPref ? "UNLIMITED" : ADVENTURE_LIVES)
+      : id === "difficulty" ? "DIFFICULTY: " + adventureDifficultyPref.toUpperCase()
       : id === "levelselect" ? "LEVEL: " + adventureLevelName()
       : id === "ghost" ? "GHOST: " + (ghostPref === "personal" ? "PERSONAL BEST" : ghostPref === "leader" ? "LEADERBOARD" : "OFF")
       : id === "start" ? (DEV ? "START TEST" : "START " + runModePref.toUpperCase())
@@ -6570,7 +6591,7 @@ function drawTitle() {
     }
     g.globalAlpha = 1;
     g.fillStyle = selected ? C.goalOpen : C.uiDim;
-    g.font = (id === "devlevel" || id === "practice" || id === "ghost" || id === "lives" || id === "levelselect") ? "bold 6px monospace" : "bold 7px monospace";
+    g.font = (id === "devlevel" || id === "practice" || id === "ghost" || id === "difficulty" || id === "levelselect") ? "bold 6px monospace" : "bold 7px monospace";
     g.textAlign = "left";
     g.fillText((selected ? "› " : "  ") + label, menuX + 5, y + 8);
     TITLE_HITS.push({ id, index: i, x: menuX, y, w: menuW, h: 11 });
@@ -6915,6 +6936,11 @@ function applyDevFixture() {
     params = new URLSearchParams(location.search);
     fixture = params.get("fixture") || "";
   } catch (e) {}
+  const requestedDifficulty = params && params.get("difficulty");
+  if (ADVENTURE_DIFFICULTIES.includes(requestedDifficulty)) {
+    adventureDifficultyPref = requestedDifficulty;
+    configureRunLives("adventure", false);
+  }
   if (params && params.get("touch") === "1") {
     TOUCH.active = true;
     document.getElementById("touch").hidden = false;
