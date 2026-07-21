@@ -4,7 +4,7 @@ A fungal platformer built in a single HTML file.
 
 The Mother Bloom has gone quiet. Dash in mid-air and a mushroom platform grows under your landing path. Jump from it and dash again before it wilts.
 
-The main Adventure crosses 11 chambers, introduces wall-cling and spore-glide, and ends in a three-stage run of the Chorus, the Swallow, and the Unbloomed. Two hidden rooms, five persistent keepsakes, the Pale Root, and The Reach sit outside that route.
+The main Adventure crosses 11 chambers, introduces wall-cling and spore-glide, and ends in a three-stage run of the Chorus, the Swallow, and the Unbloomed. Two hidden rooms, four persistent keepsakes, the Pale Root, and The Reach sit outside that route.
 
 **Play:** https://thoughtcrimegpt.github.io/sporeling-dash/
 
@@ -26,13 +26,13 @@ Deaths return you to the latest checkpoint and restore the current difficulty's 
 
 Timed Run always starts in The Hollow with 4 health. Its original sparse checkpoint layout stays intact, and the clock keeps running through deaths. Ghosts are off by default; players can opt into a personal-best or leaderboard ghost.
 
-Every completed run qualifies for the Any% board. Collecting every berry, meeting every resident, finding the secret memory, and owning all five keepsakes also qualifies for the 100% board.
+Every completed run qualifies for the Any% board. Collecting every berry, meeting every resident, finding the secret memory, and owning all four keepsakes also qualifies for the optional 100% board.
 
 ### New Game+
 
-Finishing the main game unlocks The Pale Root: one long climb, two checkpoints, and its own leaderboard. Clearing the Pale Root unlocks The Reach, a separate five-part trial built around bloom chains, enemy refunds, wall work, and speed. It has exactly two checkpoints.
+Finishing the main game unlocks The Pale Root: one long climb, two checkpoints, and its own leaderboard. Clearing the Pale Root unlocks The Reach, a separate five-part trial built around bloom chains, enemy refunds, wall transfers, and speed. It has exactly two checkpoints, and its smooth outer shell cannot be used as a climbable shortcut.
 
-The leaderboard names each route directly: Any%, 100%, Pale Root, Reach Any%, and Reach Full. Reach Full requires the summit keepsake during that attempt. Each Reach board keeps its own champion ghost and personal-best ghost.
+The leaderboard names each route directly: Any%, 100%, Pale Root, and The Reach. The Reach has no collectibles or completion variants: reaching its crown is the whole trial, with one champion ghost and one personal-best ghost.
 
 ## Chambers
 
@@ -52,7 +52,7 @@ The Undrawn Map is hidden above the Spire. A second hidden room sits beyond the 
 
 ## Keepsakes
 
-Five keepsakes persist on the device that found them. They are placed on the Rotroot tall-wall route, in the Skitterway alcove, beside a Swallow molar, inside the Bloomheart secret room, and at the Reach summit. The HUD shows the current collection total.
+Four keepsakes persist on the device that found them. They are placed on the Rotroot tall-wall route, in the Skitterway alcove, beside a Swallow molar, and inside the Bloomheart secret room. They are optional extras for the main 100% board; The Reach has no collectibles and hides the collectible HUD entirely.
 
 ## Controls
 

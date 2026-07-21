@@ -124,7 +124,7 @@ globalThis.__SD_TEST__ = {
   keys, just, TOUCH, touchPrev, padPrev,
   canvas, handleFocusLoss, handleFocusReturn, loadLevel, pauseIds, titleIds, readInput,
   activateTitleItem, activatePauseItem, activateWinItem, startTitleRun, startDaily, startReach, setRunModePref, cycleGhostPref, competitiveRun, applyDevFixture,
-  dailyUnlocked, rootCleared, reachCleared, stepAdventureLevel, adventureLevelName, cycleAdventureDifficulty, cycleReachCategory, configureRunRules,
+  dailyUnlocked, rootCleared, reachCleared, stepAdventureLevel, adventureLevelName, cycleAdventureDifficulty, configureRunRules,
   queueNotice, resetNotices, updateNoticeQueue, noticeBlocked, rootWarningActive, openingLessonNeeded,
   advanceTalk, talkHitAt, talkLayout, titleControlLines,
   chamberClear, submitScore, mainFullEligible, checkpointEligible, checkpointPathClear, activateCheckpoint, enterSecret, exitSecret,
@@ -133,7 +133,7 @@ globalThis.__SD_TEST__ = {
   bloomPlacement, spawnBloom, openingLessonLines,
   bossStartAttack, bossLanded, nextRootTier, cameraTargetX, rootCameraCenterY,
   draw, drawBossWarnings, frame, g, moveAxis, resize, respawn,
-  restartCurrentChamber, solidBlocked, spawnShoggoth, startPracticeRun, tick,
+  restartCurrentChamber, solidBlocked, spawnShoggoth, startPracticeRun, tick, touchingWallDir,
   devMetricsSnapshot, recordDevAttempt, toggleReducedMotion, toggleTouchHand, syncTouchVisibility, touchPulse,
   updateBarrow, updateBoss, updateChorus, updateShoggoth,
   setTestMap(rows) {
@@ -154,7 +154,6 @@ globalThis.__SD_TEST__ = {
   get runModePref() { return runModePref; },
   get ghostPref() { return ghostPref; },
   get adventureDifficultyPref() { return adventureDifficultyPref; },
-  get reachCategoryPref() { return reachCategoryPref; },
   get DAILY_PANEL() { return DAILY_PANEL; },
   get TITLE_HITS() { return TITLE_HITS; },
   get PAUSE_HITS() { return PAUSE_HITS; },
@@ -707,9 +706,10 @@ test("leaderboard tabs name every category without abbreviations", () => {
   api.g.operations.length = 0;
   api.draw();
   const labels = api.g.operations.filter(op => op.type === "fillText").map(op => op.value);
-  for (const label of ["ANY%", "100%", "PALE ROOT", "REACH ANY%", "REACH FULL"])
+  for (const label of ["ANY%", "100%", "PALE ROOT", "THE REACH"])
     assert.ok(labels.includes(label), `missing ${label} leaderboard tab`);
   assert.equal(labels.includes("R FULL"), false);
+  assert.equal(labels.includes("REACH FULL"), false);
 });
 
 test("Adventure level select unlocks after a clear and never appears in Timed Run", () => {
@@ -860,7 +860,6 @@ test("The Reach stays outside the eleven-chamber route and unlocks only after th
   assert.equal(locked.storage.get("sd_root_cleared"), "1");
   assert.equal(locked.api.titleIds().includes("reach"), true);
 
-  locked.api.S.reachCategory = "reach";
   locked.api.startReach();
   assert.equal(locked.api.S.mode, "play");
   assert.equal(locked.api.S.reachTrial, true);
@@ -871,21 +870,11 @@ test("The Reach stays outside the eleven-chamber route and unlocks only after th
   locked.api.tick(2.1);
   assert.equal(locked.storage.get("sd_reach_done"), "1");
   assert.ok(JSON.parse(locked.storage.get("sd_reach_pb")).frames);
-
-  locked.api.cycleReachCategory(1);
-  assert.equal(locked.storage.get("sd_reach_category"), "reach_full");
-  locked.api.startReach();
-  locked.api.S.score.reachKeepsake = true;
-  locked.api.S.score.time = 12;
-  locked.api.S.rec = [[locked.api.REACH_INDEX, 50, 60, 1]];
-  locked.api.chamberClear();
-  locked.api.tick(2.1);
-  assert.ok(JSON.parse(locked.storage.get("sd_reach_full_pb")).frames);
-  assert.notEqual(locked.storage.get("sd_reach_pb"), locked.storage.get("sd_reach_full_pb"),
-    "Reach Any% and Full Reach keep different personal-best records");
+  assert.equal(locked.api.titleIds().includes("reachcategory"), false);
+  assert.equal(locked.storage.has("sd_reach_full_pb"), false);
 });
 
-test("five persistent keepsakes gate completion and the Reach keepsake remains attempt-specific", () => {
+test("four persistent keepsakes gate optional main completion and The Reach has none", () => {
   const { api, storage } = bootGame();
   const placements = api.LEVELS.filter(level => level.keepsakeId).map(level => [level.name, level.keepsakeId]);
   assert.deepEqual(JSON.parse(JSON.stringify(placements)), [
@@ -893,9 +882,8 @@ test("five persistent keepsakes gate completion and the Reach keepsake remains a
     ["THE SKITTERWAY", "skitter-alcove"],
     ["THE SWALLOW", "swallow-molar"],
     ["THE PRESSED GARDEN", "bloomheart-margin"],
-    ["THE REACH", "reach-summit"],
   ]);
-  assert.equal(new Set(api.KEEPSAKE_IDS).size, 5);
+  assert.equal(new Set(api.KEEPSAKE_IDS).size, 4);
 
   api.loadLevel(api.LEVELS.findIndex(level => level.name === "ROTROOT CHASM"));
   const item = api.S.keepsakeList[0];
@@ -907,16 +895,34 @@ test("five persistent keepsakes gate completion and the Reach keepsake remains a
   api.loadLevel(api.LEVELS.findIndex(level => level.name === "ROTROOT CHASM"));
   assert.equal(api.S.keepsakeList.length, 0, "ordinary keepsakes stay collected");
   api.loadLevel(api.REACH_INDEX);
-  assert.equal(api.S.keepsakeList.length, 1, "the summit keepsake reappears for Full Reach attempts");
+  assert.equal(api.S.keepsakeList.length, 0, "The Reach has no collectible");
 
   api.S.daily = false; api.S.reachTrial = false;
   api.S.score.berries = 1; api.S.score.total = 1; api.S.score.secretMemory = true;
   api.S.score.metNpcs = {};
   for (const level of api.LEVELS) for (const npc of level.npcs || []) api.S.score.metNpcs[npc.name] = true;
-  api.S.keepsakes = api.KEEPSAKE_IDS.slice(0, 4);
-  assert.equal(api.mainFullEligible(), false, "four keepsakes cannot enter the main Full board");
+  api.S.keepsakes = api.KEEPSAKE_IDS.slice(0, 3);
+  assert.equal(api.mainFullEligible(), false, "three keepsakes cannot enter the main Full board");
   api.S.keepsakes = [...api.KEEPSAKE_IDS];
-  assert.equal(api.mainFullEligible(), true, "all five keepsakes complete the main Full gate");
+  assert.equal(api.mainFullEligible(), true, "all four keepsakes complete the optional main Full gate");
+});
+
+test("The Reach hides collectible HUD state and rejects outer-wall clinging", () => {
+  const { api } = bootGame({ initialStorage: { sd_root_cleared: "1" } });
+  api.startReach();
+  api.g.operations.length = 0;
+  api.draw();
+  const labels = api.g.operations.filter(op => op.type === "fillText").map(op => op.value);
+  assert.equal(labels.some(label => /KEEPSAKES|0\/0/.test(label)), false);
+
+  const p = api.S.player;
+  p.y = 120 * api.TILE;
+  p.x = api.TILE;
+  assert.equal(api.touchingWallDir(p), 0, "the left outer shell cannot be clung to");
+  p.x = 63 * api.TILE - p.w;
+  assert.equal(api.touchingWallDir(p), 0, "the right outer shell cannot be clung to");
+  p.x = 55 * api.TILE - p.w;
+  assert.notEqual(api.touchingWallDir(p), 0, "interior Reach walls remain climbable");
 });
 
 test("both secret rooms return to the exact host route they came from", () => {
@@ -952,7 +958,7 @@ test("The Reach has five fuel-led segments and exactly two earned checkpoints", 
   assert.equal(reach.map[0].length, 64);
   const cells = reach.map.join("");
   assert.equal((cells.match(/C/g) || []).length, 2);
-  assert.equal((cells.match(/K/g) || []).length, 1);
+  assert.equal((cells.match(/K/g) || []).length, 0, "The Reach has no collectible");
   assert.equal((cells.match(/G/g) || []).length, 1);
   const checkpoints = [];
   reach.map.forEach((row, r) => { for (let c = 0; c < row.length; c++) if (row[c] === "C") checkpoints.push([c, r]); });
@@ -1487,9 +1493,9 @@ test("local browser fixtures expose visual states without creating a production 
   assert.equal(chorusNotice.api.S.levelIdx, chorusIndex);
   assert.ok(chorusNotice.api.S.hint, "a level-specific instruction is active after its title");
 
-  const reachBoard = bootGame({ search: "?fixture=board&tab=reach_full" });
+  const reachBoard = bootGame({ search: "?fixture=board&tab=reach" });
   assert.equal(reachBoard.api.S.mode, "board");
-  assert.equal(reachBoard.api.S.boardTab, "reach_full");
+  assert.equal(reachBoard.api.S.boardTab, "reach");
 
   const bloom = bootGame({ search: "?fixture=bloom" });
   assert.equal(bloom.api.S.blooms.length, 1);

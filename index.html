@@ -657,7 +657,7 @@ const reachCleared = () => {
 };
 
 const KEEPSAKE_IDS = Object.freeze([
-  "rotroot-wall", "skitter-alcove", "swallow-molar", "bloomheart-margin", "reach-summit",
+  "rotroot-wall", "skitter-alcove", "swallow-molar", "bloomheart-margin",
 ]);
 const TOTAL_KEEPSAKES = KEEPSAKE_IDS.length;
 function loadKeepsakes() {
@@ -673,7 +673,7 @@ function hasKeepsake(id) { return S.keepsakes.includes(id); }
 function freshScore() {
   return {
     berries: 0, total: 0, deaths: 0, time: 0, freed: 0, pickups: 0,
-    secretMemory: false, reachKeepsake: false, lbDone: false, metNpcs: {},
+    secretMemory: false, lbDone: false, metNpcs: {},
   };
 }
 
@@ -727,7 +727,7 @@ const titleIds = () => {
   if (DEV) ids.push("devhealth");
   if (lbOn()) ids.push("board");
   ids.push("daily");
-  if (rootCleared()) ids.push("reachcategory", "reach");
+  if (rootCleared()) ids.push("reach");
   ids.push("notes");
   return ids;
 };
@@ -745,6 +745,8 @@ function startTitleRun() {
   S.daily = false; S.dailyMods = null; S.reachTrial = false;
   S.practice = false;
   S.runMode = runModePref;
+  if (DEV && S.devLevel === PALE_ROOT_INDEX) { S.daily = true; S.runMode = "speedrun"; }
+  if (DEV && S.devLevel === REACH_INDEX) { S.reachTrial = true; S.runMode = "speedrun"; }
   configureRunRules(S.runMode);
   S.rec = [];
   S.ghost = null; S.ghostPos = null;
@@ -791,7 +793,6 @@ function activateTitleItem(id) {
   else if (id === "notes") { S.mode = "notes"; S.notesY = 0; SFX.talk(); }
   else if (id === "board" && lbOn()) { S.boardFrom = "title"; S.mode = "board"; SFX.talk(); }
   else if (id === "daily") { if (dailyUnlocked()) startDaily(); else SFX.talk(); }
-  else if (id === "reachcategory") { cycleReachCategory(1); SFX.talk(); }
   else if (id === "reach") { startReach(); }
   else if (id === "devlevel") { S.devLevel = (S.devLevel + 1) % LEVELS.length; SFX.talk(); }
   else if (id === "devhealth") { S.devInf = !S.devInf; SFX.talk(); }
@@ -887,24 +888,23 @@ function startReach() {
   S.practice = false; S.runMode = "speedrun";
   configureRunRules("speedrun");
   S.rec = []; S.ghost = null; S.ghostPos = null;
-  const slot = S.reachCategory;
+  const slot = "reach";
   if (ghostPref === "leader" && S.pendingGhost && S.pendingGhost.category === slot) {
     S.ghost = S.pendingGhost; S.pendingGhost = null;
   } else if (ghostPref === "leader" && GHOST_CACHE[slot])
     S.ghost = { frames: GHOST_CACHE[slot].frames, name: GHOST_CACHE[slot].name };
   else if (ghostPref === "personal") {
     try {
-      const key = slot === "reach_full" ? "sd_reach_full_pb" : "sd_reach_pb";
-      const pb = JSON.parse(localStorage.getItem(key) || "null");
+      const pb = JSON.parse(localStorage.getItem("sd_reach_pb") || "null");
       if (pb && pb.frames) S.ghost = { frames: pb.frames, name: "your echo" };
     } catch (e) {}
   }
   loadLevel(REACH_INDEX);
   S.mode = "play";
-  queueNotice(slot === "reach_full" ? "Reach Full: take the keepsake before the crown." : "Reach Any: get to the crown.", 3.2, NOTICE_PRIORITY.RUN);
+  queueNotice("Reach the crown. Nothing to collect. The outer walls are slick.", 3.6, NOTICE_PRIORITY.RUN);
 }
-const LB_CACHE = { any: null, full: null, daily: null, reach: null, reach_full: null };
-const GHOST_CACHE = { any: null, full: null, daily: null, reach: null, reach_full: null };
+const LB_CACHE = { any: null, full: null, daily: null, reach: null };
+const GHOST_CACHE = { any: null, full: null, daily: null, reach: null };
 
 function prefetchLeader(slot, list) {
   const top = list && list[0];
@@ -1056,8 +1056,13 @@ const PATCH_NOTES_SOURCE_ARCHIVE = [
   ]},
 ];
 const PATCH_NOTES = [
+  { v: "V4.5.3  One Reach", d: "2026-07-21 DEV", lines: [
+    "· The Reach has no collectibles and only one leaderboard: get to the crown.",
+    "· The four keepsakes stay in the main game and its hidden rooms for optional 100% runs.",
+    "· The Reach's outer walls are now slick, closing the straight wall-climb shortcut.",
+  ]},
   { v: "V4.5.2  Clear test and board labels", d: "2026-07-20 DEV", lines: [
-    "· Leaderboard tabs now say Any%, 100%, Pale Root, Reach Any%, and Reach Full.",
+    "· Leaderboard tabs now use complete route names instead of abbreviations.",
     "· Local test mode can open every chamber, secret room, and standalone trial.",
     "· The damage override is labeled Test Damage and remains local-only.",
   ]},
@@ -1071,8 +1076,8 @@ const PATCH_NOTES = [
   { v: "V4.5  The Reach", d: "2026-07-20 DEV", lines: [
     "· Clearing the Pale Root now unlocks The Reach, a standalone five-part trial.",
     "· The Reach has two checkpoints and uses enemies to restore spent blooms.",
-    "· Reach Any% and Full Reach have separate boards, champion ghosts, and personal-best ghosts.",
-    "· Five keepsakes now persist across runs and are required for the main 100% board.",
+    "· The Reach has its own board, champion ghost, and personal-best ghost.",
+    "· Four keepsakes now persist across runs and are required for the main 100% board.",
     "· A second secret room waits beyond the Bloomheart's right-wall skip.",
     "· The original eleven-chamber Adventure route and level order are unchanged.",
   ]},
@@ -1205,7 +1210,6 @@ function lbRefresh() {
   lbFetch("full").then(d => { if (d) { LB_CACHE.full = d; prefetchLeader("full", d); } });
   lbFetch("root").then(d => { if (d) { LB_CACHE.daily = d; prefetchLeader("daily", d); } });
   lbFetch("reach").then(d => { if (d) { LB_CACHE.reach = d; prefetchLeader("reach", d); } });
-  lbFetch("reach_full").then(d => { if (d) { LB_CACHE.reach_full = d; prefetchLeader("reach_full", d); } });
   fallenFetch();
 }
 
@@ -1297,14 +1301,12 @@ function buildShareCard(name, cat, ms, rank) {
   c2.font = "bold 34px monospace";
   c2.fillText("SPORELING DASH", 320, 50);
   const isRoot = cat === "root" || cat.indexOf("daily-") === 0;
-  const isReachFull = cat === "reach_full";
-  const isReach = cat === "reach" || isReachFull;
-  c2.fillStyle = isRoot ? "#f0c878" : (cat === "full" || isReachFull) ? "#f098b8" : "#90e8b0";
+  const isReach = cat === "reach";
+  c2.fillStyle = isRoot ? "#f0c878" : cat === "full" ? "#f098b8" : "#90e8b0";
   c2.font = "bold 18px monospace";
   c2.fillText(isRoot ? "THE PALE ROOT"
-    : isReachFull ? "THE REACH · FULL"
-      : isReach ? "THE REACH · ANY%"
-        : cat === "full" ? "★ FULL BLOOM 100% ★" : "ANY% CLEAR", 320, 80);
+    : isReach ? "THE REACH"
+      : cat === "full" ? "★ FULL BLOOM 100% ★" : "ANY% CLEAR", 320, 80);
   c2.save();
   c2.translate(320 - 36, 100);
   c2.scale(6, 6);
@@ -1391,20 +1393,14 @@ function submitScore() {
   const gameUrl = "https://thoughtcrimegpt.github.io/sporeling-dash/";
 
   if (S.reachTrial) {
-    const cat = S.reachCategory;
-    if (cat === "reach_full" && !S.score.reachKeepsake) {
-      S.score.lbDone = false;
-      S.lbMsg = "Full Reach needs the summit keepsake. Start another attempt.";
-      return;
-    }
+    const cat = "reach";
     lbPost(name, cat, ms, ghost).then(res => {
-      S.lbMsg = res.ok ? "Your time is on the " + (cat === "reach_full" ? "Full Reach" : "Reach") + " board." : "That didn't submit. Try again later.";
+      S.lbMsg = res.ok ? "Your time is on The Reach board." : "That didn't submit. Try again later.";
       if (!res.ok) { S.score.lbDone = false; return; }
       lbRefresh();
       lbRank(cat, ms).then(rank => {
         const link = res.id ? gameUrl + "?race=" + res.id : gameUrl;
-        const label = cat === "reach_full" ? "THE REACH full" : "THE REACH any%";
-        const tweet = fmtMs(ms) + ". " + (rank ? "#" + rank + " " : "") + "on " + label + ". Race my ghost: " + link;
+        const tweet = fmtMs(ms) + ". " + (rank ? "#" + rank + " " : "") + "on THE REACH. Race my ghost: " + link;
         showShare(buildShareCard(name, cat, ms, rank), tweet);
       });
     });
@@ -1452,8 +1448,6 @@ function activateWinItem(id) {
   }
   if (id === "submit") {
     if (!lbOn()) S.lbMsg = "Leaderboard offline";
-    else if (S.reachTrial && S.reachCategory === "reach_full" && !S.score.reachKeepsake)
-      S.lbMsg = "Full Reach needs the summit keepsake.";
     else if (S.score.lbDone) S.lbMsg = "Already submitted";
     else if (!S.lbConfirm) S.lbConfirm = true;
     else { S.lbConfirm = false; submitScore(); }
@@ -1482,24 +1476,14 @@ const GHOST_PREFS = ["off", "personal", "leader"];
 let runModePref = "adventure";
 let ghostPref = "off";
 let adventureDifficultyPref = "normal";
-let reachCategoryPref = "reach";
 try {
   const savedMode = localStorage.getItem("sd_run_mode");
   const savedGhost = localStorage.getItem("sd_ghost_pref");
   const savedDifficulty = localStorage.getItem("sd_adventure_difficulty");
-  const savedReachCategory = localStorage.getItem("sd_reach_category");
   if (RUN_MODES.includes(savedMode)) runModePref = savedMode;
   if (GHOST_PREFS.includes(savedGhost)) ghostPref = savedGhost;
   if (ADVENTURE_DIFFICULTIES.includes(savedDifficulty)) adventureDifficultyPref = savedDifficulty;
-  if (["reach", "reach_full"].includes(savedReachCategory)) reachCategoryPref = savedReachCategory;
 } catch (e) {}
-
-function cycleReachCategory(dir = 1) {
-  reachCategoryPref = reachCategoryPref === "reach" ? "reach_full" : "reach";
-  S.reachCategory = reachCategoryPref;
-  try { localStorage.setItem("sd_reach_category", reachCategoryPref); } catch (e) {}
-  return reachCategoryPref;
-}
 
 function setRunModePref(mode) {
   runModePref = RUN_MODES.includes(mode) ? mode : "adventure";
@@ -2198,7 +2182,6 @@ const LEVELS = [
   },
   {
     name: "THE REACH", pal: 7, gauntlet: true, trial: "reach",
-    keepsakeId: "reach-summit", repeatKeepsake: true,
     movers: [
       { c0: 45, c1: 48, rA: 91, rB: 86, period: 1.75, phase: 0 },
       { c0: 27, c1: 30, rA: 87, rB: 92, period: 1.65, phase: 0.5 },
@@ -2246,10 +2229,10 @@ const LEVELS = [
       set(20, 45, "S"); set(16, 40, "S"); set(20, 35, "S");
       set(14, 31, "w"); set(23, 26, "f"); set(33, 22, "w"); set(43, 18, "f");
       rect(49, 13, 55, 13); rect(57, 8, 62, 10);
-      set(52, 12, "K"); set(59, 6, "G");
+      set(59, 6, "G");
     }),
     clearText: "You made the crown.",
-    unlockText: "Three blooms won't cross every gap. Dash through enemies to get one back.",
+    unlockText: "The outer walls are slick. Use the route and dash through enemies for blooms.",
   },
 ];
 
@@ -2352,7 +2335,7 @@ const S = {
   hint: null, hintQueue: [], wispHinted: false, bloomLessonDone: false,
   devLevel: 0, devInf: false, devAx: 0, devAy: 0,
   boardTab: "any", boardAx: 0, boardFrom: "title", notesY: 0,
-  daily: false, dailyMods: null, reachTrial: false, reachCategory: reachCategoryPref,
+  daily: false, dailyMods: null, reachTrial: false,
   practice: false, pracSel: 0, advStart: 0,
   rec: [], ghost: null, ghostPos: null, pendingGhost: null, split: null,
   fallen: [], stoppedHint: false,
@@ -2825,6 +2808,18 @@ function bakeTerrain() {
           STATIC_LIGHTS.push({ x: cx0 + 1, y: cy0 + 1, r: 16, a: 0.4, col: rgbs(PAL.accent), ga: 0.05, ph: r * 7 });
         }
       }
+
+      // The Reach's outer shell is smooth stone: solid, but deliberately
+      // different from the rough interior walls that the player can cling to.
+      if (S.levelIdx === REACH_INDEX && (tx === 0 || tx === COLS - 1)) {
+        const edgeX = tx === 0 ? px + TILE - 2 : px;
+        t.fillStyle = rockHi;
+        t.fillRect(edgeX, py, 2, TILE);
+        t.fillStyle = accent;
+        t.globalAlpha = 0.28;
+        t.fillRect(edgeX, py + ((ty * 5) % 11), 2, 3);
+        t.globalAlpha = 1;
+      }
     }
   }
 
@@ -2867,7 +2862,7 @@ function solidsNear(x, y, w, h) {
   for (let ty = y0; ty <= y1; ty++) {
     for (let tx = x0; tx <= x1; tx++) {
       if (isSolid(tileAt(tx, ty)))
-        out.push({ x: tx * TILE, y: ty * TILE, w: TILE, h: TILE });
+        out.push({ x: tx * TILE, y: ty * TILE, w: TILE, h: TILE, tx, ty });
     }
   }
   for (const b of S.blooms) {
@@ -3004,6 +2999,7 @@ function touchingWallDir(p) {
   const r = { x: p.x + p.w, y: p.y + 2, w: 1, h: p.h - 4 };
   for (const s of solidsNear(p.x - 2, p.y, p.w + 4, p.h)) {
     if (s.oneWay) continue;
+    if (S.levelIdx === REACH_INDEX && (s.tx <= 0 || s.tx >= COLS - 1)) continue;
     if (overlap(r, s)) return 1;
     if (overlap(l, s)) return -1;
   }
@@ -4450,7 +4446,7 @@ function tick(dt) {
   }
 
   if (S.mode === "board") {
-    const tabOrder = ["any", "full", "daily", "reach", "reach_full"];
+    const tabOrder = ["any", "full", "daily", "reach"];
     const ti = tabOrder.indexOf(S.boardTab);
     if (inp.ax > 0.5 && S.boardAx <= 0.5) { S.boardTab = tabOrder[(ti + 1) % tabOrder.length]; SFX.talk(); }
     if (inp.ax < -0.5 && S.boardAx >= -0.5) { S.boardTab = tabOrder[(ti + tabOrder.length - 1) % tabOrder.length]; SFX.talk(); }
@@ -4496,8 +4492,6 @@ function tick(dt) {
     } else if (cur === "ghost") {
       if (right) { cycleGhostPref(1); SFX.talk(); }
       if (left) { cycleGhostPref(-1); SFX.talk(); }
-    } else if (cur === "reachcategory" && (right || left)) {
-      cycleReachCategory(right ? 1 : -1); SFX.talk();
     }
     S.devAx = inp.ax;
     if (inp.startEdge) activateTitleItem(cur);
@@ -4636,13 +4630,9 @@ function tick(dt) {
           if (S.daily) localStorage.setItem("sd_root_cleared", "1");
           if (S.reachTrial) {
             localStorage.setItem("sd_reach_done", "1");
-            const eligible = S.reachCategory === "reach" || S.score.reachKeepsake;
-            if (eligible) {
-              const key = S.reachCategory === "reach_full" ? "sd_reach_full_pb" : "sd_reach_pb";
-              const pb = JSON.parse(localStorage.getItem(key) || "null");
-              if (!pb || S.score.time < pb.t)
-                localStorage.setItem(key, JSON.stringify({ t: S.score.time, frames: S.rec }));
-            }
+            const pb = JSON.parse(localStorage.getItem("sd_reach_pb") || "null");
+            if (!pb || S.score.time < pb.t)
+              localStorage.setItem("sd_reach_pb", JSON.stringify({ t: S.score.time, frames: S.rec }));
           }
         } catch (e) {}
         // the trial is one chamber — the top IS the finish line
@@ -4891,7 +4881,6 @@ function tick(dt) {
       S.keepsakes.push(keepsake.id);
       saveKeepsakes();
     }
-    if (keepsake.id === "reach-summit") S.score.reachKeepsake = true;
     SFX.check(); SFX.oneUp();
     queueNotice("Keepsake found. " + S.keepsakes.length + " / " + TOTAL_KEEPSAKES, 3.2, NOTICE_PRIORITY.STATUS);
     for (let i = 0; i < 16; i++) {
@@ -5143,9 +5132,7 @@ canvas.addEventListener("click", e => {
         ghostPref = "leader";
         try { localStorage.setItem("sd_ghost_pref", ghostPref); } catch (e) {}
         if (race.category === "root") startDaily();
-        else if (race.category === "reach" || race.category === "reach_full") {
-          reachCategoryPref = race.category; S.reachCategory = race.category;
-          try { localStorage.setItem("sd_reach_category", race.category); } catch (e) {}
+        else if (race.category === "reach") {
           if (rootCleared()) startReach(); else S.mode = "title";
         } else S.mode = "title";
         SFX.oneUp();
@@ -6787,21 +6774,24 @@ function drawHUD() {
   }
   g.fillStyle = p.canDash || p.dashing || p.grounded ? C.bloomHi : C.uiDim;
   g.fillText(p.canDash || p.dashing || p.grounded ? "DASH READY" : "DASH SPENT", 77, 27);
-  // Berries are a collectible, not survival state, so they remain separate.
-  g.fillStyle = "rgba(8,12,18,0.55)";
-  g.fillRect(W - 50, 4, 46, 12);
-  g.fillStyle = C.berry;
-  g.fillRect(W - 47, 7, 5, 5);
-  g.fillStyle = C.berryHi;
-  g.fillRect(W - 46, 8, 2, 2);
-  g.fillStyle = C.ui;
-  g.font = "8px monospace";
-  g.fillText(S.berries + "/" + S.berriesTotal, W - 38, 13);
-  g.fillStyle = "rgba(8,12,18,0.55)";
-  g.fillRect(W - 70, 18, 66, 11);
-  g.fillStyle = C.goalOpen;
-  g.font = "bold 6px monospace";
-  g.fillText("KEEPSAKES " + S.keepsakes.length + "/" + TOTAL_KEEPSAKES, W - 67, 26);
+  // The Reach has no collectible track. Its HUD is only movement and survival.
+  if (!S.reachTrial) {
+    // Berries are a collectible, not survival state, so they remain separate.
+    g.fillStyle = "rgba(8,12,18,0.55)";
+    g.fillRect(W - 50, 4, 46, 12);
+    g.fillStyle = C.berry;
+    g.fillRect(W - 47, 7, 5, 5);
+    g.fillStyle = C.berryHi;
+    g.fillRect(W - 46, 8, 2, 2);
+    g.fillStyle = C.ui;
+    g.font = "8px monospace";
+    g.fillText(S.berries + "/" + S.berriesTotal, W - 38, 13);
+    g.fillStyle = "rgba(8,12,18,0.55)";
+    g.fillRect(W - 70, 18, 66, 11);
+    g.fillStyle = C.goalOpen;
+    g.font = "bold 6px monospace";
+    g.fillText("KEEPSAKES " + S.keepsakes.length + "/" + TOTAL_KEEPSAKES, W - 67, 26);
+  }
 
   // Boss thorn pips
   if (S.boss && S.boss.state !== "defeated") {
@@ -7090,7 +7080,6 @@ function drawTitle() {
     const label = id === "difficulty" ? adventureDifficultyPref.toUpperCase()
       : id === "levelselect" ? "LEVEL: " + adventureLevelName()
       : id === "ghost" ? "GHOST: " + (ghostPref === "personal" ? "PERSONAL BEST" : ghostPref === "leader" ? "LEADERBOARD" : "OFF")
-      : id === "reachcategory" ? "REACH BOARD: " + (S.reachCategory === "reach_full" ? "FULL" : "ANY%")
       : id === "reach" ? "START THE REACH"
       : id === "start" ? "PLAY"
       : id === "devlevel" ? "TEST LEVEL: " + devLevelLabel()
@@ -7111,7 +7100,7 @@ function drawTitle() {
     }
     g.globalAlpha = 1;
     g.fillStyle = id === "start" ? (selected ? C.goalOpen : rgb(PALS[0].accent)) : selected ? C.goalOpen : C.uiDim;
-    g.font = id === "start" ? "bold 9px monospace" : id === "devlevel" ? "bold 5px monospace" : (id === "practice" || id === "ghost" || id === "difficulty" || id === "levelselect" || id === "reachcategory" ||
+    g.font = id === "start" ? "bold 9px monospace" : id === "devlevel" ? "bold 5px monospace" : (id === "practice" || id === "ghost" || id === "difficulty" || id === "levelselect" ||
       (id === "start" && runModePref === "speedrun")) ? "bold 6px monospace" : "bold 7px monospace";
     g.textAlign = id === "start" ? "center" : "left";
     g.fillText(id === "start" ? label : (selected ? "› " : "  ") + label,
@@ -7201,8 +7190,8 @@ function drawLbPanel(tall) {
   if (!lbOn()) return;
   // Win screen after a daily shows today's board; otherwise rotate the cycle
   const cycle = tall
-    ? (S.daily ? ["daily"] : S.reachTrial ? [S.reachCategory] : ["any", "full"])
-    : ["any", "full", "daily", "reach", "reach_full"];
+    ? (S.daily ? ["daily"] : S.reachTrial ? ["reach"] : ["any", "full"])
+    : ["any", "full", "daily", "reach"];
   const slot = cycle[((S.time / 6) | 0) % cycle.length];
   const list = LB_CACHE[slot];
   const px = tall ? W - 144 : W - 122;
@@ -7220,9 +7209,8 @@ function drawLbPanel(tall) {
   g.font = "bold 7px monospace";
   g.fillText(slot === "daily" ? "☾ THE PALE ROOT"
     : slot === "full" ? "FULL BLOOM 100%"
-      : slot === "reach" ? "THE REACH · ANY%"
-        : slot === "reach_full" ? "THE REACH · FULL"
-          : "FASTEST ANY%", px + 5, 14);
+      : slot === "reach" ? "THE REACH"
+        : "FASTEST ANY%", px + 5, 14);
   g.font = "7px monospace";
   if (!list || !list.length) {
     g.fillStyle = C.uiDim;
@@ -7326,7 +7314,7 @@ function drawBoard() {
 
   // tabs
   RACE_HITS = [];
-  const tabs = [["any", "ANY%", 30], ["full", "100%", 32], ["daily", "PALE ROOT", 58], ["reach", "REACH ANY%", 66], ["reach_full", "REACH FULL", 66]];
+  const tabs = [["any", "ANY%", 44], ["full", "100%", 44], ["daily", "PALE ROOT", 74], ["reach", "THE REACH", 74]];
   const tabGap = 4;
   const tabsWidth = tabs.reduce((sum, tab) => sum + tab[2], 0) + tabGap * (tabs.length - 1);
   let tx = (W - tabsWidth) / 2;
@@ -7396,15 +7384,14 @@ function drawWin() {
   g.fillText(S.reachTrial ? "You made the crown." : S.daily ? "The old root is awake." : "“You're here. I heard every landing.", 10, 42);
   if (!S.reachTrial && !S.daily) g.fillText("  And you brought the others home.”", 10, 53);
   g.fillStyle = C.uiDim;
-  g.fillText(S.reachTrial ? (S.reachCategory === "reach_full" ? "FULL REACH" : "ANY% REACH") : S.daily ? "THE PALE ROOT" : "THE MOTHER BLOOM", 10, 72);
+  g.fillText(S.reachTrial ? "THE REACH" : S.daily ? "THE PALE ROOT" : "THE MOTHER BLOOM", 10, 72);
 
   g.fillStyle = C.ui;
   g.font = "8px monospace";
   const m = Math.floor(S.score.time / 60), s = Math.floor(S.score.time % 60);
   const met = Object.keys(S.score.metNpcs).length;
   if (S.reachTrial) {
-    g.fillText("Summit keepsake  " + (S.score.reachKeepsake ? "FOUND" : "MISSED"), 10, 90);
-    g.fillText("Deaths            " + S.score.deaths, 10, 112);
+    g.fillText("Deaths    " + S.score.deaths, 10, 90);
   } else if (S.daily) {
     g.fillText("Deaths    " + S.score.deaths, 10, 90);
   } else {
@@ -7473,15 +7460,14 @@ function drawWin() {
     }
 
     if (TOUCH.active) {
-      const fullMissing = S.reachTrial && S.reachCategory === "reach_full" && !S.score.reachKeepsake;
       if (competitiveRun()) {
         const submit = { id: "submit", x: 6, y: 149, w: 164, h: 14 };
-        g.fillStyle = fullMissing ? "rgba(58,66,80,0.82)" : touchPressed("win", "submit") ? "rgba(240,168,136,0.42)" : "rgba(144,232,176,0.28)";
+        g.fillStyle = touchPressed("win", "submit") ? "rgba(240,168,136,0.42)" : "rgba(144,232,176,0.28)";
         g.fillRect(submit.x, submit.y, submit.w, submit.h);
-        g.fillStyle = fullMissing ? C.uiDim : C.goalOpen;
+        g.fillStyle = C.goalOpen;
         g.textAlign = "center";
-        g.fillText(fullMissing ? "SUMMIT KEEPSAKE REQUIRED" : S.score.lbDone ? "TIME SUBMITTED" : "SUBMIT TIME", submit.x + submit.w / 2, submit.y + 10);
-        if (!fullMissing) WIN_HITS.push(submit);
+        g.fillText(S.score.lbDone ? "TIME SUBMITTED" : "SUBMIT TIME", submit.x + submit.w / 2, submit.y + 10);
+        WIN_HITS.push(submit);
       }
       const title = { id: "title", x: 6, y: 165, w: 164, h: 13 };
       g.fillStyle = touchPressed("win", "title") ? "rgba(240,168,136,0.42)" : "rgba(58,66,80,0.9)";
@@ -7551,7 +7537,7 @@ function applyDevFixture() {
 
   if (fixture === "board") {
     const requestedTab = params.get("tab") || "any";
-    S.boardTab = ["any", "full", "daily", "reach", "reach_full"].includes(requestedTab) ? requestedTab : "any";
+    S.boardTab = ["any", "full", "daily", "reach"].includes(requestedTab) ? requestedTab : "any";
     S.boardFrom = "title";
     S.mode = "board";
     return true;
@@ -7559,7 +7545,6 @@ function applyDevFixture() {
 
   if (fixture === "reach") {
     S.daily = false; S.reachTrial = true; S.runMode = "speedrun";
-    S.reachCategory = params.get("category") === "full" ? "reach_full" : "reach";
     configureRunRules("speedrun");
     openLevel(REACH_INDEX);
     const section = clamp(parseInt(params.get("section") || "1", 10) || 1, 1, 5);
@@ -7592,8 +7577,6 @@ function applyDevFixture() {
     openLevel(params.get("trial") === "reach" ? REACH_INDEX : 0);
     S.mode = "win"; S.runMode = params.get("mode") === "adventure" ? "adventure" : "speedrun";
     S.reachTrial = params.get("trial") === "reach";
-    S.reachCategory = params.get("category") === "full" ? "reach_full" : "reach";
-    S.score.reachKeepsake = params.get("keepsake") === "1";
     return true;
   }
 
@@ -7727,10 +7710,7 @@ try {
         S.pendingGhost = { frames: race.frames, name: "the challenger", category: race.category };
         setRunModePref("speedrun");
         ghostPref = "leader";
-        if (race.category === "reach" || race.category === "reach_full") {
-          reachCategoryPref = race.category; S.reachCategory = race.category;
-          try { localStorage.setItem("sd_reach_category", race.category); } catch (e) {}
-        }
+        if (race.category === "reach" && rootCleared()) S.titleSel = titleIds().indexOf("reach");
         try { localStorage.setItem("sd_ghost_pref", ghostPref); } catch (e) {}
       }
     });
