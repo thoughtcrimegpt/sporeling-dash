@@ -969,7 +969,8 @@ const PATCH_NOTES = [
     "· Air-dash blooms now sit under your landing path instead of behind it.",
     "· The opening chamber teaches the air-dash on a safe, required gap.",
     "· Easy, Normal, and Hard now change health and berry healing without ending a run.",
-    "· Each chamber now has at most one checkpoint; the Pale Root alone keeps two.",
+    "· Checkpoints stay sparse. Easy and Normal add one retry in Skitterway and Swallow, plus a second in Marrow.",
+    "· Hard and Timed Run keep the original checkpoint layout.",
     "· Speedrun is now called Timed Run; Any% and 100% remain its leaderboard categories.",
     "· Level instructions, hints, dialogue, and boss warnings no longer draw over each other.",
     "· Adventure level select appears after the first clear. Timed Run always starts at level one.",
@@ -1771,6 +1772,7 @@ const LEVELS = [
       set(48, 8, "k"); set(58, 8, "k"); set(64, 8, "k");
       set(79, 8, "k"); set(85, 8, "k"); set(91, 8, "k");
     }),
+    mercyCheckpoints: [{ c: 45, r: 8 }],
     clearText: "The last skitter runs off. The Broodnest is just ahead.",
   },
   {
@@ -1837,6 +1839,7 @@ const LEVELS = [
       set(16, 13, "n"); set(21, 11, "n"); set(44, 13, "n");
       set(58, 11, "n"); set(80, 12, "n"); set(86, 14, "n");
     }),
+    mercyCheckpoints: [{ c: 72, r: 15 }],
     clearText: "The bridge stops moving. You're clear.",
     npcs: [{
       c: 50, r: 7, name: "JB", sprite: "jb",
@@ -1881,6 +1884,7 @@ const LEVELS = [
       rect(1, 64, 26, 67);                                    // the stomach floor
       set(23, 63, "G");
     }),
+    descentMercy: { triggerRow: 34, c: 8, r: 35 },
     clearText: "That's the last row of teeth. The floor is safe.",
     unlockText: "Hold Jump to glide. Steer between the teeth.",
     // Grel waited nine chambers for a pit worthy of him
@@ -2065,7 +2069,7 @@ let terrainCv = null, skyCv = null, farCv = null, midCv = null;
 const S = {
   mode: "title", runMode: "adventure", levelIdx: 0,
   berries: 0, berriesTotal: 0,
-  berryList: [], checkpoints: [], blooms: [], particles: [], trail: [], enemies: [],
+  berryList: [], checkpoints: [], descentMercy: null, blooms: [], particles: [], trail: [], enemies: [],
   npcs: [], talk: null,
   movers: [], boss: null, memoryObj: null, memoryBeat: 0, spireSave: null, secretCd: 0, eshots: [],
   endT: 0, endBeat: 0, reunion: null, creditsT: 0, glow: 0, endBoom: false,
@@ -2088,6 +2092,8 @@ const S = {
   difficulty: "normal",
   score: { berries: 0, total: 0, deaths: 0, time: 0, freed: 0, pickups: 0, secretMemory: false, metNpcs: {} },
 };
+const mercyRetriesEnabled = () =>
+  S.runMode === "adventure" && !S.daily && (S.difficulty === "easy" || S.difficulty === "normal");
 const TOTAL_NPCS = LEVELS.reduce((a, L) => a + (L.npcs ? L.npcs.length : 0), 0);
 const DEV_METRICS = { startedAt: 0, deaths: {}, attempts: [] };
 
@@ -2219,7 +2225,7 @@ function loadLevel(idx) {
   PAL = PALS[L.pal];
 
   S.berries = 0; S.berriesTotal = 0;
-  S.berryList = []; S.checkpoints = []; S.blooms = []; S.particles = []; S.trail = [];
+  S.berryList = []; S.checkpoints = []; S.descentMercy = null; S.blooms = []; S.particles = []; S.trail = [];
   S.goal = null; S.goalOpen = 0; S.winT = 0; S.deathT = 0;
   S.shakeT = 0; S.freezeT = 0; S.jumpHeldForCut = false;
   S.bannerT = 2.4;
@@ -2298,6 +2304,27 @@ function loadLevel(idx) {
       } else if (ch === "n") {
         ENEMY_SPAWNS.push({ t: "mine", x: px + 4, y: py + 4 });
       }
+    }
+  }
+
+  if (mercyRetriesEnabled()) {
+    for (const cp of L.mercyCheckpoints || []) {
+      S.checkpoints.push({
+        x: cp.c * TILE,
+        y: cp.r * TILE,
+        w: TILE,
+        h: TILE,
+        active: false,
+        mercy: true,
+      });
+    }
+    if (L.descentMercy) {
+      S.descentMercy = {
+        triggerY: L.descentMercy.triggerRow * TILE,
+        x: L.descentMercy.c * TILE + 3,
+        y: L.descentMercy.r * TILE + 4,
+        active: false,
+      };
     }
   }
 
@@ -2624,6 +2651,19 @@ function activateCheckpoint(cp) {
   for (let i = 0; i < 10; i++) {
     burst(cp.x + 8, cp.y + 4, (Math.random() - 0.5) * 50, -40 - Math.random() * 40, 0.55, rgb(PAL.accent), 2);
   }
+}
+
+function updateDescentMercy(p) {
+  const mercy = S.descentMercy;
+  if (!mercy || mercy.active || p.y + p.h < mercy.triggerY) return false;
+  mercy.active = true;
+  S.checkPt = { x: mercy.x, y: mercy.y };
+  queueNotice("If the shaft gets you, you'll restart here.", 2.4, NOTICE_PRIORITY.STATUS);
+  SFX.check();
+  for (let i = 0; i < 8; i++) {
+    burst(p.x + p.w / 2, p.y + p.h / 2, (Math.random() - 0.5) * 45, -20 - Math.random() * 30, 0.45, rgb(PAL.accent), 2);
+  }
+  return true;
 }
 
 function moveAxis(p, dx, dy) {
@@ -4581,6 +4621,7 @@ function tick(dt) {
   for (const cp of S.checkpoints) {
     if (!cp.active && checkpointEligible(p, cp)) activateCheckpoint(cp);
   }
+  updateDescentMercy(p);
 
   updateEnemies(dt);
   updateFallen(dt);
@@ -7076,10 +7117,21 @@ function applyDevFixture() {
     return true;
   }
   if (fixture === "checkpoint") {
-    openLevel(0);
-    const cp = S.checkpoints[0];
+    const requestedLevel = clamp(parseInt(params.get("level") || "0", 10) || 0, 0, LEVELS.length - 1);
+    openLevel(requestedLevel);
+    const cp = S.checkpoints.find(candidate => candidate.mercy) || S.checkpoints[0];
+    if (!cp) return false;
     placePlayer(cp.x + 4, cp.y - 8);
     activateCheckpoint(cp);
+    updateNoticeQueue(0);
+    return true;
+  }
+  if (fixture === "swallow-mercy") {
+    openLevel(LEVELS.findIndex(level => level.name === "THE SWALLOW"));
+    const mercy = S.descentMercy;
+    if (!mercy) return false;
+    placePlayer(mercy.x, mercy.y);
+    updateDescentMercy(S.player);
     updateNoticeQueue(0);
     return true;
   }
