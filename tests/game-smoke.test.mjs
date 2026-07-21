@@ -123,7 +123,7 @@ globalThis.__SD_TEST__ = {
   ADVENTURE_DIFFICULTIES, ADVENTURE_RULES, TIMED_RUN_RULES, NOTICE_PRIORITY,
   keys, just, TOUCH, touchPrev, padPrev,
   canvas, handleFocusLoss, handleFocusReturn, loadLevel, pauseIds, titleIds, readInput,
-  activateTitleItem, startTitleRun, startDaily, startReach, setRunModePref, cycleGhostPref, competitiveRun, applyDevFixture,
+  activateTitleItem, activatePauseItem, activateWinItem, startTitleRun, startDaily, startReach, setRunModePref, cycleGhostPref, competitiveRun, applyDevFixture,
   dailyUnlocked, rootCleared, reachCleared, stepAdventureLevel, adventureLevelName, cycleAdventureDifficulty, cycleReachCategory, configureRunRules,
   queueNotice, resetNotices, updateNoticeQueue, noticeBlocked, rootWarningActive, openingLessonNeeded,
   advanceTalk, talkHitAt, talkLayout, titleControlLines,
@@ -134,7 +134,7 @@ globalThis.__SD_TEST__ = {
   bossStartAttack, bossLanded, nextRootTier, cameraTargetX, rootCameraCenterY,
   draw, drawBossWarnings, frame, g, moveAxis, resize, respawn,
   restartCurrentChamber, solidBlocked, spawnShoggoth, startPracticeRun, tick,
-  devMetricsSnapshot, recordDevAttempt, toggleReducedMotion, toggleTouchHand,
+  devMetricsSnapshot, recordDevAttempt, toggleReducedMotion, toggleTouchHand, syncTouchVisibility, touchPulse,
   updateBarrow, updateBoss, updateChorus, updateShoggoth,
   setTestMap(rows) {
     LEVEL = rows.slice();
@@ -156,6 +156,9 @@ globalThis.__SD_TEST__ = {
   get adventureDifficultyPref() { return adventureDifficultyPref; },
   get reachCategoryPref() { return reachCategoryPref; },
   get DAILY_PANEL() { return DAILY_PANEL; },
+  get TITLE_HITS() { return TITLE_HITS; },
+  get PAUSE_HITS() { return PAUSE_HITS; },
+  get WIN_HITS() { return WIN_HITS; },
   get WORLD_H() { return WORLD_H; },
   get WORLD_W() { return WORLD_W; },
 };
@@ -551,12 +554,99 @@ test("title controls keep keyboard, controller, and touch labels separate", () =
 
   const touch = bootGame();
   touch.api.TOUCH.active = true;
-  assert.deepEqual([...touch.api.titleControlLines()], ["Move: STICK   Jump: A   Dash: X"]);
+  assert.deepEqual([...touch.api.titleControlLines()], ["Tap a mode, then tap PLAY."]);
+});
+
+test("touch title uses a segmented mode control and a large Play target", () => {
+  const { api, canvas, context } = (() => {
+    const game = bootGame();
+    return { ...game, canvas: game.api.canvas };
+  })();
+  let vibrations = 0;
+  context.navigator.vibrate = () => vibrations++;
+  api.TOUCH.active = true;
+  api.S.mode = "title";
+  api.draw();
+
+  const adventure = api.TITLE_HITS.find(hit => hit.id === "mode-adventure");
+  const timed = api.TITLE_HITS.find(hit => hit.id === "mode-speedrun");
+  const play = api.TITLE_HITS.find(hit => hit.id === "start");
+  assert.ok(adventure && timed && play);
+  assert.ok(adventure.h >= 17 && timed.h >= 17, "both mode segments are full finger targets");
+  assert.ok(play.h >= 17, "Play is larger than an ordinary menu row");
+
+  canvas.dispatch("click", { clientX: timed.x + timed.w / 2, clientY: timed.y + timed.h / 2 });
+  assert.equal(api.runModePref, "speedrun");
+  assert.equal(api.S.mode, "title", "choosing a mode does not accidentally start");
+  api.draw();
+  const refreshedPlay = api.TITLE_HITS.find(hit => hit.id === "start");
+  canvas.dispatch("click", { clientX: refreshedPlay.x + refreshedPlay.w / 2, clientY: refreshedPlay.y + refreshedPlay.h / 2 });
+  assert.equal(api.S.mode, "play");
+  assert.equal(vibrations, 2);
+});
+
+test("pause is tap-first, cycler arrows work, and gameplay controls leave menu hit areas", () => {
+  const { api, element, storage, context } = bootGame({ hostname: "thoughtcrimegpt.github.io", initialStorage: { sd_reach: "2" } });
+  let vibrations = 0;
+  context.navigator.vibrate = () => vibrations++;
+  api.TOUCH.active = true;
+  api.loadLevel(1);
+  api.S.mode = "play";
+  api.syncTouchVisibility();
+  assert.equal(element("touch").hidden, false);
+
+  api.S.mode = "pause";
+  api.draw();
+  assert.equal(element("touch").hidden, true);
+  assert.equal(element("touch").style.pointerEvents, "none");
+  for (const id of api.pauseIds())
+    assert.ok(api.PAUSE_HITS.some(hit => hit.id === id), id + " has a pause tap target");
+  assert.ok(api.PAUSE_HITS.every(hit => hit.h >= 11), "pause targets are at least one padded menu step tall");
+
+  const motion = api.PAUSE_HITS.find(hit => hit.id === "motion");
+  api.canvas.dispatch("click", { clientX: motion.x + motion.w / 2, clientY: motion.y + motion.h / 2 });
+  assert.equal(api.reducedMotion, true);
+  assert.equal(api.S.mode, "pause");
+
+  api.S.pracSel = 1;
+  api.draw();
+  const practiceRight = api.PAUSE_HITS.find(hit => hit.id === "practice" && hit.dir === 1);
+  api.canvas.dispatch("click", { clientX: practiceRight.x + practiceRight.w / 2, clientY: practiceRight.y + practiceRight.h / 2 });
+  assert.equal(api.S.pracSel, 2, "right third advances the practice chamber");
+  assert.equal(api.S.mode, "pause", "cycling does not launch the choice");
+  assert.ok(vibrations >= 2, "menu taps use the same short haptic feedback as touch buttons");
+  assert.equal(storage.get("sd_reduced_motion"), "1");
+});
+
+test("touch win actions submit, cancel, and return without hidden button presses", () => {
+  const { api, element } = bootGame({ hostname: "thoughtcrimegpt.github.io" });
+  api.TOUCH.active = true;
+  api.S.mode = "win";
+  api.S.runMode = "speedrun";
+  api.S.practice = false;
+  api.draw();
+  assert.equal(element("touch").hidden, true);
+  const submit = api.WIN_HITS.find(hit => hit.id === "submit");
+  const title = api.WIN_HITS.find(hit => hit.id === "title");
+  assert.ok(submit && title);
+  api.canvas.dispatch("click", { clientX: submit.x + submit.w / 2, clientY: submit.y + submit.h / 2 });
+  assert.equal(api.S.lbConfirm, true);
+  api.draw();
+  const cancel = api.WIN_HITS.find(hit => hit.id === "cancel");
+  assert.ok(cancel);
+  api.canvas.dispatch("click", { clientX: cancel.x + cancel.w / 2, clientY: cancel.y + cancel.h / 2 });
+  assert.equal(api.S.lbConfirm, false);
+  api.draw();
+  const back = api.WIN_HITS.find(hit => hit.id === "title");
+  api.canvas.dispatch("click", { clientX: back.x + back.w / 2, clientY: back.y + back.h / 2 });
+  assert.equal(api.S.mode, "title");
 });
 
 test("Adventure is the persistent default and Timed Run remains an explicit choice", () => {
   const fresh = bootGame();
   assert.equal(fresh.api.runModePref, "adventure");
+  assert.deepEqual([...fresh.api.titleIds()].slice(0, 2), ["mode", "difficulty"]);
+  assert.equal(fresh.api.titleIds().includes("adventure") || fresh.api.titleIds().includes("speedrun"), false);
   assert.equal(fresh.api.ghostPref, "off");
   assert.equal(fresh.api.titleIds().includes("ghost"), false, "ghost setup stays out of the Adventure menu");
   assert.equal(fresh.api.titleIds().includes("difficulty"), true, "Adventure exposes its difficulty choice");
@@ -1128,11 +1218,10 @@ test("left-handed touch layout is persistent and absent from desktop menus", () 
   api.g.operations.length = 0;
   api.draw();
   const touchLabel = api.g.operations.find(op => op.type === "fillText" && op.value.startsWith("TOUCH LAYOUT:"));
-  const levelRows = api.g.operations.filter(op => op.type === "fillText" && op.value.includes("THE HOLLOW"));
-  const footer = api.g.operations.find(op => op.type === "fillText" && op.value.startsWith("Move to choose"));
+  const footer = api.g.operations.find(op => op.type === "fillText" && op.value === "Tap an option.");
   assert.ok(touchLabel);
-  assert.ok(Math.max(...levelRows.map(op => op.y)) <= 146, "the last touch-menu choice stays above the footer");
-  assert.equal(footer.y, 171);
+  assert.ok(Math.max(...api.PAUSE_HITS.map(hit => hit.y + hit.h)) <= 177, "the last touch target stays above the footer");
+  assert.equal(footer.y, 177);
 });
 
 test("reduced motion is persistent and immediately clears camera motion", () => {

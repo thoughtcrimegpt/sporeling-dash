@@ -130,7 +130,7 @@ globalThis.__SD_TEST__ = {
   ADVENTURE_DIFFICULTIES, ADVENTURE_RULES, TIMED_RUN_RULES, NOTICE_PRIORITY,
   keys, just, TOUCH, touchPrev, padPrev,
   canvas, handleFocusLoss, handleFocusReturn, loadLevel, pauseIds, titleIds, readInput,
-  activateTitleItem, startTitleRun, startDaily, startReach, setRunModePref, cycleGhostPref, competitiveRun, applyDevFixture,
+  activateTitleItem, activatePauseItem, activateWinItem, startTitleRun, startDaily, startReach, setRunModePref, cycleGhostPref, competitiveRun, applyDevFixture,
   dailyUnlocked, rootCleared, reachCleared, stepAdventureLevel, adventureLevelName, cycleAdventureDifficulty, cycleReachCategory, configureRunRules,
   queueNotice, resetNotices, updateNoticeQueue, noticeBlocked, rootWarningActive, openingLessonNeeded,
   advanceTalk, talkHitAt, talkLayout,
@@ -140,7 +140,7 @@ globalThis.__SD_TEST__ = {
   bossStartAttack, bossLanded, nextRootTier, cameraTargetX, rootCameraCenterY,
   draw, drawBossWarnings, frame, g, moveAxis, resize, respawn,
   restartCurrentChamber, solidBlocked, spawnShoggoth, startPracticeRun, tick,
-  devMetricsSnapshot, recordDevAttempt, toggleReducedMotion, toggleTouchHand,
+  devMetricsSnapshot, recordDevAttempt, toggleReducedMotion, toggleTouchHand, syncTouchVisibility, touchPulse,
   updateBarrow, updateBoss, updateChorus, updateShoggoth,
   prepareRouteProbe(index, includeEnemies = false) {
     loadLevel(index);
@@ -196,6 +196,9 @@ globalThis.__SD_TEST__ = {
   get adventureDifficultyPref() { return adventureDifficultyPref; },
   get reachCategoryPref() { return reachCategoryPref; },
   get DAILY_PANEL() { return DAILY_PANEL; },
+  get TITLE_HITS() { return TITLE_HITS; },
+  get PAUSE_HITS() { return PAUSE_HITS; },
+  get WIN_HITS() { return WIN_HITS; },
   get WORLD_H() { return WORLD_H; },
   get WORLD_W() { return WORLD_W; },
 };

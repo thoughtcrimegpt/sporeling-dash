@@ -64,7 +64,7 @@ Five keepsakes persist on the device that found them. They are placed on the Rot
 | Finish dialogue text | E / Enter   | Y             |
 | Pause      | Esc / P               | Start         |
 
-Menus support arrows, WASD, D-pad, mouse, and touch. Mobile controls appear automatically and can be mirrored for left-handed play. Reduced Motion is available from the pause menu.
+Menus support arrows, WASD, D-pad, mouse, and touch. On touch screens, the title uses an Adventure/Timed selector and a large Play button; pause and win actions are direct tap targets. Gameplay controls disappear while a menu is open, and tap actions use short haptic and pressed feedback. Mobile controls appear automatically during play and can be mirrored for left-handed use. Reduced Motion is available from the pause menu.
 
 No dependencies, no build step — open `index.html` and play.
 

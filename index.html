@@ -714,7 +714,7 @@ const pauseIds = () => {
 };
 
 const titleIds = () => {
-  const ids = ["adventure", "speedrun"];
+  const ids = ["mode"];
   if (runModePref === "adventure") {
     ids.push("difficulty");
     if (reachGet() > 0) ids.push("levelselect");
@@ -779,6 +779,9 @@ function startTitleRun() {
 
 function activateTitleItem(id) {
   if (id === "start") startTitleRun();
+  else if (id === "mode") { setRunModePref(runModePref === "adventure" ? "speedrun" : "adventure"); SFX.talk(); }
+  else if (id === "mode-adventure") { setRunModePref("adventure"); SFX.talk(); }
+  else if (id === "mode-speedrun") { setRunModePref("speedrun"); SFX.talk(); }
   else if (id === "adventure") { setRunModePref("adventure"); SFX.talk(); }
   else if (id === "speedrun") { setRunModePref("speedrun"); SFX.talk(); }
   else if (id === "difficulty") { cycleAdventureDifficulty(1); SFX.talk(); }
@@ -819,6 +822,39 @@ function restartCurrentChamber() {
   } else {
     loadLevel(S.levelIdx);
     S.mode = "play";
+  }
+}
+
+function activatePauseItem(id, dir = 0) {
+  if (id === "practice" && dir) {
+    stepPrac(dir, false); SFX.talk(); return;
+  }
+  if (id === "devrow" && dir) {
+    S.devLevel = (S.devLevel + LEVELS.length + (dir < 0 ? -1 : 1)) % LEVELS.length;
+    SFX.talk(); return;
+  }
+  SFX.berry();
+  if (id === "resume") S.mode = "play";
+  else if (id === "restart") restartCurrentChamber();
+  else if (id === "practice") startPracticeRun(S.pracSel === 0 ? 1 : S.pracSel);
+  else if (id === "motion") toggleReducedMotion();
+  else if (id === "touchhand") toggleTouchHand();
+  else if (id === "newgame") {
+    if (S.daily) { startDaily(); return; }
+    if (S.reachTrial) { startReach(); return; }
+    S.score = freshScore();
+    S.wispHinted = false; resetNotices();
+    S.bloomLessonDone = false;
+    S.daily = false; S.dailyMods = null; S.reachTrial = false;
+    S.practice = false;
+    configureRunRules(S.runMode);
+    S.rec = []; S.ghost = null; S.ghostPos = null;
+    loadLevel(0);
+    S.mode = "play";
+  } else if (id === "titlescr") {
+    S.talk = null; S.mode = "title";
+  } else if (id === "devrow") {
+    loadLevel(S.devLevel); S.mode = "play";
   }
 }
 
@@ -1019,6 +1055,13 @@ const PATCH_NOTES_SOURCE_ARCHIVE = [
   ]},
 ];
 const PATCH_NOTES = [
+  { v: "V4.5.1  Touch menus", d: "2026-07-20 DEV", lines: [
+    "· The title now uses a clear Adventure or Timed selector above a large Play button.",
+    "· Every pause option can be tapped, including the left and right practice arrows.",
+    "· Touch menu rows are larger and give pressed and haptic feedback.",
+    "· Gameplay touch controls now leave the screen outside active play.",
+    "· The win screen now has touch targets for submission, cancellation, and the title screen.",
+  ]},
   { v: "V4.5  The Reach", d: "2026-07-20 DEV", lines: [
     "· Clearing the Pale Root now unlocks The Reach, a standalone five-part trial.",
     "· The Reach has two checkpoints and uses enemies to restore spent blooms.",
@@ -1110,6 +1153,8 @@ let NOTES_MEASURED = NOTES_TOTAL;   // true height once wrapping is measured
 let NOTES_HIT = null;   // the title's notes link rect
 let NOTES_HOVER = false;
 let TITLE_HITS = [];
+let PAUSE_HITS = [];
+let WIN_HITS = [];
 
 let LB_HITS = [];   // clickable name rows, rebuilt each frame the panel draws
 let LB_PANEL = null; // the small panel's rect — click it to open the full board
@@ -1301,7 +1346,7 @@ function showShare(dataUrl, tweetText) {
 const dashBtnName = () => gp() ? "X" : TOUCH.active ? "the X button" : "SHIFT";
 const jumpBtnName = () => gp() ? "A" : TOUCH.active ? "the A button" : "SPACE";
 function titleControlLines() {
-  if (TOUCH.active) return ["Move: STICK   Jump: A   Dash: X"];
+  if (TOUCH.active) return ["Tap a mode, then tap PLAY."];
   if (gp()) return ["Move: LEFT STICK or D-PAD", "Jump: A   Dash: X or RB"];
   return ["Move: A / D or LEFT / RIGHT", "Jump: SPACE   Dash: SHIFT or J   M: MUSIC"];
 }
@@ -1394,6 +1439,27 @@ function submitScore() {
     });
 }
 
+function activateWinItem(id) {
+  if (id === "board") {
+    if (lbOn() && competitiveRun()) { S.boardFrom = "win"; S.mode = "board"; }
+    return;
+  }
+  if (id === "submit") {
+    if (!lbOn()) S.lbMsg = "Leaderboard offline";
+    else if (S.reachTrial && S.reachCategory === "reach_full" && !S.score.reachKeepsake)
+      S.lbMsg = "Full Reach needs the summit keepsake.";
+    else if (S.score.lbDone) S.lbMsg = "Already submitted";
+    else if (!S.lbConfirm) S.lbConfirm = true;
+    else { S.lbConfirm = false; submitScore(); }
+    return;
+  }
+  if (id === "cancel") { S.lbConfirm = false; return; }
+  if (id === "title") {
+    if (S.lbConfirm) S.lbConfirm = false;
+    else S.mode = "title";
+  }
+}
+
 // ── Input ──────────────────────────────────────────────────────────────────
 const keys = Object.create(null);
 const just = Object.create(null);
@@ -1466,6 +1532,23 @@ function applyTouchLayout() {
   if (!root) return;
   if (leftHanded) root.classList.add("left-handed");
   else root.classList.remove("left-handed");
+}
+
+function syncTouchVisibility() {
+  const root = document.getElementById("touch");
+  if (!root) return;
+  const gameplayVisible = TOUCH.active && S.mode === "play";
+  root.hidden = !gameplayVisible;
+  root.style.pointerEvents = gameplayVisible ? "" : "none";
+}
+
+function touchPulse(kind, id) {
+  S.touchPress = { kind, id, until: S.time + 0.14 };
+  if (TOUCH.active && navigator.vibrate) navigator.vibrate(10);
+}
+
+function touchPressed(kind, id) {
+  return !!(S.touchPress && S.touchPress.kind === kind && S.touchPress.id === id && S.touchPress.until > S.time);
 }
 
 function toggleTouchHand() {
@@ -1611,7 +1694,7 @@ function setupTouch() {
   function enable() {
     if (TOUCH.active) return;
     TOUCH.active = true;
-    root.hidden = false;
+    syncTouchVisibility();
     resize();
   }
   if (matchMedia("(pointer: coarse)").matches) enable();
@@ -2268,7 +2351,7 @@ const S = {
   fallen: [], stoppedHint: false,
   jumpHeldForCut: false,
   health: START_HEALTH, maxHealth: START_HEALTH, berriesPerHeal: BERRIES_PER_HEAL,
-  difficulty: "normal",
+  difficulty: "normal", touchPress: null,
   score: freshScore(),
 };
 const mercyRetriesEnabled = () =>
@@ -4396,6 +4479,8 @@ function tick(dt) {
     } else if (cur === "practice") {
       if (right) { stepPrac(1, true); SFX.talk(); }
       if (left) { stepPrac(-1, true); SFX.talk(); }
+    } else if (cur === "mode" && (right || left)) {
+      setRunModePref(right ? "speedrun" : "adventure"); SFX.talk();
     } else if (cur === "difficulty" && (right || left)) {
       cycleAdventureDifficulty(right ? 1 : -1); SFX.talk();
     } else if (cur === "levelselect") {
@@ -4573,20 +4658,12 @@ function tick(dt) {
   if (S.mode === "win") {
     updateParticles(dt);
     if (inp.boardEdge && lbOn() && competitiveRun()) {
-      S.boardFrom = "win"; S.mode = "board";
+      activateWinItem("board");
       clearJust();
       return;
     }
-    if (inp.dashEdge && competitiveRun()) {
-      if (!lbOn()) S.lbMsg = "Leaderboard offline";
-      else if (S.score.lbDone) S.lbMsg = "Already submitted";
-      else if (!S.lbConfirm) S.lbConfirm = true;   // are you sure?
-      else { S.lbConfirm = false; submitScore(); }
-    }
-    if (inp.jumpEdge) {
-      if (S.lbConfirm) S.lbConfirm = false;        // cancel, stay on this screen
-      else S.mode = "title";
-    }
+    if (inp.dashEdge && competitiveRun()) activateWinItem("submit");
+    if (inp.jumpEdge) activateWinItem(S.lbConfirm ? "cancel" : "title");
     clearJust();
     return;
   }
@@ -4607,44 +4684,15 @@ function tick(dt) {
     S.pauseAy = inp.ay;
     const cur = ids[S.pauseSel];
     if (cur === "devrow") {
-      if (inp.ax > 0.5 && S.devAx <= 0.5) { S.devLevel = (S.devLevel + 1) % LEVELS.length; SFX.talk(); }
-      if (inp.ax < -0.5 && S.devAx >= -0.5) { S.devLevel = (S.devLevel + LEVELS.length - 1) % LEVELS.length; SFX.talk(); }
+      if (inp.ax > 0.5 && S.devAx <= 0.5) activatePauseItem(cur, 1);
+      if (inp.ax < -0.5 && S.devAx >= -0.5) activatePauseItem(cur, -1);
     } else if (cur === "practice") {
-      if (inp.ax > 0.5 && S.devAx <= 0.5) { stepPrac(1, false); SFX.talk(); }
-      if (inp.ax < -0.5 && S.devAx >= -0.5) { stepPrac(-1, false); SFX.talk(); }
+      if (inp.ax > 0.5 && S.devAx <= 0.5) activatePauseItem(cur, 1);
+      if (inp.ax < -0.5 && S.devAx >= -0.5) activatePauseItem(cur, -1);
     }
     S.devAx = inp.ax;
     if (inp.jumpEdge || inp.dashEdge) {
-      SFX.berry();
-      if (cur === "resume") {
-        S.mode = "play";
-      } else if (cur === "restart") {
-        restartCurrentChamber();
-      } else if (cur === "practice") {
-        startPracticeRun(S.pracSel === 0 ? 1 : S.pracSel);
-      } else if (cur === "motion") {
-        toggleReducedMotion();
-      } else if (cur === "touchhand") {
-        toggleTouchHand();
-      } else if (cur === "newgame") {
-        if (S.daily) { startDaily(); clearJust(); return; }
-        if (S.reachTrial) { startReach(); clearJust(); return; }
-        S.score = freshScore();
-        S.wispHinted = false; resetNotices();
-        S.bloomLessonDone = false;
-        S.daily = false; S.dailyMods = null; S.reachTrial = false;
-        S.practice = false;
-        configureRunRules(S.runMode);
-        S.rec = []; S.ghost = null; S.ghostPos = null;
-        loadLevel(0);
-        S.mode = "play";
-      } else if (cur === "titlescr") {
-        S.talk = null;
-        S.mode = "title";
-      } else {
-        loadLevel(S.devLevel);
-        S.mode = "play";
-      }
+      activatePauseItem(cur);
     }
     clearJust();
     return;
@@ -5024,6 +5072,17 @@ function lbHitAt(e) {
 }
 function lbUiHitAt(e) {
   const p2 = canvasPos(e);
+  if (S.mode === "pause") {
+    for (const hit of PAUSE_HITS)
+      if (p2.x >= hit.x && p2.x <= hit.x + hit.w && p2.y >= hit.y && p2.y <= hit.y + hit.h)
+        return { pause: hit };
+    return null;
+  }
+  if (S.mode === "win") {
+    for (const hit of WIN_HITS)
+      if (p2.x >= hit.x && p2.x <= hit.x + hit.w && p2.y >= hit.y && p2.y <= hit.y + hit.h)
+        return { win: hit };
+  }
   if (S.mode === "board") {
     for (const t of BOARD_TABS)
       if (p2.x >= t.x && p2.x <= t.x + t.w && p2.y >= t.y && p2.y <= t.y + t.h) return { tab: t.tab };
@@ -5054,7 +5113,20 @@ canvas.addEventListener("click", e => {
   const u = lbUiHitAt(e);
   if (!u) return;
   if (u.tab) { S.boardTab = u.tab; SFX.talk(); }
-  else if (u.title) { S.titleSel = u.title.index; activateTitleItem(u.title.id); }
+  else if (u.title) {
+    S.titleSel = u.title.index;
+    touchPulse("title", u.title.id);
+    activateTitleItem(u.title.id);
+  }
+  else if (u.pause) {
+    S.pauseSel = u.pause.index;
+    touchPulse("pause", u.pause.id + ":" + u.pause.dir);
+    activatePauseItem(u.pause.id, u.pause.dir);
+  }
+  else if (u.win) {
+    touchPulse("win", u.win.id);
+    activateWinItem(u.win.id);
+  }
   else if (u.race) {
     SFX.check();
     fetchRace(u.race.id).then(race => {
@@ -5092,6 +5164,7 @@ function blit() {
 
 function draw() {
   g.imageSmoothingEnabled = false;
+  syncTouchVisibility();
 
   if (S.mode === "title") { drawTitle(); blit(); return; }
   if (S.mode === "board") { drawBoard(); blit(); return; }
@@ -5201,6 +5274,7 @@ function draw() {
   drawEndOverlay();
 
   if (S.mode === "pause") {
+    PAUSE_HITS = [];
     g.fillStyle = "rgba(5,8,12,0.7)";
     g.fillRect(0, 0, W, H);
     g.fillStyle = C.ui;
@@ -5213,8 +5287,11 @@ function draw() {
 
     const ids = pauseIds();
     const compactMenu = ids.length > 6;
-    const menuY = compactMenu ? 80 : 82;
-    const menuStep = compactMenu ? 11 : 12;
+    const touchMenu = TOUCH.active;
+    const menuY = touchMenu ? 78 : compactMenu ? 80 : 82;
+    const menuStep = touchMenu ? (ids.length > 7 ? 11 : 13) : compactMenu ? 11 : 12;
+    const rowH = touchMenu ? menuStep : Math.max(10, menuStep - 1);
+    const rowX = touchMenu ? 44 : 68, rowW = touchMenu ? 232 : 184;
     const labels = ids.map(id =>
       id === "resume" ? "RESUME" :
       id === "restart" ? "RESTART CHAMBER" :
@@ -5226,28 +5303,34 @@ function draw() {
       "◄ " + (S.devLevel + 1) + ". " + LEVELS[S.devLevel].name + " ►");
     g.font = "9px monospace";
     for (let i = 0; i < labels.length; i++) {
-      const oy = menuY + i * menuStep;
+      const rowY = menuY + i * menuStep;
+      const oy = rowY + 9;
       const sel = i === S.pauseSel;
+      const pressed = touchPressed("pause", ids[i] + ":-1") || touchPressed("pause", ids[i] + ":0") || touchPressed("pause", ids[i] + ":1");
+      g.fillStyle = pressed ? "rgba(240,168,136,0.34)" : sel ? "rgba(240,168,136,0.18)" : "rgba(8,12,18,0.64)";
+      g.fillRect(rowX, rowY, rowW, rowH);
+      if (sel) { g.fillStyle = C.goalOpen; g.fillRect(rowX, rowY, 2, rowH); }
       g.fillStyle = ids[i] === "devrow" ? (sel ? C.goalOpen : "#6a5060")
         : ids[i] === "practice" ? (sel ? rgb(PALS[0].accent) : C.uiDim)
         : (sel ? C.title : C.uiDim);
       g.fillText(labels[i], W / 2, oy);
-      if (sel) {
-        const bx = W / 2 - labels[i].length * 2.8 - 14;
-        g.fillStyle = C.cap;
-        g.fillRect(bx, oy - 7, 6, 3);
-        g.fillStyle = C.bloomStem;
-        g.fillRect(bx + 2, oy - 4, 2, 3);
+      if (ids[i] === "practice" || ids[i] === "devrow") {
+        const third = rowW / 3;
+        PAUSE_HITS.push({ id: ids[i], index: i, dir: -1, x: rowX, y: rowY, w: third, h: rowH });
+        PAUSE_HITS.push({ id: ids[i], index: i, dir: 0, x: rowX + third, y: rowY, w: third, h: rowH });
+        PAUSE_HITS.push({ id: ids[i], index: i, dir: 1, x: rowX + third * 2, y: rowY, w: third, h: rowH });
+      } else {
+        PAUSE_HITS.push({ id: ids[i], index: i, dir: 0, x: rowX, y: rowY, w: rowW, h: rowH });
       }
     }
-    if (ids[S.pauseSel] === "practice") {
+    if (ids[S.pauseSel] === "practice" && !touchMenu) {
       g.fillStyle = C.wilt;
       g.font = "7px monospace";
       g.fillText("This starts a separate practice run. It won't be submitted.", W / 2, compactMenu ? 158 : 152);
     }
     g.fillStyle = C.uiDim;
     g.font = "7px monospace";
-    g.fillText("Move to choose. Press Jump to select.", W / 2, compactMenu ? 171 : 168);
+    g.fillText(touchMenu ? "Tap an option." : "Move to choose. Press Jump to select.", W / 2, touchMenu ? 177 : compactMenu ? 171 : 168);
   }
 
   if (S.mode === "clear") {
@@ -6644,8 +6727,8 @@ function drawOke() {
     g.fillStyle = "#d8cfb8";
     g.font = "7px monospace";
     g.textAlign = "center";
-    g.fillText("pressed here before the garden moved", 12 * TILE, 82);
-    g.fillText("leave this one where it fell", 12 * TILE, 92);
+    g.fillText("old garden labels were stored here", 12 * TILE, 82);
+    g.fillText("M.H. is scratched into this one", 12 * TILE, 92);
     g.textAlign = "left";
     g.globalAlpha = 1;
     return;
@@ -6945,7 +7028,7 @@ function drawTitle() {
   g.fillText("your dash and three blooms back.", TCX, 113);
 
   // the cave's own memory — a real desktop button, not a hidden key command
-  NOTES_HIT = { x: W - 136, y: 106, w: 132, h: 23 };
+  NOTES_HIT = { x: W - 136, y: (TOUCH.active || rootCleared()) ? 132 : 106, w: 132, h: 23 };
   const notesActive = NOTES_HOVER || titleSelected === "notes";
   g.globalAlpha = notesActive ? 0.9 : 0.48;
   g.fillStyle = notesActive ? "rgba(240,168,136,0.2)" : "rgba(8,12,18,0.72)";
@@ -6961,40 +7044,72 @@ function drawTitle() {
   g.textAlign = "center";
 
   const menuX = W - 122, menuW = 118;
-  let menuRow = 0;
+  const coarseMenu = TOUCH.active;
+  let menuY = 6;
   for (let i = 0; i < titleList.length; i++) {
     const id = titleList[i];
     if (id === "notes" || id === "daily") continue;
-    const y = 8 + menuRow * 12;
     const selected = id === titleSelected;
-    const label = id === "adventure" ? (runModePref === "adventure" ? "● ADVENTURE" : "○ ADVENTURE")
-      : id === "speedrun" ? (runModePref === "speedrun" ? "● TIMED RUN" : "○ TIMED RUN")
-      : id === "difficulty" ? "DIFFICULTY: " + adventureDifficultyPref.toUpperCase()
+
+    if (id === "mode") {
+      const h = coarseMenu ? 17 : 15;
+      g.fillStyle = "rgba(8,12,18,0.82)";
+      g.fillRect(menuX, menuY, menuW, h);
+      const halves = [
+        { id: "mode-adventure", mode: "adventure", label: "ADVENTURE", x: menuX, w: menuW / 2 },
+        { id: "mode-speedrun", mode: "speedrun", label: "TIMED", x: menuX + menuW / 2, w: menuW / 2 },
+      ];
+      for (const half of halves) {
+        const active = runModePref === half.mode;
+        const pressed = touchPressed("title", half.id);
+        g.fillStyle = active ? rgb(PALS[0].accent) : pressed ? "rgba(240,168,136,0.32)" : "rgba(32,42,54,0.9)";
+        g.fillRect(half.x + 1, menuY + 1, half.w - 2, h - 2);
+        g.fillStyle = active ? "#10151d" : C.uiDim;
+        g.font = "bold 6px monospace";
+        g.textAlign = "center";
+        g.fillText(half.label, half.x + half.w / 2, menuY + 10);
+        TITLE_HITS.push({ id: half.id, index: i, x: half.x, y: menuY, w: half.w, h });
+      }
+      if (selected) {
+        g.fillStyle = C.goalOpen;
+        g.fillRect(menuX, menuY, menuW, 1);
+        g.fillRect(menuX, menuY + h - 1, menuW, 1);
+      }
+      menuY += h + 2;
+      continue;
+    }
+
+    const label = id === "difficulty" ? adventureDifficultyPref.toUpperCase()
       : id === "levelselect" ? "LEVEL: " + adventureLevelName()
       : id === "ghost" ? "GHOST: " + (ghostPref === "personal" ? "PERSONAL BEST" : ghostPref === "leader" ? "LEADERBOARD" : "OFF")
       : id === "reachcategory" ? "REACH BOARD: " + (S.reachCategory === "reach_full" ? "FULL" : "ANY%")
       : id === "reach" ? "START THE REACH"
-      : id === "start" ? (DEV ? "START TEST" : runModePref === "speedrun" ? "START TIMED RUN" : "START ADVENTURE")
+      : id === "start" ? "PLAY"
       : id === "devlevel" ? "TEST LEVEL: " + (S.devLevel + 1) + ". " + LEVELS[S.devLevel].name
       : id === "devhealth" ? "DAMAGE: " + (S.devInf ? "OFF" : "ON")
       : id === "practice" ? (S.pracSel > 0 ? "PRACTICE: " + pracName(S.pracSel) : "FULL RUN")
       : id === "board" ? "LEADERBOARDS"
       : "THE PALE ROOT";
-    g.globalAlpha = selected ? 0.92 : 0.66;
-    g.fillStyle = selected ? "rgba(240,168,136,0.2)" : "rgba(8,12,18,0.7)";
-    g.fillRect(menuX, y, menuW, 11);
+    const h = id === "start" ? (coarseMenu ? 17 : 14) : (coarseMenu ? 13 : 11);
+    const pressed = touchPressed("title", id);
+    g.globalAlpha = selected || pressed ? 0.96 : 0.72;
+    g.fillStyle = id === "start" && selected ? "rgba(144,232,176,0.34)"
+      : pressed ? "rgba(240,168,136,0.34)"
+        : selected ? "rgba(240,168,136,0.2)" : "rgba(8,12,18,0.74)";
+    g.fillRect(menuX, menuY, menuW, h);
     if (selected) {
       g.fillStyle = C.goalOpen;
-      g.fillRect(menuX, y, 2, 11);
+      g.fillRect(menuX, menuY, 2, h);
     }
     g.globalAlpha = 1;
-    g.fillStyle = selected ? C.goalOpen : C.uiDim;
-    g.font = (id === "devlevel" || id === "practice" || id === "ghost" || id === "difficulty" || id === "levelselect" || id === "reachcategory" ||
+    g.fillStyle = id === "start" ? (selected ? C.goalOpen : rgb(PALS[0].accent)) : selected ? C.goalOpen : C.uiDim;
+    g.font = id === "start" ? "bold 9px monospace" : (id === "devlevel" || id === "practice" || id === "ghost" || id === "difficulty" || id === "levelselect" || id === "reachcategory" ||
       (id === "start" && runModePref === "speedrun")) ? "bold 6px monospace" : "bold 7px monospace";
-    g.textAlign = "left";
-    g.fillText((selected ? "› " : "  ") + label, menuX + 5, y + 8);
-    TITLE_HITS.push({ id, index: i, x: menuX, y, w: menuW, h: 11 });
-    menuRow++;
+    g.textAlign = id === "start" ? "center" : "left";
+    g.fillText(id === "start" ? label : (selected ? "› " : "  ") + label,
+      id === "start" ? menuX + menuW / 2 : menuX + 5, menuY + (h > 13 ? 11 : 8));
+    TITLE_HITS.push({ id, index: i, x: menuX, y: menuY, w: menuW, h });
+    menuY += h + (coarseMenu ? 2 : 1);
   }
   g.textAlign = "center";
 
@@ -7257,6 +7372,7 @@ function drawBoard() {
 }
 
 function drawWin() {
+  WIN_HITS = [];
   g.drawImage(skyCv, 0, 0);
   g.drawImage(farCv, 0, 0);
   drawSpores("far");
@@ -7312,29 +7428,64 @@ function drawWin() {
     g.fillStyle = C.goalOpen;
     g.fillText("An exact @handle will link to X.", 10, 161);
     g.fillStyle = C.title;
-    g.fillText(dashBtnName() + ": yes    " + jumpBtnName() + ": no", 10, 171);
+    if (TOUCH.active) {
+      const yes = { id: "submit", x: 6, y: 164, w: 79, h: 13 };
+      const no = { id: "cancel", x: 91, y: 164, w: 79, h: 13 };
+      for (const hit of [yes, no]) {
+        g.fillStyle = touchPressed("win", hit.id) ? "rgba(240,168,136,0.42)" : hit.id === "submit" ? "rgba(144,232,176,0.28)" : "rgba(58,66,80,0.9)";
+        g.fillRect(hit.x, hit.y, hit.w, hit.h);
+        g.fillStyle = hit.id === "submit" ? C.goalOpen : C.ui;
+        g.textAlign = "center";
+        g.fillText(hit.id === "submit" ? "SUBMIT" : "CANCEL", hit.x + hit.w / 2, hit.y + 9);
+        WIN_HITS.push(hit);
+      }
+      g.textAlign = "left";
+    } else g.fillText(dashBtnName() + ": yes    " + jumpBtnName() + ": no", 10, 171);
   } else {
-    if (lbOn() && competitiveRun()) {
+    if (!TOUCH.active) {
+      if (lbOn() && competitiveRun()) {
       const blink = S.lbMsg || (Math.sin(S.time * 5) * 0.5 + 0.5) > 0.25;
       if (blink) {
         g.fillStyle = S.lbMsg ? rgb(PALS[0].accent) : C.goalOpen;
         g.font = "7px monospace";
         g.fillText(S.lbMsg || "Press " + dashBtnName() + " to submit your time.", 10, 160);
       }
-    } else if (!competitiveRun()) {
+      } else if (!competitiveRun()) {
       g.fillStyle = C.goalOpen;
       g.font = "7px monospace";
       g.fillText("Adventure complete. No time was submitted.", 10, 160);
-    } else if (met < TOTAL_NPCS) {
+      } else if (met < TOTAL_NPCS) {
       g.fillStyle = C.uiDim;
       g.font = "7px monospace";
       g.fillText("You missed someone on the way up.", 10, 160);
+      }
+
+      if ((Math.sin(S.time * 4) * 0.5 + 0.5) > 0.28) {
+        g.fillStyle = C.uiDim;
+        g.font = "7px monospace";
+        g.fillText(jumpBtnName() + " returns to the title screen.", 10, 172);
+      }
     }
 
-    if ((Math.sin(S.time * 4) * 0.5 + 0.5) > 0.28) {
-      g.fillStyle = C.uiDim;
-      g.font = "7px monospace";
-      g.fillText(jumpBtnName() + " returns to the title screen.", 10, 172);
+    if (TOUCH.active) {
+      const fullMissing = S.reachTrial && S.reachCategory === "reach_full" && !S.score.reachKeepsake;
+      if (competitiveRun()) {
+        const submit = { id: "submit", x: 6, y: 149, w: 164, h: 14 };
+        g.fillStyle = fullMissing ? "rgba(58,66,80,0.82)" : touchPressed("win", "submit") ? "rgba(240,168,136,0.42)" : "rgba(144,232,176,0.28)";
+        g.fillRect(submit.x, submit.y, submit.w, submit.h);
+        g.fillStyle = fullMissing ? C.uiDim : C.goalOpen;
+        g.textAlign = "center";
+        g.fillText(fullMissing ? "SUMMIT KEEPSAKE REQUIRED" : S.score.lbDone ? "TIME SUBMITTED" : "SUBMIT TIME", submit.x + submit.w / 2, submit.y + 10);
+        if (!fullMissing) WIN_HITS.push(submit);
+      }
+      const title = { id: "title", x: 6, y: 165, w: 164, h: 13 };
+      g.fillStyle = touchPressed("win", "title") ? "rgba(240,168,136,0.42)" : "rgba(58,66,80,0.9)";
+      g.fillRect(title.x, title.y, title.w, title.h);
+      g.fillStyle = C.ui;
+      g.textAlign = "center";
+      g.fillText("TITLE SCREEN", title.x + title.w / 2, title.y + 9);
+      WIN_HITS.push(title);
+      g.textAlign = "left";
     }
   }
   g.textAlign = "center";
@@ -7412,6 +7563,22 @@ function applyDevFixture() {
 
   if (fixture === "pressed-garden") {
     openLevel(PRESSED_GARDEN_INDEX);
+    return true;
+  }
+
+  if (fixture === "pause") {
+    const requestedLevel = clamp(parseInt(params.get("level") || "0", 10) || 0, 0, LEVELS.length - 1);
+    openLevel(requestedLevel);
+    S.mode = "pause"; S.pauseSel = 0;
+    return true;
+  }
+
+  if (fixture === "win") {
+    openLevel(params.get("trial") === "reach" ? REACH_INDEX : 0);
+    S.mode = "win"; S.runMode = params.get("mode") === "adventure" ? "adventure" : "speedrun";
+    S.reachTrial = params.get("trial") === "reach";
+    S.reachCategory = params.get("category") === "full" ? "reach_full" : "reach";
+    S.score.reachKeepsake = params.get("keepsake") === "1";
     return true;
   }
 
