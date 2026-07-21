@@ -908,7 +908,7 @@ test("four persistent keepsakes gate optional main completion and The Reach has 
   assert.equal(api.mainFullEligible(), true, "all four keepsakes complete the optional main Full gate");
 });
 
-test("The Reach hides collectible HUD state and rejects outer-wall clinging", () => {
+test("The Reach marks shortcut stone while keeping active walls climbable", () => {
   const { api } = bootGame({ initialStorage: { sd_root_cleared: "1" } });
   api.startReach();
   api.g.operations.length = 0;
@@ -919,11 +919,19 @@ test("The Reach hides collectible HUD state and rejects outer-wall clinging", ()
   const p = api.S.player;
   p.y = 120 * api.TILE;
   p.x = api.TILE;
-  assert.equal(api.touchingWallDir(p), 0, "the left outer shell cannot be clung to");
+  assert.equal(api.touchingWallDir(p), 0, "the striped left shortcut barrier cannot be clung to");
   p.x = 63 * api.TILE - p.w;
-  assert.equal(api.touchingWallDir(p), 0, "the right outer shell cannot be clung to");
+  assert.notEqual(api.touchingWallDir(p), 0, "the active Spire wall remains climbable");
+  p.y = 70 * api.TILE;
+  assert.equal(api.touchingWallDir(p), 0, "the striped right shortcut barrier cannot be clung to");
+  p.y = 120 * api.TILE;
   p.x = 55 * api.TILE - p.w;
   assert.notEqual(api.touchingWallDir(p), 0, "interior Reach walls remain climbable");
+
+  const reach = api.LEVELS[api.REACH_INDEX];
+  assert.equal(reach.map[120][0], "X");
+  assert.equal(reach.map[120][63], "#");
+  assert.equal(reach.map[70][63], "X");
 });
 
 test("the final Reach enemy connectors reset after a landed fallback", () => {
@@ -994,17 +1002,21 @@ test("The Reach has five fuel-led segments and exactly two earned checkpoints", 
   assert.equal((cells.match(/C/g) || []).length, 2);
   assert.equal((cells.match(/K/g) || []).length, 0, "The Reach has no collectible");
   assert.equal((cells.match(/G/g) || []).length, 1);
+  assert.ok((cells.match(/X/g) || []).length > 100, "striped shortcut stone has its own map tile");
+  assert.equal(reach.map[144].slice(30, 35), "#####", "the first long span has one recovery island");
   const checkpoints = [];
   reach.map.forEach((row, r) => { for (let c = 0; c < row.length; c++) if (row[c] === "C") checkpoints.push([c, r]); });
   assert.deepEqual(checkpoints, [[59, 56], [59, 141]], "checkpoints end the First Span and the Gale");
 
   const chains = [
-    [[12,142],[20,140],[28,142],[36,140],[44,142],[52,140]],
-    [[60,130],[59,120],[60,110],[59,101]],
-    [[54,90],[46,84],[39,86],[32,82],[26,90],[18,83],[13,86]],
-    [[9,79],[17,73],[23,68],[33,63],[47,59]],
-    [[53,52],[44,46],[31,41],[22,36],[14,31],[23,26],[33,22],[43,18]],
+    [[12,142],[20,140],[27,142],[40,139],[47,142],[54,138]],
+    [[60,133],[59,127],[60,121],[59,115],[60,109],[59,102]],
+    [[49,88],[43,86],[37,89],[25,87],[19,89],[13,86],[8,89]],
+    [[12,83],[10,79],[16,75],[27,70],[34,66],[47,61],[55,59]],
+    [[53,52],[44,46],[31,41],[22,36],[14,31],[23,26],[33,22],[43,18],[54,12],[47,9],[56,6]],
   ];
+  assert.ok(chains[2].length >= 7, "the Gale is a sustained horizontal connector chain");
+  assert.ok(chains[4].length >= 11, "the final vertical weave continues above its old crown approach");
   for (const [index, chain] of chains.entries()) {
     for (const [c, r] of chain)
       assert.match(reach.map[r][c], /[fwsEk]/, `segment ${index + 1} fuel exists at ${c},${r}`);

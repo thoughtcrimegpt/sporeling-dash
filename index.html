@@ -1056,6 +1056,12 @@ const PATCH_NOTES_SOURCE_ARCHIVE = [
   ]},
 ];
 const PATCH_NOTES = [
+  { v: "V4.5.6  Longer Reach", d: "2026-07-21 DEV", lines: [
+    "· Walls used by the Reach route are rough and climbable again.",
+    "· Striped smooth stone now marks shortcut barriers before the player touches them.",
+    "· The Gale and final ascent have longer enemy chains, with one small recovery island.",
+    "· The Spire has more airborne connectors and fewer resting shelves.",
+  ]},
   { v: "V4.5.5  Frog", d: "2026-07-21 DEV", lines: [
     "· FROG now waits in The Pressed Garden beneath a pile of old hardware.",
     "· FROG makes frog noises. The sporeling cannot understand him.",
@@ -2202,12 +2208,14 @@ const LEVELS = [
   {
     name: "THE REACH", pal: 7, gauntlet: true, trial: "reach",
     movers: [
-      { c0: 45, c1: 48, rA: 91, rB: 86, period: 1.75, phase: 0 },
-      { c0: 27, c1: 30, rA: 87, rB: 92, period: 1.65, phase: 0.5 },
       { c0: 20, c1: 22, rA: 45, rB: 38, period: 1.9, phase: 0.25 },
     ],
     map: buildLevel(64, 150, ({ set, rect }) => {
       rect(0, 0, 0, 149); rect(63, 0, 63, 149);
+      // Striped smooth stone marks shortcut barriers. Every wall used by the
+      // intended route remains ordinary rough stone and can be clung to.
+      for (let r = 1; r <= 146; r++) set(0, r, "X");
+      for (let r = 12; r <= 95; r++) set(63, r, "X");
       rect(1, 147, 62, 149);
       for (let c = 7; c <= 61; c++) set(c, 146, "S");
 
@@ -2215,43 +2223,44 @@ const LEVELS = [
       rect(1, 144, 6, 146); set(3, 143, "P");
       set(12, 142, "f"); set(20, 140, "f");
 
-      // 2. First Span: the teaching chain becomes a full horizontal crossing.
-      set(28, 142, "f");
-      set(36, 140, "f"); set(44, 142, "f"); set(52, 140, "f");
+      // 2. First Span: one small island breaks a long enemy chain in half.
+      set(27, 142, "f"); rect(30, 144, 34, 144);
+      set(40, 139, "f"); set(47, 142, "f"); set(54, 138, "f");
       rect(57, 142, 62, 146); set(59, 141, "C");
 
-      // 3. Spire: alternating wall teeth and airborne refunds.
+      // 3. Spire: both active walls grip. Fewer shelves and more refunds make
+      // the vertical chain the route instead of a sequence of rest stops.
       rect(55, 99, 56, 139);
-      rect(57, 136, 61, 136); rect(57, 126, 61, 126);
-      rect(57, 116, 61, 116); rect(57, 106, 61, 106);
+      rect(57, 136, 59, 136); rect(60, 116, 62, 116);
       set(57, 132, "S"); set(62, 122, "S"); set(57, 112, "S"); set(62, 102, "S");
-      set(60, 130, "f"); set(59, 120, "f"); set(60, 110, "f"); set(59, 101, "f");
+      set(60, 133, "f"); set(59, 127, "f"); set(60, 121, "f");
+      set(59, 115, "f"); set(60, 109, "f"); set(59, 102, "f");
       // Cap the left face but leave the right shaft open into the Gale.
       rect(48, 96, 54, 98);
 
-      // 4. Gale: move left through the fast lane, then snap back up the broken return.
-      rect(48, 91, 58, 92); rect(34, 87, 43, 88); rect(20, 91, 31, 92); rect(2, 87, 17, 88);
-      set(54, 90, "E"); set(39, 86, "k"); set(26, 90, "E"); set(13, 86, "k");
-      set(46, 84, "w"); set(32, 82, "w"); set(18, 83, "w");
+      // 4. Gale: a full-width horizontal chain with one recovery island, then
+      // a long rising chain back to the second checkpoint.
+      rect(52, 91, 62, 92); rect(29, 91, 33, 91); rect(1, 91, 7, 92);
+      set(49, 88, "w"); set(43, 86, "f"); set(37, 89, "w");
+      set(25, 87, "w"); set(19, 89, "f"); set(13, 86, "w"); set(8, 89, "f");
       rect(1, 84, 6, 86);
-      rect(7, 76, 8, 84); rect(13, 70, 17, 70); rect(25, 66, 29, 66);
-      rect(38, 61, 42, 61); rect(52, 57, 62, 57);
-      set(9, 79, "f"); set(17, 73, "w"); set(23, 68, "f");
-      set(33, 63, "w"); set(47, 59, "f");
-      for (const c of [11, 21, 34, 46]) set(c, 74 - Math.floor(c / 4), "n");
+      rect(7, 76, 8, 84); rect(20, 73, 23, 73); rect(39, 64, 42, 64); rect(52, 57, 62, 57);
+      set(12, 83, "w"); set(10, 79, "f"); set(16, 75, "w"); set(27, 70, "f");
+      set(34, 66, "w"); set(47, 61, "f"); set(55, 59, "w");
+      for (const c of [13, 30, 45]) set(c, 76 - Math.floor(c / 4), "n");
       set(59, 56, "C");
 
-      // 5. Last Reach: wall work, moving footing, then one final enemy chain.
+      // 5. Last Reach: wall work, moving footing, and an extended upper chain.
       rect(54, 43, 55, 56); rect(46, 48, 50, 48); rect(34, 43, 39, 43);
       rect(17, 34, 18, 49); rect(19, 38, 23, 38); rect(8, 29, 13, 29);
       set(53, 52, "s"); set(44, 46, "w"); set(31, 41, "f"); set(22, 36, "w");
       set(20, 45, "S"); set(16, 40, "S"); set(20, 35, "S");
       set(14, 31, "w"); set(23, 26, "f"); set(33, 22, "w"); set(43, 18, "f");
-      rect(49, 13, 55, 13); rect(57, 8, 62, 10);
-      set(59, 6, "G");
+      rect(47, 15, 51, 15); set(54, 12, "w"); set(47, 9, "f"); set(56, 6, "w");
+      rect(58, 3, 62, 4); set(59, 1, "G");
     }),
     clearText: "You made the crown.",
-    unlockText: "The outer walls are slick. Use the route and dash through enemies for blooms.",
+    unlockText: "Striped stone cannot be clung to. Rough walls can. Enemies restore blooms.",
   },
 ];
 
@@ -2472,7 +2481,7 @@ function tileAt(tx, ty) {
   if (ty >= ROWS) return ".";                    // below the world = the void
   return LEVEL[ty][tx];
 }
-const isSolid = ch => ch === "#";
+const isSolid = ch => ch === "#" || ch === "X";
 
 function makePlayer(x, y) {
   return {
@@ -2830,15 +2839,21 @@ function bakeTerrain() {
         }
       }
 
-      // The Reach's outer shell is smooth stone: solid, but deliberately
-      // different from the rough interior walls that the player can cling to.
-      if (S.levelIdx === REACH_INDEX && (tx === 0 || tx === COLS - 1)) {
-        const edgeX = tx === 0 ? px + TILE - 2 : px;
-        t.fillStyle = rockHi;
-        t.fillRect(edgeX, py, 2, TILE);
+      // Striped smooth stone is the only non-clingable terrain. It is used as
+      // a shortcut barrier, never as part of the intended wall-jump route.
+      if (tileAt(tx, ty) === "X") {
+        t.fillStyle = rgb(mix(PAL.rockLo, PAL.accent, 0.18));
+        t.globalAlpha = 0.72;
+        t.fillRect(px + 2, py, TILE - 4, TILE);
         t.fillStyle = accent;
-        t.globalAlpha = 0.28;
-        t.fillRect(edgeX, py + ((ty * 5) % 11), 2, 3);
+        for (let sy = -4; sy < TILE; sy += 8) {
+          t.fillRect(px + 3, py + sy + 3, 3, 2);
+          t.fillRect(px + 6, py + sy + 5, 4, 2);
+          t.fillRect(px + 10, py + sy + 7, 3, 2);
+        }
+        t.fillStyle = rockHi;
+        t.fillRect(px + 1, py, 1, TILE);
+        t.fillRect(px + TILE - 2, py, 1, TILE);
         t.globalAlpha = 1;
       }
     }
@@ -2882,8 +2897,9 @@ function solidsNear(x, y, w, h) {
   const x1 = Math.floor((x + w) / TILE) + 1, y1 = Math.floor((y + h) / TILE) + 1;
   for (let ty = y0; ty <= y1; ty++) {
     for (let tx = x0; tx <= x1; tx++) {
-      if (isSolid(tileAt(tx, ty)))
-        out.push({ x: tx * TILE, y: ty * TILE, w: TILE, h: TILE, tx, ty });
+      const tile = tileAt(tx, ty);
+      if (isSolid(tile))
+        out.push({ x: tx * TILE, y: ty * TILE, w: TILE, h: TILE, tx, ty, tile });
     }
   }
   for (const b of S.blooms) {
@@ -3020,7 +3036,7 @@ function touchingWallDir(p) {
   const r = { x: p.x + p.w, y: p.y + 2, w: 1, h: p.h - 4 };
   for (const s of solidsNear(p.x - 2, p.y, p.w + 4, p.h)) {
     if (s.oneWay) continue;
-    if (S.levelIdx === REACH_INDEX && (s.tx <= 0 || s.tx >= COLS - 1)) continue;
+    if (s.tile === "X") continue;
     if (overlap(r, s)) return 1;
     if (overlap(l, s)) return -1;
   }
