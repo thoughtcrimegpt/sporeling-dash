@@ -117,7 +117,7 @@ function bootGame({ hostname = "127.0.0.1", protocol = "http:", search = "", ini
   const source = scripts[0].replace(marker, `
 globalThis.__SD_TEST__ = {
   S, LEVELS, PATCH_NOTES, BARROW, BOSS, CHORUS, SHOG, ROOT_TIERS, ROOT_TIER_ORDER,
-  FIXED_DT, MAX_FRAME_DT, MAX_SPORES, START_HEALTH, MAX_HEALTH,
+  FIXED_DT, MAX_FRAME_DT, MAX_SPORES, START_HEALTH, MAX_HEALTH, TILE,
   ADVENTURE_DIFFICULTIES, ADVENTURE_RULES, TIMED_RUN_RULES, NOTICE_PRIORITY,
   keys, just, TOUCH, touchPrev, padPrev,
   canvas, handleFocusLoss, handleFocusReturn, loadLevel, pauseIds, titleIds, readInput,
@@ -126,6 +126,7 @@ globalThis.__SD_TEST__ = {
   queueNotice, resetNotices, updateNoticeQueue, noticeBlocked, rootWarningActive, openingLessonNeeded,
   advanceTalk, talkHitAt, talkLayout, titleControlLines,
   chamberClear, submitScore, checkpointEligible, checkpointPathClear, activateCheckpoint,
+  mercyRetriesEnabled, updateDescentMercy,
   gainHealth, hurtPlayer, killPlayer,
   bloomPlacement, spawnBloom, openingLessonLines,
   bossStartAttack, bossLanded, nextRootTier, cameraTargetX, rootCameraCenterY,
@@ -247,7 +248,8 @@ test("every chamber loads with safe runtime objects and a working respawn", () =
     assert.ok(api.S.player.x >= 0 && api.S.player.x + api.S.player.w <= api.WORLD_W);
     assert.ok(api.S.player.y >= 0 && api.S.player.y + api.S.player.h <= api.WORLD_H);
     assert.equal(api.solidBlocked(api.S.player.x, api.S.player.y, api.S.player.w, api.S.player.h), false);
-    assert.equal(api.S.checkpoints.length, cells.split("C").length - 1);
+    const expectedCheckpoints = cells.split("C").length - 1 + (level.mercyCheckpoints || []).length;
+    assert.equal(api.S.checkpoints.length, expectedCheckpoints);
     assert.equal(api.S.berryList.length, cells.split("B").length - 1);
     assert.equal(Boolean(api.S.goal), cells.includes("G"));
 
@@ -293,6 +295,121 @@ test("checkpoint spacing keeps each retry stretch meaningful", () => {
   const hollowCheckpoint = api.LEVELS[0].map.findIndex(row => row.includes("C"));
   assert.equal(hollowCheckpoint, 7, "The Hollow checkpoint stays on its supported platform row");
   assert.equal(api.LEVELS[0].map[7].indexOf("C"), 66, "The Hollow checkpoint comes after the first spike-pit test");
+});
+
+test("mercy retry anchors sit in safe, intentional parts of the route", () => {
+  const { api } = bootGame();
+  const expected = new Map([
+    ["THE SKITTERWAY", [{ c: 45, r: 8 }]],
+    ["THE MARROW", [{ c: 72, r: 15 }]],
+  ]);
+
+  for (const [name, anchors] of expected) {
+    const level = api.LEVELS.find(candidate => candidate.name === name);
+    assert.ok(level, name + " exists");
+    assert.deepEqual([...level.mercyCheckpoints].map(cp => ({ ...cp })), anchors);
+    for (const cp of level.mercyCheckpoints) {
+      assert.equal(level.map[cp.r][cp.c], ".", name + " retry marker occupies open air");
+      assert.equal(level.map[cp.r + 1][cp.c], "#", name + " retry marker has solid footing");
+    }
+  }
+
+  const swallow = api.LEVELS.find(level => level.name === "THE SWALLOW");
+  assert.deepEqual({ ...swallow.descentMercy }, { triggerRow: 34, c: 8, r: 35 });
+  assert.equal(swallow.map[35][8], ".", "The Swallow retry point is clear");
+  assert.equal(swallow.map[33][8], "#", "the retry triggers after the third tooth shelf");
+  assert.equal(swallow.map[42][8], ".", "the next tooth shelf leaves the left approach open");
+});
+
+test("Easy and Normal add sparse retries without changing Hard or Timed Run", () => {
+  const loadFor = (difficulty, mode, name) => {
+    const { api } = bootGame({ initialStorage: {
+      sd_adventure_difficulty: difficulty,
+      sd_run_mode: mode,
+    } });
+    api.S.runMode = mode;
+    api.S.daily = false;
+    api.configureRunRules(mode);
+    api.loadLevel(api.LEVELS.findIndex(level => level.name === name));
+    return api;
+  };
+
+  for (const difficulty of ["easy", "normal"]) {
+    const skitterway = loadFor(difficulty, "adventure", "THE SKITTERWAY");
+    assert.equal(skitterway.mercyRetriesEnabled(), true);
+    assert.equal(skitterway.S.checkpoints.length, 1);
+    assert.equal(skitterway.S.checkpoints[0].mercy, true);
+    assert.equal(skitterway.checkpointEligible(skitterway.S.player, skitterway.S.checkpoints[0]), false);
+    Object.assign(skitterway.S.player, {
+      x: skitterway.S.checkpoints[0].x + 3,
+      y: skitterway.S.checkpoints[0].y - 4,
+    });
+    assert.equal(skitterway.checkpointEligible(skitterway.S.player, skitterway.S.checkpoints[0]), true);
+
+    const marrow = loadFor(difficulty, "adventure", "THE MARROW");
+    assert.equal(marrow.S.checkpoints.length, 2);
+    assert.equal(marrow.S.checkpoints.filter(cp => cp.mercy).length, 1);
+
+    const swallow = loadFor(difficulty, "adventure", "THE SWALLOW");
+    assert.ok(swallow.S.descentMercy);
+
+    for (let index = 0; index <= 10; index++) {
+      swallow.loadLevel(index);
+      const retryCount = swallow.S.checkpoints.length + (swallow.S.descentMercy ? 1 : 0);
+      assert.ok(retryCount <= 2, swallow.LEVELS[index].name + " stays within the two-retry ceiling");
+    }
+  }
+
+  const hardSkitterway = loadFor("hard", "adventure", "THE SKITTERWAY");
+  assert.equal(hardSkitterway.mercyRetriesEnabled(), false);
+  assert.equal(hardSkitterway.S.checkpoints.length, 0);
+  const hardMarrow = loadFor("hard", "adventure", "THE MARROW");
+  assert.equal(hardMarrow.S.checkpoints.length, 1);
+  const hardSwallow = loadFor("hard", "adventure", "THE SWALLOW");
+  assert.equal(hardSwallow.S.descentMercy, null);
+
+  const timedSkitterway = loadFor("easy", "speedrun", "THE SKITTERWAY");
+  assert.equal(timedSkitterway.mercyRetriesEnabled(), false);
+  assert.equal(timedSkitterway.S.checkpoints.length, 0);
+  const timedMarrow = loadFor("easy", "speedrun", "THE MARROW");
+  assert.equal(timedMarrow.S.checkpoints.length, 1);
+  const timedSwallow = loadFor("easy", "speedrun", "THE SWALLOW");
+  assert.equal(timedSwallow.S.descentMercy, null);
+
+  const orderedStart = bootGame({ initialStorage: { sd_adventure_difficulty: "normal" } });
+  orderedStart.api.S.devLevel = orderedStart.api.LEVELS.findIndex(level => level.name === "THE SKITTERWAY");
+  orderedStart.api.startTitleRun();
+  assert.equal(orderedStart.api.S.levelIdx, orderedStart.api.S.devLevel);
+  assert.equal(orderedStart.api.S.checkpoints.filter(cp => cp.mercy).length, 1, "difficulty is configured before the chamber loads");
+});
+
+test("The Swallow saves one mid-shaft retry and respawns there", () => {
+  const { api } = bootGame({ initialStorage: { sd_adventure_difficulty: "normal" } });
+  api.S.runMode = "adventure";
+  api.S.daily = false;
+  api.configureRunRules("adventure");
+  api.loadLevel(api.LEVELS.findIndex(level => level.name === "THE SWALLOW"));
+  api.resetNotices();
+
+  const mercy = api.S.descentMercy;
+  const p = api.S.player;
+  p.y = mercy.triggerY - p.h;
+  assert.equal(api.updateDescentMercy(p), true);
+  assert.equal(api.updateDescentMercy(p), false, "the same shaft threshold cannot save repeatedly");
+  assert.deepEqual({ ...api.S.checkPt }, { x: 8 * api.TILE + 3, y: 35 * api.TILE + 4 });
+  const noticeText = [api.S.hint, ...api.S.hintQueue].filter(Boolean).map(notice => notice.text);
+  assert.ok(noticeText.includes("If the shaft gets you, you'll restart here."));
+
+  Object.assign(p, { x: 20 * api.TILE, y: 55 * api.TILE, vx: 70, vy: 180 });
+  api.S.health = 1;
+  api.killPlayer("the spikes");
+  api.S.deathT = 0.56;
+  api.tick(api.FIXED_DT);
+  assert.equal(api.S.mode, "play");
+  assert.equal(p.x, 8 * api.TILE + 3);
+  assert.equal(p.y, 35 * api.TILE + 4);
+  assert.equal(api.S.health, api.S.maxHealth);
+  assert.equal(p.invuln, 0.5);
 });
 
 test("focus loss pauses play, clears stale controls, and requires neutral re-entry", () => {
@@ -1119,6 +1236,17 @@ test("local browser fixtures expose visual states without creating a production 
   const checkpoint = bootGame({ search: "?fixture=checkpoint" });
   assert.equal(checkpoint.api.S.checkpoints[0].active, true);
   assert.match(checkpoint.api.S.hint.text, /restart here/i);
+
+  const skitterIndex = hardTitle.api.LEVELS.findIndex(level => level.name === "THE SKITTERWAY");
+  const skitterCheckpoint = bootGame({ search: "?fixture=checkpoint&level=" + skitterIndex + "&difficulty=normal" });
+  assert.equal(skitterCheckpoint.api.S.levelIdx, skitterIndex);
+  assert.equal(skitterCheckpoint.api.S.checkpoints[0].mercy, true);
+  assert.equal(skitterCheckpoint.api.S.checkpoints[0].active, true);
+
+  const swallowMercy = bootGame({ search: "?fixture=swallow-mercy&difficulty=normal" });
+  assert.equal(swallowMercy.api.S.descentMercy.active, true);
+  assert.deepEqual({ ...swallowMercy.api.S.checkPt }, { x: 8 * 16 + 3, y: 35 * 16 + 4 });
+  assert.match(swallowMercy.api.S.hint.text, /shaft gets you/i);
 
   const dialogue = bootGame({ search: "?fixture=dialogue" });
   assert.equal(dialogue.api.S.talk.npc.name, "BARNABY");
