@@ -1123,6 +1123,10 @@ test("local browser fixtures expose visual states without creating a production 
   const dialogue = bootGame({ search: "?fixture=dialogue" });
   assert.equal(dialogue.api.S.talk.npc.name, "BARNABY");
 
+  const jbDialogue = bootGame({ search: "?fixture=dialogue&npc=JB" });
+  assert.equal(jbDialogue.api.S.talk.npc.name, "JB");
+  assert.equal(jbDialogue.api.LEVELS[jbDialogue.api.S.levelIdx].name, "THE MARROW");
+
   const chorusOpen = bootGame({ search: "?fixture=chorus-open" });
   assert.equal(chorusOpen.api.S.boss.kind, "chorus");
   assert.equal(chorusOpen.api.S.boss.state, "gather");
@@ -1489,6 +1493,11 @@ test("dialogue stays readable and every resident has a concrete voice", () => {
   assert.match(voice("GRANNY MOREL"), /dear|berry/);
   assert.match(voice("THE ECHO"), /wisps|stay out of your way/);
   assert.match(voice("GREL"), /view|counting/);
+  assert.match(voice("JB"), /bridge pins|Mother Bloom's voice|shows you an eye/);
+
+  const marrow = api.LEVELS.find(level => level.name === "THE MARROW");
+  const jb = marrow.npcs.find(npc => npc.name === "JB");
+  assert.deepEqual([jb.c, jb.r, jb.sprite], [50, 7, "jb"], "JB waits on The Marrow's safe high ledge");
 });
 
 test("dialogue lines can be finished and advanced by keyboard, controller, or tap", () => {
