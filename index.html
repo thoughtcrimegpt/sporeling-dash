@@ -42,6 +42,15 @@
   #touch.left-handed #btnJump { right: auto; left: calc(18px + env(safe-area-inset-left, 0px)); }
   #touch.left-handed #btnDash { right: auto; left: calc(108px + env(safe-area-inset-left, 0px)); }
   #touch.left-handed #btnPause { right: auto; left: calc(10px + env(safe-area-inset-left, 0px)); }
+  /* Menus keep a compact stick + confirm button visible without covering the
+     canvas menu. Patch Notes and Leaderboards also have their own Back tap. */
+  #touch.menu-nav #btnDash, #touch.menu-nav #btnPause { display: none; }
+  #touch.menu-nav #stick { width: 104px; height: 104px; }
+  #touch.menu-nav #nub { left: 30px; top: 30px; }
+  #touch.menu-nav #btnJump, #touch.left-handed.menu-nav #btnJump {
+    width: 64px; height: 64px; right: auto; left: calc(50% - 32px);
+    bottom: calc(14px + env(safe-area-inset-bottom, 0px));
+  }
   #rotateHint { display: none; position: fixed; top: 8px; left: 50%; transform: translateX(-50%);
     color: #e8e0d0; font: 10px monospace; background: rgba(8,12,18,0.75);
     padding: 6px 10px; border-radius: 6px; z-index: 5; pointer-events: none; }
@@ -1056,6 +1065,11 @@ const PATCH_NOTES_SOURCE_ARCHIVE = [
   ]},
 ];
 const PATCH_NOTES = [
+  { v: "V4.5.7  Mobile menu navigation", d: "2026-07-21 DEV", lines: [
+    "· Mobile navigation controls now remain visible on the title screen.",
+    "· Patch Notes and Leaderboards now have a large Back button.",
+    "· The mobile A button confirms title choices and exits those screens.",
+  ]},
   { v: "V4.5.6  Longer Reach", d: "2026-07-21 DEV", lines: [
     "· Walls used by the Reach route are rough and climbable again.",
     "· Striped smooth stone now marks shortcut barriers before the player touches them.",
@@ -1180,6 +1194,7 @@ let NOTES_HOVER = false;
 let TITLE_HITS = [];
 let PAUSE_HITS = [];
 let WIN_HITS = [];
+const SCREEN_BACK_HIT = { x: 12, y: 9, w: 48, h: 18 };
 
 let LB_HITS = [];   // clickable name rows, rebuilt each frame the panel draws
 let LB_PANEL = null; // the small panel's rect — click it to open the full board
@@ -1542,8 +1557,12 @@ function syncTouchVisibility() {
   const root = document.getElementById("touch");
   if (!root) return;
   const gameplayVisible = TOUCH.active && S.mode === "play";
-  root.hidden = !gameplayVisible;
-  root.style.pointerEvents = gameplayVisible ? "" : "none";
+  const menuVisible = TOUCH.active && (S.mode === "title" || S.mode === "notes" || S.mode === "board");
+  const controlsVisible = gameplayVisible || menuVisible;
+  if (menuVisible) root.classList.add("menu-nav");
+  else root.classList.remove("menu-nav");
+  root.hidden = !controlsVisible;
+  root.style.pointerEvents = controlsVisible ? "" : "none";
 }
 
 function touchPulse(kind, id) {
@@ -1649,7 +1668,7 @@ function readInput() {
     if (TOUCH.jump) jumpDown = true;
     if (TOUCH.dash) dashDown = true;
     if (TOUCH.pause) pauseDown = true;
-    if (TOUCH.jump && !touchPrev.jump) jumpEdge = true;
+    if (TOUCH.jump && !touchPrev.jump) { jumpEdge = true; startEdge = true; }
     if (TOUCH.dash && !touchPrev.dash) dashEdge = true;
     if (TOUCH.pause && !touchPrev.pause) pauseEdge = true;
     touchPrev.jump = TOUCH.jump; touchPrev.dash = TOUCH.dash; touchPrev.pause = TOUCH.pause;
@@ -5140,6 +5159,10 @@ function lbHitAt(e) {
 }
 function lbUiHitAt(e) {
   const p2 = canvasPos(e);
+  if ((S.mode === "notes" || S.mode === "board") &&
+      p2.x >= SCREEN_BACK_HIT.x && p2.x <= SCREEN_BACK_HIT.x + SCREEN_BACK_HIT.w &&
+      p2.y >= SCREEN_BACK_HIT.y && p2.y <= SCREEN_BACK_HIT.y + SCREEN_BACK_HIT.h)
+    return { back: true };
   if (S.mode === "pause") {
     for (const hit of PAUSE_HITS)
       if (p2.x >= hit.x && p2.x <= hit.x + hit.w && p2.y >= hit.y && p2.y <= hit.y + hit.h)
@@ -5180,7 +5203,13 @@ canvas.addEventListener("click", e => {
   if (h) { window.open("https://x.com/" + h.name.slice(1).replace(/[^\w]/g, ""), "_blank"); return; }
   const u = lbUiHitAt(e);
   if (!u) return;
-  if (u.tab) { S.boardTab = u.tab; SFX.talk(); }
+  if (u.back) {
+    touchPulse("screen", "back");
+    S.mode = S.mode === "board" ? (S.boardFrom || "title") : "title";
+    releaseTransientInput();
+    SFX.talk();
+  }
+  else if (u.tab) { S.boardTab = u.tab; SFX.talk(); }
   else if (u.title) {
     S.titleSel = u.title.index;
     touchPulse("title", u.title.id);
@@ -7357,6 +7386,16 @@ function drawLbPanel(tall) {
 }
 
 // Patch notes — the cave's own memory, scrollable
+function drawScreenBack() {
+  const pressed = touchPressed("screen", "back");
+  g.fillStyle = pressed ? "rgba(240,168,136,0.38)" : "rgba(30,38,50,0.94)";
+  g.fillRect(SCREEN_BACK_HIT.x, SCREEN_BACK_HIT.y, SCREEN_BACK_HIT.w, SCREEN_BACK_HIT.h);
+  g.fillStyle = pressed ? C.goalOpen : C.ui;
+  g.font = "bold 7px monospace";
+  g.textAlign = "center";
+  g.fillText("< BACK", SCREEN_BACK_HIT.x + SCREEN_BACK_HIT.w / 2, SCREEN_BACK_HIT.y + 12);
+}
+
 function drawNotes() {
   g.drawImage(skyCv, 0, 0);
   drawSpores("far");
@@ -7406,6 +7445,7 @@ function drawNotes() {
   }
   NOTES_MEASURED = y + S.notesY - 38;
   g.restore();
+  drawScreenBack();
   g.textAlign = "center";
   g.fillStyle = C.uiDim;
   g.font = "7px monospace";
@@ -7476,6 +7516,7 @@ function drawBoard() {
     }
   }
 
+  drawScreenBack();
   g.textAlign = "center";
   g.fillStyle = C.uiDim;
   g.font = "7px monospace";

@@ -121,7 +121,7 @@ globalThis.__SD_TEST__ = {
   KEEPSAKE_IDS, TOTAL_KEEPSAKES,
   FIXED_DT, MAX_FRAME_DT, MAX_SPORES, START_HEALTH, MAX_HEALTH, TILE,
   ADVENTURE_DIFFICULTIES, ADVENTURE_RULES, TIMED_RUN_RULES, NOTICE_PRIORITY,
-  keys, just, TOUCH, touchPrev, padPrev,
+  keys, just, TOUCH, touchPrev, padPrev, SCREEN_BACK_HIT,
   canvas, handleFocusLoss, handleFocusReturn, loadLevel, pauseIds, titleIds, readInput,
   activateTitleItem, activatePauseItem, activateWinItem, startTitleRun, startDaily, startReach, setRunModePref, cycleGhostPref, competitiveRun, applyDevFixture,
   dailyUnlocked, rootCleared, reachCleared, stepAdventureLevel, adventureLevelName, cycleAdventureDifficulty, configureRunRules,
@@ -583,6 +583,37 @@ test("touch title uses a segmented mode control and a large Play target", () => 
   canvas.dispatch("click", { clientX: refreshedPlay.x + refreshedPlay.w / 2, clientY: refreshedPlay.y + refreshedPlay.h / 2 });
   assert.equal(api.S.mode, "play");
   assert.equal(vibrations, 2);
+});
+
+test("mobile title controls stay visible and auxiliary screens always have a Back tap", () => {
+  const { api, element } = bootGame();
+  api.TOUCH.active = true;
+  api.S.mode = "title";
+  api.syncTouchVisibility();
+  assert.equal(element("touch").hidden, false);
+  assert.equal(element("touch").classList.contains("menu-nav"), true);
+
+  api.TOUCH.jump = true;
+  assert.equal(api.readInput().startEdge, true, "the mobile A button confirms a title choice");
+  api.TOUCH.jump = false;
+  api.readInput();
+
+  const tapBack = () => api.canvas.dispatch("click", {
+    clientX: api.SCREEN_BACK_HIT.x + api.SCREEN_BACK_HIT.w / 2,
+    clientY: api.SCREEN_BACK_HIT.y + api.SCREEN_BACK_HIT.h / 2,
+  });
+
+  api.S.mode = "notes";
+  api.draw();
+  assert.ok(api.g.operations.some(op => op.type === "fillText" && op.value === "< BACK"));
+  tapBack();
+  assert.equal(api.S.mode, "title");
+
+  api.S.mode = "board";
+  api.S.boardFrom = "title";
+  api.draw();
+  tapBack();
+  assert.equal(api.S.mode, "title");
 });
 
 test("pause is tap-first, cycler arrows work, and gameplay controls leave menu hit areas", () => {

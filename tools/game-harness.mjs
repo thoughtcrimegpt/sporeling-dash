@@ -128,7 +128,7 @@ globalThis.__SD_TEST__ = {
   KEEPSAKE_IDS, TOTAL_KEEPSAKES,
   FIXED_DT, MAX_FRAME_DT, MAX_SPORES, START_HEALTH, MAX_HEALTH,
   ADVENTURE_DIFFICULTIES, ADVENTURE_RULES, TIMED_RUN_RULES, NOTICE_PRIORITY,
-  keys, just, TOUCH, touchPrev, padPrev,
+  keys, just, TOUCH, touchPrev, padPrev, SCREEN_BACK_HIT,
   canvas, handleFocusLoss, handleFocusReturn, loadLevel, pauseIds, titleIds, readInput,
   activateTitleItem, activatePauseItem, activateWinItem, startTitleRun, startDaily, startReach, setRunModePref, cycleGhostPref, competitiveRun, applyDevFixture,
   dailyUnlocked, rootCleared, reachCleared, stepAdventureLevel, adventureLevelName, cycleAdventureDifficulty, configureRunRules,
