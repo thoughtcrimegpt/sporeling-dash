@@ -12,7 +12,7 @@ The main Adventure crosses 11 chambers, introduces wall-cling and spore-glide, a
 
 ### Adventure
 
-Adventure has no clock or leaderboard submission. Level select becomes available after the first chamber clear.
+Adventure has no clock or leaderboard submission. Level select becomes available after the first chamber clear. A player who finishes Adventure can optionally add a public name before the credits roll; those names appear in completion order after "Thanks for playing."
 
 | Difficulty | Health | Berry healing | Checkpoints |
 |------------|--------|---------------|-------------|
@@ -48,7 +48,7 @@ The leaderboard names each route directly: Any%, 100%, Pale Root, and The Reach.
 10. The Swallow
 11. The Mother's Throat — the Unbloomed and Shoggoth
 
-The Undrawn Map is hidden above the Spire. A second hidden room sits beyond the Bloomheart's risky right-wall route. FROG lives there beneath a pile of old hardware and only makes frog noises. The Pale Root unlocks after the main game is beaten; The Reach appears only after the Pale Root is cleared.
+The Undrawn Map is hidden above the Spire. A second hidden room sits high beyond the Bloomheart's right wall. A small Frog sign and a berry trail mark the start, but three overhangs stop a straight wall climb; two enemy connectors return after a failed attempt. FROG lives inside beneath a pile of old hardware and only makes frog noises. The Pale Root unlocks after the main game is beaten; The Reach appears only after the Pale Root is cleared.
 
 ## Keepsakes
 
@@ -64,7 +64,7 @@ Four keepsakes persist on the device that found them. They are placed on the Rot
 | Finish dialogue text | E / Enter   | Y             |
 | Pause      | Esc / P               | Start         |
 
-Menus support arrows, WASD, D-pad, mouse, and touch. On touch screens, a compact stick and A button remain visible on the title, Patch Notes, and Leaderboards; Patch Notes and Leaderboards also have a large Back button. The title uses an Adventure/Timed selector and a large Play button, while pause and win actions are direct tap targets. Tap actions use short haptic and pressed feedback. Full mobile controls appear automatically during play and can be mirrored for left-handed use. Reduced Motion is available from the pause menu.
+Menus support arrows, WASD, D-pad, mouse, and touch. The title has separate Reviews, Patch Notes, and Leaderboards screens; review handles link to their X profiles. On touch screens, a compact stick and A button remain visible on the title and those auxiliary screens, which also have a large Back button. The title uses an Adventure/Timed selector and a large Play button, while pause, completion-name, and win actions are direct tap targets. Tap actions use short haptic and pressed feedback. Full mobile controls appear automatically during play and can be mirrored for left-handed use. Reduced Motion is available from the pause menu.
 
 No dependencies, no build step — open `index.html` and play.
 

@@ -117,13 +117,14 @@ function bootGame({ hostname = "127.0.0.1", protocol = "http:", search = "", ini
   const source = scripts[0].replace(marker, `
 globalThis.__SD_TEST__ = {
   S, LEVELS, PATCH_NOTES, BARROW, BOSS, CHORUS, SHOG, ROOT_TIERS, ROOT_TIER_ORDER,
-  MAIN_LAST_INDEX, UNDRAWN_INDEX, PALE_ROOT_INDEX, PRESSED_GARDEN_INDEX, REACH_INDEX,
+  MAIN_LAST_INDEX, UNDRAWN_INDEX, PALE_ROOT_INDEX, BLOOMHEART_INDEX, PRESSED_GARDEN_INDEX, REACH_INDEX,
+  REVIEWS,
   KEEPSAKE_IDS, TOTAL_KEEPSAKES,
   FIXED_DT, MAX_FRAME_DT, MAX_SPORES, START_HEALTH, MAX_HEALTH, TILE,
   ADVENTURE_DIFFICULTIES, ADVENTURE_RULES, TIMED_RUN_RULES, NOTICE_PRIORITY,
   keys, just, TOUCH, touchPrev, padPrev, SCREEN_BACK_HIT,
   canvas, handleFocusLoss, handleFocusReturn, loadLevel, pauseIds, titleIds, readInput,
-  activateTitleItem, activatePauseItem, activateWinItem, startTitleRun, startDaily, startReach, setRunModePref, cycleGhostPref, competitiveRun, applyDevFixture,
+  activateTitleItem, activatePauseItem, activateWinItem, activateCreditJoin, beginCredits, beginCreditRoll, startTitleRun, startDaily, startReach, setRunModePref, cycleGhostPref, competitiveRun, applyDevFixture,
   dailyUnlocked, rootCleared, reachCleared, stepAdventureLevel, adventureLevelName, cycleAdventureDifficulty, configureRunRules,
   queueNotice, resetNotices, updateNoticeQueue, noticeBlocked, rootWarningActive, openingLessonNeeded,
   advanceTalk, talkHitAt, talkLayout, titleControlLines,
@@ -134,7 +135,7 @@ globalThis.__SD_TEST__ = {
   bossStartAttack, bossLanded, nextRootTier, cameraTargetX, rootCameraCenterY,
   draw, drawBossWarnings, frame, g, moveAxis, resize, respawn,
   restartCurrentChamber, solidBlocked, spawnShoggoth, startPracticeRun, tick, touchingWallDir,
-  resetReachFinalFuel, updateReachFinalFuelReset,
+  resetReachFinalFuel, updateReachFinalFuelReset, resetBloomheartSecretFuel, updateBloomheartSecretFuelReset,
   devMetricsSnapshot, recordDevAttempt, toggleReducedMotion, toggleTouchHand, syncTouchVisibility, touchPulse,
   updateBarrow, updateBoss, updateChorus, updateShoggoth,
   setTestMap(rows) {
@@ -156,9 +157,11 @@ globalThis.__SD_TEST__ = {
   get ghostPref() { return ghostPref; },
   get adventureDifficultyPref() { return adventureDifficultyPref; },
   get DAILY_PANEL() { return DAILY_PANEL; },
+  get NOTES_HIT() { return NOTES_HIT; },
   get TITLE_HITS() { return TITLE_HITS; },
   get PAUSE_HITS() { return PAUSE_HITS; },
   get WIN_HITS() { return WIN_HITS; },
+  get FINISHERS_CACHE() { return FINISHERS_CACHE; },
   get WORLD_H() { return WORLD_H; },
   get WORLD_W() { return WORLD_W; },
 };
@@ -614,6 +617,67 @@ test("mobile title controls stay visible and auxiliary screens always have a Bac
   api.draw();
   tapBack();
   assert.equal(api.S.mode, "title");
+
+  api.S.mode = "reviews";
+  api.draw();
+  tapBack();
+  assert.equal(api.S.mode, "title");
+});
+
+test("the title opens all eight exact linked reviews and the Patch Notes label matches its click target", () => {
+  const { api } = bootGame({ hostname: "thoughtcrimegpt.github.io" });
+  const expected = [
+    { quote: "This looks fun as fuck", handle: "@yacineMTB" },
+    { quote: "this is dope i like the mushroom guy", handle: "@boneGPT" },
+    { quote: "\"coo game\" - special k", handle: "@specialkdelslay" },
+    { quote: "Wow, this game is great! Such amazing story and character development.", handle: "@Ken67547214" },
+    { quote: "I’ve played and interacted with this little game more than anything else anyone I know has ever made", handle: "@brostoevksy" },
+    { quote: "game of the year", handle: "@JasonBotterill" },
+    { quote: "no half-measures", handle: "@CommanthaBiden" },
+    { quote: "much more satisfying this time around!", handle: "@TylerCLaprade" },
+  ];
+  assert.deepEqual(JSON.parse(JSON.stringify(api.REVIEWS)), expected);
+  assert.equal(api.titleIds().includes("reviews"), true);
+
+  api.S.mode = "title";
+  api.draw();
+  const notesLabel = api.g.operations.find(op => op.type === "fillText" && op.value.includes("PATCH NOTES"));
+  assert.ok(notesLabel);
+  assert.ok(notesLabel.y >= api.NOTES_HIT.y && notesLabel.y <= api.NOTES_HIT.y + api.NOTES_HIT.h);
+
+  api.activateTitleItem("reviews");
+  api.g.operations.length = 0;
+  api.draw();
+  assert.ok(api.g.operations.some(op => op.type === "fillText" && op.value === "REVIEWS"));
+  assert.ok(api.g.operations.some(op => op.type === "fillText" && op.value === "“This looks fun as fuck”"));
+  assert.ok(api.g.operations.some(op => op.type === "fillText" && op.value === "@yacineMTB"));
+});
+
+test("Adventure completion offers an optional public credit name before the clearer credits roll", () => {
+  const fresh = bootGame({ hostname: "thoughtcrimegpt.github.io" });
+  fresh.api.S.runMode = "adventure";
+  fresh.api.S.practice = false;
+  fresh.api.S.daily = false;
+  fresh.api.S.reachTrial = false;
+  fresh.api.beginCredits();
+  assert.equal(fresh.api.S.mode, "creditjoin");
+  fresh.api.g.operations.length = 0;
+  fresh.api.draw();
+  assert.ok(fresh.api.g.operations.some(op => op.type === "fillText" && op.value === "ADD MY NAME"));
+  assert.ok(fresh.api.g.operations.some(op => op.type === "fillText" && op.value.includes("public")));
+  fresh.api.activateCreditJoin("skip");
+  assert.equal(fresh.api.S.mode, "credits", "the public credit is always optional");
+
+  const signed = bootGame({ hostname: "thoughtcrimegpt.github.io", initialStorage: { sd_credit_name: "@first" } });
+  signed.api.S.runMode = "adventure";
+  signed.api.beginCredits();
+  assert.equal(signed.api.S.mode, "credits");
+  signed.api.S.creditsT = 12;
+  signed.api.g.operations.length = 0;
+  signed.api.draw();
+  assert.ok(signed.api.g.operations.some(op => op.type === "fillRect" && op.fillStyle === "rgba(3,5,8,0.84)"));
+  assert.ok(signed.api.g.operations.some(op => op.type === "fillText" && op.value === "Created by ThoughtCrime"));
+  assert.equal(signed.api.g.operations.some(op => op.type === "fillText" && /thoughtcrimegpt/i.test(op.value)), false);
 });
 
 test("pause is tap-first, cycler arrows work, and gameplay controls leave menu hit areas", () => {
@@ -1004,7 +1068,7 @@ test("both secret rooms return to the exact host route they came from", () => {
   api.loadLevel(bloomheart);
   api.S.mode = "play";
   api.S.player.x = 55 * api.TILE - api.S.player.w;
-  api.S.player.y = 6 * api.TILE;
+  api.S.player.y = 2 * api.TILE;
   api.S.player.vx = 0; api.S.player.vy = 0; api.S.player.invuln = 99;
   api.tick(api.FIXED_DT);
   assert.equal(api.S.levelIdx, api.PRESSED_GARDEN_INDEX);
@@ -1022,6 +1086,36 @@ test("both secret rooms return to the exact host route they came from", () => {
   assert.equal(api.S.levelIdx, 2);
   assert.equal(api.S.player.x, 88);
   assert.equal(api.S.player.y, 54);
+});
+
+test("the Frog route is high, visibly marked, enemy-led, and restores its two connectors after a fall", () => {
+  const { api } = bootGame();
+  const level = api.LEVELS[api.BLOOMHEART_INDEX];
+  assert.equal(level.map[0][55], "#", "the top border remains closed");
+  for (const r of [1, 2, 3]) assert.equal(level.map[r][55], ".", `secret opening includes row ${r}`);
+  assert.equal(level.map[4][55], "#", "the old lower opening is closed");
+  assert.equal(level.map[25].slice(49, 56), "#######", "the first lip stops a straight wall climb");
+  assert.equal(level.map[18].slice(47, 56), "#########", "the middle lip forces a wall turn");
+  assert.equal(level.map[10].slice(50, 56), "######", "the upper lip protects the final opening");
+  assert.equal(level.map[20][46], "f");
+  assert.equal(level.map[12][48], "f");
+  assert.equal(level.map[20][47], "B");
+  assert.equal(level.map[12][49], "B");
+
+  api.loadLevel(api.BLOOMHEART_INDEX);
+  api.S.mode = "play";
+  api.g.operations.length = 0;
+  api.draw();
+  assert.ok(api.g.operations.some(op => op.type === "fillText" && op.value === "FROG?  ↗"));
+  const routeFuel = () => api.S.enemies.filter(e => e.t === "puff" && e.spawnX > 43 * api.TILE && e.spawnY < 23 * api.TILE);
+  assert.equal(routeFuel().length, 2);
+  api.S.enemies = api.S.enemies.filter(e => !routeFuel().includes(e));
+  assert.equal(routeFuel().length, 0);
+  api.S.bloomheartSecretFuelArmed = true;
+  api.S.player.grounded = true;
+  api.S.player.y = 27 * api.TILE;
+  assert.equal(api.updateBloomheartSecretFuelReset(api.S.player), true);
+  assert.equal(routeFuel().length, 2);
 });
 
 test("The Reach has five fuel-led segments and exactly two earned checkpoints", () => {
@@ -1503,7 +1597,10 @@ test("desktop patch notes present a clickable title button", () => {
   const label = api.g.operations.find(op => op.type === "fillText" && op.value.includes("PATCH NOTES"));
   assert.ok(label?.value.endsWith("CLICK"));
 
-  api.canvas.dispatch("click", { clientX: 250, clientY: 118 });
+  api.canvas.dispatch("click", {
+    clientX: api.NOTES_HIT.x + api.NOTES_HIT.w / 2,
+    clientY: api.NOTES_HIT.y + api.NOTES_HIT.h / 2,
+  });
   assert.equal(api.S.mode, "notes");
 });
 
@@ -1573,6 +1670,15 @@ test("local browser fixtures expose visual states without creating a production 
   const reachBoard = bootGame({ search: "?fixture=board&tab=reach" });
   assert.equal(reachBoard.api.S.mode, "board");
   assert.equal(reachBoard.api.S.boardTab, "reach");
+
+  assert.equal(bootGame({ search: "?fixture=reviews" }).api.S.mode, "reviews");
+  assert.equal(bootGame({ search: "?fixture=creditjoin" }).api.S.mode, "creditjoin");
+  const credits = bootGame({ search: "?fixture=credits&time=12" });
+  assert.equal(credits.api.S.mode, "credits");
+  assert.equal(credits.api.S.creditsT, 12);
+  const frogRoute = bootGame({ search: "?fixture=frog-route" });
+  assert.equal(frogRoute.api.S.levelIdx, frogRoute.api.BLOOMHEART_INDEX);
+  assert.equal(frogRoute.api.S.player.x, 43 * 16);
 
   const reachFallback = bootGame({ search: "?fixture=reach&section=5&fallback=1" });
   assert.equal(reachFallback.api.S.levelIdx, reachFallback.api.REACH_INDEX);

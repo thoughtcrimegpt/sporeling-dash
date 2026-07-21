@@ -511,8 +511,8 @@ const LEVEL_MUSIC = ["dream", "roots", "roots", "garden", "skitter", "brood", "g
 function musicWanted() {
   if (!musicOn) return null;
   const m = S.mode;
-  if (m === "freed" || m === "credits" || m === "gameover") return null;
-  if (m === "title" || m === "notes" || m === "board") return "dream";
+  if (m === "freed" || m === "creditjoin" || m === "credits" || m === "gameover") return null;
+  if (m === "title" || m === "notes" || m === "reviews" || m === "board") return "dream";
   if (S.boss && S.boss.state === "falsebloom") return null;   // the false quiet
   if (S.boss && S.boss.kind === "shoggoth") return "shoggoth";
   return LEVEL_MUSIC[S.levelIdx] || "dream";
@@ -616,6 +616,21 @@ const LB = {
   key: "sb_publishable_TRsn9kUJMD0xJ_MrPKNh0w_9sr9raSw",
 };
 const lbOn = () => !!(LB.url && LB.key);
+
+// Player quotes are part of the game itself. Handles link straight to the
+// profile that supplied the quote; they do not need a database round trip.
+const REVIEWS = Object.freeze([
+  { quote: "This looks fun as fuck", handle: "@yacineMTB" },
+  { quote: "this is dope i like the mushroom guy", handle: "@boneGPT" },
+  { quote: "\"coo game\" - special k", handle: "@specialkdelslay" },
+  { quote: "Wow, this game is great! Such amazing story and character development.", handle: "@Ken67547214" },
+  { quote: "I’ve played and interacted with this little game more than anything else anyone I know has ever made", handle: "@brostoevksy" },
+  { quote: "game of the year", handle: "@JasonBotterill" },
+  { quote: "no half-measures", handle: "@CommanthaBiden" },
+  { quote: "much more satisfying this time around!", handle: "@TylerCLaprade" },
+]);
+let FINISHERS_CACHE = [];
+let FINISHERS_LOADING = false;
 
 // ── The Daily Spore — the cave is the Mother's dream, and she dreams
 // differently every night. Same seed for everyone, resets at UTC midnight.
@@ -735,6 +750,7 @@ const titleIds = () => {
   if (DEV) ids.push("devlevel");
   if (DEV) ids.push("devhealth");
   if (lbOn()) ids.push("board");
+  ids.push("reviews");
   ids.push("daily");
   if (rootCleared()) ids.push("reach");
   ids.push("notes");
@@ -800,6 +816,7 @@ function activateTitleItem(id) {
   else if (id === "levelselect") { stepAdventureLevel(1); SFX.talk(); }
   else if (id === "ghost") { cycleGhostPref(1); SFX.talk(); }
   else if (id === "notes") { S.mode = "notes"; S.notesY = 0; SFX.talk(); }
+  else if (id === "reviews") { S.mode = "reviews"; S.reviewsY = 0; SFX.talk(); }
   else if (id === "board" && lbOn()) { S.boardFrom = "title"; S.mode = "board"; SFX.talk(); }
   else if (id === "daily") { if (dailyUnlocked()) startDaily(); else SFX.talk(); }
   else if (id === "reach") { startReach(); }
@@ -1065,6 +1082,13 @@ const PATCH_NOTES_SOURCE_ARCHIVE = [
   ]},
 ];
 const PATCH_NOTES = [
+  { v: "V4.5.8  Reviews and finishers", d: "2026-07-21 DEV", lines: [
+    "· The title has a Reviews screen with eight linked player quotes.",
+    "· Adventure finishers can add a public name before the credits roll.",
+    "· The credits list finishers in order and use a darker, clearer backdrop.",
+    "· The Bloomheart route to Frog now has marked ledges, two enemy connectors, and a reset after a fall.",
+    "· The Patch Notes label now sits inside its actual click target.",
+  ]},
   { v: "V4.5.7  Mobile menu navigation", d: "2026-07-21 DEV", lines: [
     "· Mobile navigation controls now remain visible on the title screen.",
     "· Patch Notes and Leaderboards now have a large Back button.",
@@ -1194,6 +1218,9 @@ let NOTES_HOVER = false;
 let TITLE_HITS = [];
 let PAUSE_HITS = [];
 let WIN_HITS = [];
+let REVIEW_HITS = [];
+let REVIEWS_MEASURED = 0;
+let CREDIT_HITS = [];
 const SCREEN_BACK_HIT = { x: 12, y: 9, w: 48, h: 18 };
 
 let LB_HITS = [];   // clickable name rows, rebuilt each frame the panel draws
@@ -1240,6 +1267,7 @@ function lbRefresh() {
   lbFetch("root").then(d => { if (d) { LB_CACHE.daily = d; prefetchLeader("daily", d); } });
   lbFetch("reach").then(d => { if (d) { LB_CACHE.reach = d; prefetchLeader("reach", d); } });
   fallenFetch();
+  finishersFetch();
 }
 
 // Returns { ok, id } — the id makes "race my echo" challenge links possible
@@ -1259,6 +1287,76 @@ async function lbPost(name, cat, ms, ghost) {
     const j = await r.json();
     return { ok: true, id: j[0] ? j[0].id : null };
   } catch (e) { return { ok: false, id: null }; }
+}
+
+async function finishersFetch() {
+  if (!lbOn() || FINISHERS_LOADING) return FINISHERS_CACHE;
+  FINISHERS_LOADING = true;
+  try {
+    const rows = [];
+    const pageSize = 1000;
+    for (let offset = 0; ; offset += pageSize) {
+      const r = await fetch(LB.url + "/rest/v1/scores?category=eq.adventure" +
+        "&select=name,id&order=id.asc&limit=" + pageSize + "&offset=" + offset, {
+        headers: { apikey: LB.key, Authorization: "Bearer " + LB.key },
+      });
+      if (!r.ok) return FINISHERS_CACHE;
+      const page = await r.json();
+      rows.push(...page);
+      if (page.length < pageSize) break;
+    }
+    const seen = new Set();
+    FINISHERS_CACHE = rows.filter(row => {
+      const key = String(row.name || "").trim().toLowerCase();
+      if (!key || seen.has(key)) return false;
+      seen.add(key);
+      return true;
+    }).map(row => String(row.name).trim());
+    return FINISHERS_CACHE;
+  } catch (e) {
+    return FINISHERS_CACHE;
+  } finally {
+    FINISHERS_LOADING = false;
+  }
+}
+
+const savedCreditName = () => {
+  try { return localStorage.getItem("sd_credit_name") || ""; } catch (e) { return ""; }
+};
+
+function sanitizePublicName(name) {
+  return String(name || "").trim().replace(/[^\w@.\- ]/g, "").slice(0, 20);
+}
+
+function submitCreditName() {
+  if (!lbOn() || S.creditSubmitting) {
+    S.creditMsg = lbOn() ? "Still adding your name..." : "Credits are offline. You can skip for now.";
+    return;
+  }
+  let name = savedCreditName() || "@";
+  name = window.prompt(
+    "Add the name you want shown in the public Adventure credits.\n\n" +
+    "Names appear in completion order. An exact X handle such as @yourhandle is fine.",
+    name) || "";
+  name = sanitizePublicName(name);
+  if (!name || name === "@") {
+    S.creditMsg = "Enter a name, or choose SKIP.";
+    return;
+  }
+  S.creditSubmitting = true;
+  S.creditMsg = "Adding " + name + "...";
+  lbPost(name, "adventure", 0, null).then(async result => {
+    S.creditSubmitting = false;
+    if (!result.ok) {
+      S.creditMsg = "That didn't save. Try again or skip.";
+      return;
+    }
+    try { localStorage.setItem("sd_credit_name", name); } catch (e) {}
+    await finishersFetch();
+    if (!FINISHERS_CACHE.some(entry => entry.toLowerCase() === name.toLowerCase()))
+      FINISHERS_CACHE.push(name);
+    beginCreditRoll();
+  });
 }
 
 // ── The Stopped ────────────────────────────────────────────────────────────
@@ -1557,7 +1655,7 @@ function syncTouchVisibility() {
   const root = document.getElementById("touch");
   if (!root) return;
   const gameplayVisible = TOUCH.active && S.mode === "play";
-  const menuVisible = TOUCH.active && (S.mode === "title" || S.mode === "notes" || S.mode === "board");
+  const menuVisible = TOUCH.active && (S.mode === "title" || S.mode === "notes" || S.mode === "reviews" || S.mode === "board" || S.mode === "creditjoin");
   const controlsVisible = gameplayVisible || menuVisible;
   if (menuVisible) root.classList.add("menu-nav");
   else root.classList.remove("menu-nav");
@@ -2018,11 +2116,17 @@ const LEVELS = [
       set(33, 5, "B");
       set(3, 30, "P"); set(39, 8, "C"); set(16, 1, "G");
       set(50, 30, "B"); set(11, 15, "B"); set(49, 12, "B"); set(27, 4, "B"); set(52, 28, "B");
-      set(54, 18, "B");                                       // right-wall shaft — cling on the skip route
-      set(50, 6, "B");                                        // high in the open shaft — spore-limited chain
-      set(54, 15, "S"); set(54, 25, "S");                       // the skip route bites
-      rect(55, 4, 55, 7, ".");                                 // hidden break beyond the risky right-wall skip
-      rect(50, 8, 54, 8);                                      // narrow launch shelf below the break
+      // Frog route: straight wall-scaling stops at three deep lips. The normal
+      // Bloomheart shelves reach the first lip; the rest asks for wall turns,
+      // two enemy refunds, and a final jump around the top ledge.
+      rect(49, 25, 55, 25);                                    // first lip blocks the ground-wall shortcut
+      rect(47, 18, 55, 18);                                    // wide middle lip: turn left around it
+      rect(50, 10, 55, 10);                                    // high lip above the old launch shelf
+      rect(50, 7, 54, 7);                                      // last place to breathe before the opening
+      set(46, 20, "f"); set(48, 12, "f");                       // stomp or dash through for route fuel
+      set(47, 20, "B"); set(49, 12, "B"); set(53, 6, "B");    // a dotted trail toward the hidden break
+      set(54, 22, "S"); set(54, 14, "S");                       // careless wall-climbs still bite
+      rect(55, 1, 55, 3, ".");                                 // the higher break into the Pressed Garden
       set(12, 30, "e"); set(20, 30, "E"); set(24, 19, "E");
       set(35, 24, "f"); set(17, 13, "f");
       set(40, 19, "w"); set(34, 11, "w"); set(20, 4, "w");
@@ -2286,6 +2390,7 @@ const LEVELS = [
 const MAIN_LAST_INDEX = 10;
 const UNDRAWN_INDEX = LEVELS.findIndex(level => level.name === "THE UNDRAWN MAP");
 const PALE_ROOT_INDEX = LEVELS.findIndex(level => level.name === "THE PALE ROOT");
+const BLOOMHEART_INDEX = LEVELS.findIndex(level => level.name === "THE BLOOMHEART");
 const PRESSED_GARDEN_INDEX = LEVELS.findIndex(level => level.name === "THE PRESSED GARDEN");
 const REACH_INDEX = LEVELS.findIndex(level => level.name === "THE REACH");
 
@@ -2381,9 +2486,10 @@ const S = {
   titleSel: 2, titleAy: 0,
   hint: null, hintQueue: [], wispHinted: false, bloomLessonDone: false,
   devLevel: 0, devInf: false, devAx: 0, devAy: 0,
-  boardTab: "any", boardAx: 0, boardFrom: "title", notesY: 0,
+  boardTab: "any", boardAx: 0, boardFrom: "title", notesY: 0, reviewsY: 0,
   daily: false, dailyMods: null, reachTrial: false,
-  reachFinalFuelArmed: false,
+  reachFinalFuelArmed: false, bloomheartSecretFuelArmed: false,
+  creditJoinSel: 0, creditJoinAy: 0, creditMsg: "", creditSubmitting: false,
   practice: false, pracSel: 0, advStart: 0,
   rec: [], ghost: null, ghostPos: null, pendingGhost: null, split: null,
   fallen: [], stoppedHint: false,
@@ -2528,6 +2634,7 @@ function loadLevel(idx) {
   S.berryList = []; S.keepsakeList = []; S.checkpoints = []; S.descentMercy = null; S.blooms = []; S.particles = []; S.trail = [];
   S.goal = null; S.goalOpen = 0; S.winT = 0; S.deathT = 0;
   S.reachFinalFuelArmed = false;
+  S.bloomheartSecretFuelArmed = false;
   S.shakeT = 0; S.freezeT = 0; S.jumpHeldForCut = false;
   S.bannerT = 2.4;
   if (L.unlockText) queueNotice(L.unlockText, 3.6, NOTICE_PRIORITY.TUTORIAL);
@@ -3140,6 +3247,30 @@ function updateReachFinalFuelReset(p) {
   if (!resetReachFinalFuel()) return false;
   queueNotice("The last climb resets.", 2.2, NOTICE_PRIORITY.STATUS);
   return true;
+}
+
+const bloomheartSecretFuelSpawn = sp =>
+  sp.t === "puff" && sp.x > 43 * TILE && sp.y < 23 * TILE;
+
+function resetBloomheartSecretFuel() {
+  if (S.levelIdx !== BLOOMHEART_INDEX) return false;
+  const otherEnemies = S.enemies.filter(e =>
+    !(e.t === "puff" && e.spawnX > 43 * TILE && e.spawnY < 23 * TILE));
+  const routeSpawns = ENEMY_SPAWNS.filter(bloomheartSecretFuelSpawn);
+  S.enemies = otherEnemies.concat(routeSpawns.map(enemyFromSpawn));
+  S.eshots = [];
+  return true;
+}
+
+function updateBloomheartSecretFuelReset(p) {
+  if (S.levelIdx !== BLOOMHEART_INDEX || S.daily || S.reachTrial) {
+    S.bloomheartSecretFuelArmed = false;
+    return false;
+  }
+  if (p.x > 42 * TILE && p.y < 23 * TILE) S.bloomheartSecretFuelArmed = true;
+  if (!S.bloomheartSecretFuelArmed || !p.grounded || p.y <= 26 * TILE) return false;
+  S.bloomheartSecretFuelArmed = false;
+  return resetBloomheartSecretFuel();
 }
 
 function killEnemy(e, byDash) {
@@ -4335,6 +4466,7 @@ async function fetchGhost(id) {
 
 function startEnding() {
   try { if (!S.practice) localStorage.setItem("sd_beaten", "1"); } catch (e) {}
+  if (!S.practice && S.runMode === "adventure") finishersFetch();
   // remember your best echo
   try {
     if (competitiveRun() && !S.daily) {
@@ -4351,6 +4483,33 @@ function startEnding() {
   SFX.clear();
 }
 
+function beginCreditRoll() {
+  S.mode = "credits";
+  S.creditsT = 0;
+  S.creditMsg = "";
+  S.creditSubmitting = false;
+  finishersFetch();
+  SFX.win();
+}
+
+function beginCredits() {
+  const canJoin = !S.practice && S.runMode === "adventure" && !S.daily && !S.reachTrial;
+  if (canJoin && !savedCreditName()) {
+    S.mode = "creditjoin";
+    S.creditJoinSel = 0;
+    S.creditJoinAy = 0;
+    S.creditMsg = "";
+    S.creditSubmitting = false;
+    return;
+  }
+  beginCreditRoll();
+}
+
+function activateCreditJoin(id) {
+  if (id === "add") submitCreditName();
+  else if (id === "skip" && !S.creditSubmitting) beginCreditRoll();
+}
+
 function fastForwardEnding() {
   S.endT = Math.max(S.endT, 6.4);
   S.endBoom = true;
@@ -4362,7 +4521,7 @@ function fastForwardEnding() {
 
 function startReunion() {
   const names = Object.keys(S.score.metNpcs).filter(n => REUNION_LINES[n]);
-  if (!names.length) { S.mode = "credits"; S.creditsT = 0; SFX.win(); return; }
+  if (!names.length) { beginCredits(); return; }
   S.reunion = { names, idx: -1, t: 2.2, actors: [] };
   S.npcs = [];
   S.mode = "reunion";
@@ -4552,6 +4711,13 @@ function tick(dt) {
     return;
   }
 
+  if (S.mode === "reviews") {
+    S.reviewsY = clamp(S.reviewsY + inp.ay * 130 * dt, 0, Math.max(0, REVIEWS_MEASURED - (H - 54)));
+    if (inp.jumpEdge || inp.pauseEdge) S.mode = "title";
+    clearJust();
+    return;
+  }
+
   if (S.mode === "title") {
     // UTC midnight rolled over while idling — refetch today's dream
     if (lbOn() && LB_DAY && LB_DAY !== dailySeedStr()) { LB_CACHE.daily = null; lbRefresh(); }
@@ -4664,7 +4830,7 @@ function tick(dt) {
       r.t = 0;
       r.idx++;
       if (r.idx >= r.names.length) {
-        S.mode = "credits"; S.creditsT = 0; SFX.win();
+        beginCredits();
         clearJust();
         return;
       }
@@ -4693,13 +4859,27 @@ function tick(dt) {
     return;
   }
 
+  if (S.mode === "creditjoin") {
+    const nav = Math.abs(inp.ax) > Math.abs(inp.ay) ? inp.ax : inp.ay;
+    if (!S.creditSubmitting && Math.abs(nav) > 0.5 && Math.abs(S.creditJoinAy) <= 0.5) {
+      S.creditJoinSel = S.creditJoinSel ? 0 : 1;
+      SFX.talk();
+    }
+    S.creditJoinAy = nav;
+    if (inp.startEdge) activateCreditJoin(S.creditJoinSel ? "skip" : "add");
+    else if (inp.pauseEdge) activateCreditJoin("skip");
+    updateParticles(dt);
+    clearJust();
+    return;
+  }
+
   if (S.mode === "credits") {
     S.shakeT = 0;
     S.creditsT += dt;
     if (S.reunion)
       for (const a of S.reunion.actors) a.y = a.baseY + Math.sin(S.time * 1.4 + a.ph) * 4;
     updateParticles(dt);
-    if (inp.jumpEdge || S.creditsT > 17) {
+    if (inp.jumpEdge || S.creditsT > creditsDuration()) {
       S.mode = "win";
       S.lbMsg = "";
       S.lbConfirm = false;
@@ -4936,6 +5116,7 @@ function tick(dt) {
   if (p.invuln > 0) p.invuln -= dt;
 
   updateReachFinalFuelReset(p);
+  updateBloomheartSecretFuelReset(p);
 
   for (const b of S.blooms) { b.life -= dt; b.age += dt; }
   for (const b of S.blooms) {
@@ -4995,9 +5176,9 @@ function tick(dt) {
   if (S.levelIdx === 2 && !S.daily && !S.reachTrial && S.secretCd <= 0 && p.y + p.h < 5 * TILE && p.x < 64) {
     enterSecret(UNDRAWN_INDEX, { x: 5.5 * TILE, y: 4 * TILE - p.h }); clearJust(); return;
   }
-  if (S.levelIdx === LEVELS.findIndex(level => level.name === "THE BLOOMHEART") &&
-      !S.daily && !S.reachTrial && S.secretCd <= 0 && p.x + p.w > 54.5 * TILE && p.y < 8 * TILE) {
-    enterSecret(PRESSED_GARDEN_INDEX, { x: 52 * TILE, y: 8 * TILE - p.h }); clearJust(); return;
+  if (S.levelIdx === BLOOMHEART_INDEX &&
+      !S.daily && !S.reachTrial && S.secretCd <= 0 && p.x + p.w > 54.5 * TILE && p.y < 4 * TILE) {
+    enterSecret(PRESSED_GARDEN_INDEX, { x: 52 * TILE, y: 7 * TILE - p.h }); clearJust(); return;
   }
   if (LEVELS[S.levelIdx].secret && p.x > 21 * TILE) { exitSecret(); clearJust(); return; }
 
@@ -5157,9 +5338,16 @@ function lbHitAt(e) {
     if (p2.x >= h.x && p2.x <= h.x + h.w && p2.y >= h.y - 7 && p2.y <= h.y + 3) return h;
   return null;
 }
+function reviewHitAt(e) {
+  if (S.mode !== "reviews") return null;
+  const p2 = canvasPos(e);
+  for (const hit of REVIEW_HITS)
+    if (p2.x >= hit.x && p2.x <= hit.x + hit.w && p2.y >= hit.y - 8 && p2.y <= hit.y + 4) return hit;
+  return null;
+}
 function lbUiHitAt(e) {
   const p2 = canvasPos(e);
-  if ((S.mode === "notes" || S.mode === "board") &&
+  if ((S.mode === "notes" || S.mode === "reviews" || S.mode === "board") &&
       p2.x >= SCREEN_BACK_HIT.x && p2.x <= SCREEN_BACK_HIT.x + SCREEN_BACK_HIT.w &&
       p2.y >= SCREEN_BACK_HIT.y && p2.y <= SCREEN_BACK_HIT.y + SCREEN_BACK_HIT.h)
     return { back: true };
@@ -5172,7 +5360,13 @@ function lbUiHitAt(e) {
   if (S.mode === "win") {
     for (const hit of WIN_HITS)
       if (p2.x >= hit.x && p2.x <= hit.x + hit.w && p2.y >= hit.y && p2.y <= hit.y + hit.h)
-        return { win: hit };
+      return { win: hit };
+  }
+  if (S.mode === "creditjoin") {
+    for (const hit of CREDIT_HITS)
+      if (p2.x >= hit.x && p2.x <= hit.x + hit.w && p2.y >= hit.y && p2.y <= hit.y + hit.h)
+        return { credit: hit };
+    return null;
   }
   if (S.mode === "board") {
     for (const t of BOARD_TABS)
@@ -5199,6 +5393,8 @@ function lbUiHitAt(e) {
 }
 canvas.addEventListener("click", e => {
   if (talkHitAt(e)) { advanceTalk(); return; }
+  const review = reviewHitAt(e);
+  if (review) { window.open("https://x.com/" + review.handle.slice(1), "_blank"); return; }
   const h = lbHitAt(e);
   if (h) { window.open("https://x.com/" + h.name.slice(1).replace(/[^\w]/g, ""), "_blank"); return; }
   const u = lbUiHitAt(e);
@@ -5224,6 +5420,11 @@ canvas.addEventListener("click", e => {
     touchPulse("win", u.win.id);
     activateWinItem(u.win.id);
   }
+  else if (u.credit) {
+    S.creditJoinSel = u.credit.index;
+    touchPulse("credit", u.credit.id);
+    activateCreditJoin(u.credit.id);
+  }
   else if (u.race) {
     SFX.check();
     fetchRace(u.race.id).then(race => {
@@ -5247,7 +5448,7 @@ canvas.addEventListener("click", e => {
 canvas.addEventListener("mousemove", e => {
   const uiHit = lbUiHitAt(e);
   NOTES_HOVER = !!uiHit?.notes;
-  canvas.style.cursor = (talkHitAt(e) || lbHitAt(e) || uiHit) ? "pointer" : "";
+  canvas.style.cursor = (talkHitAt(e) || reviewHitAt(e) || lbHitAt(e) || uiHit) ? "pointer" : "";
 });
 canvas.addEventListener("mouseleave", () => { NOTES_HOVER = false; });
 
@@ -5264,6 +5465,7 @@ function draw() {
   if (S.mode === "title") { drawTitle(); blit(); return; }
   if (S.mode === "board") { drawBoard(); blit(); return; }
   if (S.mode === "notes") { drawNotes(); blit(); return; }
+  if (S.mode === "reviews") { drawReviews(); blit(); return; }
   if (S.mode === "win") { drawWin(); blit(); return; }
   if (S.mode === "gameover") { drawGameOver(); blit(); return; }
 
@@ -5325,7 +5527,7 @@ function draw() {
   drawLighting(ox, oy);
   drawForeground();
   drawBossWarnings();
-  if (S.mode !== "credits") drawHUD();
+  if (S.mode !== "creditjoin" && S.mode !== "credits") drawHUD();
   // THE SHOGGOTH — announced in something like blood
   if (S.shogTitleT > 0 && S.mode === "play") {
     const life = 3.4;
@@ -6864,6 +7066,23 @@ function drawForeground() {
 
 // Scratched into the margin, where the map keeps what it loves
 function drawOke() {
+  if (S.levelIdx === BLOOMHEART_INDEX) {
+    const sx = 45 * TILE + 8, sy = 24 * TILE;
+    g.globalAlpha = 0.9;
+    g.fillStyle = "#5a4030";
+    g.fillRect(sx - 1, sy - 12, 3, 12);
+    g.fillStyle = "#b89a68";
+    g.fillRect(sx - 18, sy - 27, 38, 15);
+    g.fillStyle = "#d8c89c";
+    g.fillRect(sx - 16, sy - 25, 34, 11);
+    g.fillStyle = "#38583c";
+    g.fillRect(sx - 13, sy - 23, 3, 3); g.fillRect(sx - 7, sy - 23, 3, 3);
+    g.font = "bold 6px monospace";
+    g.textAlign = "left";
+    g.fillText("FROG?  ↗", sx - 1, sy - 17);
+    g.globalAlpha = 1;
+    return;
+  }
   if (S.levelIdx === PRESSED_GARDEN_INDEX) {
     g.globalAlpha = 0.48;
     g.fillStyle = "#d8cfb8";
@@ -6998,6 +7217,68 @@ function drawOpeningLesson() {
   g.fillText(lines[1], x + 28, y + 24);
 }
 
+function creditLines() {
+  const lines = [
+    ["SPORELING DASH", "bold 14px monospace", C.title],
+    ["A platformer about a dash that leaves a temporary platform", "8px monospace", C.ui],
+    ["", "", ""],
+    ["Created by ThoughtCrime", "bold 9px monospace", "#ffffff"],
+    ["Code, art, and sound by ThoughtCrime", "8px monospace", "#ffffff"],
+    ["", "", ""],
+    ["Thanks for playing", "bold 9px monospace", "#ffffff"],
+  ];
+  if (FINISHERS_CACHE.length) {
+    lines.push(["", "", ""], ["ADVENTURE COMPLETED BY", "bold 7px monospace", C.goalOpen]);
+    for (const name of FINISHERS_CACHE) lines.push([name, "8px monospace", "#ffffff"]);
+  }
+  return lines;
+}
+
+function creditsDuration() {
+  return Math.max(17, (H + 36 + creditLines().length * 18) / 16);
+}
+
+function drawCreditJoin() {
+  CREDIT_HITS = [];
+  g.fillStyle = "rgba(3,5,8,0.9)";
+  g.fillRect(0, 0, W, H);
+  g.fillStyle = rgb(PALS[0].accent);
+  g.fillRect(26, 25, W - 52, 1);
+  g.textAlign = "center";
+  g.fillStyle = C.title;
+  g.font = "bold 13px monospace";
+  g.fillText("YOU MADE IT", W / 2, 48);
+  g.fillStyle = "#ffffff";
+  g.font = "8px monospace";
+  g.fillText("Add a name to the Adventure credits?", W / 2, 68);
+  g.fillStyle = C.uiDim;
+  g.font = "7px monospace";
+  g.fillText("It will be public and listed in finish order.", W / 2, 81);
+
+  const choices = [
+    { id: "add", label: S.creditSubmitting ? "ADDING..." : "ADD MY NAME", x: 38, y: 103, w: 112, h: 19 },
+    { id: "skip", label: "SKIP", x: 170, y: 103, w: 112, h: 19 },
+  ];
+  choices.forEach((hit, index) => {
+    const selected = S.creditJoinSel === index;
+    g.fillStyle = selected ? "rgba(144,232,176,0.3)" : "rgba(38,47,60,0.94)";
+    g.fillRect(hit.x, hit.y, hit.w, hit.h);
+    if (selected) { g.fillStyle = C.goalOpen; g.fillRect(hit.x, hit.y, 2, hit.h); }
+    g.fillStyle = selected ? C.goalOpen : C.ui;
+    g.font = "bold 8px monospace";
+    g.fillText(hit.label, hit.x + hit.w / 2, hit.y + 13);
+    CREDIT_HITS.push({ ...hit, index });
+  });
+  if (S.creditMsg) {
+    g.fillStyle = S.creditMsg.includes("didn't") || S.creditMsg.includes("offline") ? C.wilt : C.ui;
+    g.font = "7px monospace";
+    g.fillText(S.creditMsg, W / 2, 140);
+  }
+  g.fillStyle = C.uiDim;
+  g.font = "7px monospace";
+  g.fillText(TOUCH.active ? "Tap a choice" : "Arrow keys choose   ·   SPACE selects", W / 2, 163);
+}
+
 function drawEndOverlay() {
   if (S.memoryBeat > 0) {
     const a = clamp(Math.min(S.memoryBeat, 5 - S.memoryBeat) * 1.5, 0, 1);
@@ -7018,7 +7299,7 @@ function drawEndOverlay() {
   }
 
   // The light that fills the screen — from the floral explosion onward
-  if ((S.mode === "freed" || S.mode === "reunion" || S.mode === "credits") && S.glow > 0) {
+  if ((S.mode === "freed" || S.mode === "reunion" || S.mode === "creditjoin" || S.mode === "credits") && S.glow > 0) {
     const pulse = S.glow >= 1 ? 1 : S.glow + Math.sin(S.time * 1.5) * 0.03;
     g.globalAlpha = clamp(pulse * 0.85, 0, 0.92);
     g.fillStyle = "rgb(228,252,238)";
@@ -7048,16 +7329,12 @@ function drawEndOverlay() {
     }
   }
 
+  if (S.mode === "creditjoin") drawCreditJoin();
+
   if (S.mode === "credits") {
-    const lines = [
-      ["SPORELING DASH", "bold 14px monospace", C.title],
-      ["A platformer about a dash that leaves a temporary platform", "8px monospace", C.uiDim],
-      ["", "", ""],
-      ["Created by thoughtcrimegpt", "9px monospace", C.ui],
-      ["Code, art, and sound by thoughtcrimegpt", "8px monospace", C.ui],
-      ["", "", ""],
-      ["Thanks for playing", "8px monospace", C.uiDim],
-    ];
+    g.fillStyle = "rgba(3,5,8,0.84)";
+    g.fillRect(0, 0, W, H);
+    const lines = creditLines();
     const scroll = H + 20 - S.creditsT * 16;
     g.textAlign = "center";
     for (let i = 0; i < lines.length; i++) {
@@ -7173,7 +7450,7 @@ function drawTitle() {
   g.fillText("your dash and three blooms back.", TCX, 113);
 
   // the cave's own memory — a real desktop button, not a hidden key command
-  NOTES_HIT = { x: W - 136, y: (TOUCH.active || rootCleared()) ? 132 : 106, w: 132, h: 23 };
+  NOTES_HIT = { x: W - 136, y: 132, w: 132, h: 23 };
   const notesActive = NOTES_HOVER || titleSelected === "notes";
   g.globalAlpha = notesActive ? 0.9 : 0.48;
   g.fillStyle = notesActive ? "rgba(240,168,136,0.2)" : "rgba(8,12,18,0.72)";
@@ -7184,7 +7461,7 @@ function drawTitle() {
   g.fillStyle = notesActive ? C.goalOpen : C.title;
   g.globalAlpha = notesActive ? 1 : 0.75 + Math.sin(S.time * 3) * 0.25;
   g.font = "bold 7px monospace";
-  g.fillText(TOUCH.active ? "✎ PATCH NOTES: TAP" : "✎ PATCH NOTES: CLICK", W - 9, 121);
+  g.fillText(TOUCH.active ? "✎ PATCH NOTES: TAP" : "✎ PATCH NOTES: CLICK", W - 9, NOTES_HIT.y + 14);
   g.globalAlpha = 1;
   g.textAlign = "center";
 
@@ -7233,6 +7510,7 @@ function drawTitle() {
       : id === "devhealth" ? "TEST DAMAGE: " + (S.devInf ? "OFF" : "ON")
       : id === "practice" ? (S.pracSel > 0 ? "PRACTICE: " + pracName(S.pracSel) : "FULL RUN")
       : id === "board" ? "LEADERBOARDS"
+      : id === "reviews" ? "REVIEWS"
       : "THE PALE ROOT";
     const h = id === "start" ? (coarseMenu ? 17 : 14) : (coarseMenu ? 13 : 11);
     const pressed = touchPressed("title", id);
@@ -7450,6 +7728,54 @@ function drawNotes() {
   g.fillStyle = C.uiDim;
   g.font = "7px monospace";
   g.fillText("▲ ▼ scroll   ·   " + jumpBtnName() + ": back", W / 2, H - 11);
+}
+
+function drawReviews() {
+  g.drawImage(skyCv, 0, 0);
+  drawSpores("far");
+  g.fillStyle = "rgba(6,9,14,0.94)";
+  g.fillRect(8, 6, W - 16, H - 12);
+  g.fillStyle = rgb(PALS[0].accent);
+  g.fillRect(8, 6, W - 16, 1);
+  g.textAlign = "center";
+  g.fillStyle = C.title;
+  g.font = "bold 10px monospace";
+  g.fillText("REVIEWS", W / 2, 20);
+
+  REVIEW_HITS = [];
+  g.save();
+  g.beginPath();
+  g.rect(12, 28, W - 24, H - 46);
+  g.clip();
+  g.textAlign = "left";
+  let y = 39 - S.reviewsY;
+  for (const review of REVIEWS) {
+    g.fillStyle = C.ui;
+    g.font = "7px monospace";
+    let rest = "“" + review.quote + "”";
+    while (rest.length) {
+      let seg = rest;
+      while (g.measureText(seg).width > W - 42 && seg.includes(" "))
+        seg = seg.slice(0, seg.lastIndexOf(" "));
+      g.fillText(seg, 18, y);
+      y += 9;
+      rest = rest.slice(seg.length).trim();
+    }
+    g.fillStyle = C.goalOpen;
+    g.font = "bold 7px monospace";
+    g.fillText(review.handle, 24, y);
+    const hw = Math.min(W - 50, Math.ceil(g.measureText(review.handle).width));
+    g.fillRect(24, y + 2, hw, 1);
+    REVIEW_HITS.push({ x: 24, y, w: hw, handle: review.handle });
+    y += 15;
+  }
+  REVIEWS_MEASURED = y + S.reviewsY - 39;
+  g.restore();
+  drawScreenBack();
+  g.textAlign = "center";
+  g.fillStyle = C.uiDim;
+  g.font = "7px monospace";
+  g.fillText("▲ ▼ scroll   ·   tap a handle   ·   " + jumpBtnName() + ": back", W / 2, H - 11);
 }
 
 // The full leaderboard screen — complete names, tab between the two boards
@@ -7699,6 +8025,35 @@ function applyDevFixture() {
     S.boardTab = ["any", "full", "daily", "reach"].includes(requestedTab) ? requestedTab : "any";
     S.boardFrom = "title";
     S.mode = "board";
+    return true;
+  }
+
+  if (fixture === "reviews") {
+    S.mode = "reviews";
+    S.reviewsY = 0;
+    return true;
+  }
+
+  if (fixture === "creditjoin") {
+    openLevel(MAIN_LAST_INDEX);
+    S.runMode = "adventure";
+    S.practice = false; S.daily = false; S.reachTrial = false;
+    S.mode = "creditjoin";
+    S.creditJoinSel = 0; S.creditJoinAy = 0; S.creditMsg = ""; S.creditSubmitting = false;
+    return true;
+  }
+
+  if (fixture === "credits") {
+    openLevel(MAIN_LAST_INDEX);
+    S.mode = "credits";
+    S.creditsT = Math.max(0, Number(params.get("time") || 0));
+    return true;
+  }
+
+  if (fixture === "frog-route") {
+    openLevel(BLOOMHEART_INDEX);
+    placePlayer(43 * TILE, 24 * TILE - S.player.h);
+    S.player.grounded = true;
     return true;
   }
 

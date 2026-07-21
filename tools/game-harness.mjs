@@ -124,13 +124,14 @@ export function bootGame({
   const source = scripts[0].replace(marker, `
 globalThis.__SD_TEST__ = {
   S, LEVELS, PATCH_NOTES, BARROW, BOSS, CHORUS, SHOG, ROOT_TIERS, ROOT_TIER_ORDER,
-  MAIN_LAST_INDEX, UNDRAWN_INDEX, PALE_ROOT_INDEX, PRESSED_GARDEN_INDEX, REACH_INDEX,
+  MAIN_LAST_INDEX, UNDRAWN_INDEX, PALE_ROOT_INDEX, BLOOMHEART_INDEX, PRESSED_GARDEN_INDEX, REACH_INDEX,
+  REVIEWS,
   KEEPSAKE_IDS, TOTAL_KEEPSAKES,
   FIXED_DT, MAX_FRAME_DT, MAX_SPORES, START_HEALTH, MAX_HEALTH,
   ADVENTURE_DIFFICULTIES, ADVENTURE_RULES, TIMED_RUN_RULES, NOTICE_PRIORITY,
   keys, just, TOUCH, touchPrev, padPrev, SCREEN_BACK_HIT,
   canvas, handleFocusLoss, handleFocusReturn, loadLevel, pauseIds, titleIds, readInput,
-  activateTitleItem, activatePauseItem, activateWinItem, startTitleRun, startDaily, startReach, setRunModePref, cycleGhostPref, competitiveRun, applyDevFixture,
+  activateTitleItem, activatePauseItem, activateWinItem, activateCreditJoin, beginCredits, beginCreditRoll, startTitleRun, startDaily, startReach, setRunModePref, cycleGhostPref, competitiveRun, applyDevFixture,
   dailyUnlocked, rootCleared, reachCleared, stepAdventureLevel, adventureLevelName, cycleAdventureDifficulty, configureRunRules,
   queueNotice, resetNotices, updateNoticeQueue, noticeBlocked, rootWarningActive, openingLessonNeeded,
   advanceTalk, talkHitAt, talkLayout,
@@ -140,7 +141,7 @@ globalThis.__SD_TEST__ = {
   bossStartAttack, bossLanded, nextRootTier, cameraTargetX, rootCameraCenterY,
   draw, drawBossWarnings, frame, g, moveAxis, resize, respawn,
   restartCurrentChamber, solidBlocked, spawnShoggoth, startPracticeRun, tick, touchingWallDir,
-  resetReachFinalFuel, updateReachFinalFuelReset,
+  resetReachFinalFuel, updateReachFinalFuelReset, resetBloomheartSecretFuel, updateBloomheartSecretFuelReset,
   devMetricsSnapshot, recordDevAttempt, toggleReducedMotion, toggleTouchHand, syncTouchVisibility, touchPulse,
   updateBarrow, updateBoss, updateChorus, updateShoggoth,
   prepareRouteProbe(index, includeEnemies = false) {
@@ -196,9 +197,11 @@ globalThis.__SD_TEST__ = {
   get ghostPref() { return ghostPref; },
   get adventureDifficultyPref() { return adventureDifficultyPref; },
   get DAILY_PANEL() { return DAILY_PANEL; },
+  get NOTES_HIT() { return NOTES_HIT; },
   get TITLE_HITS() { return TITLE_HITS; },
   get PAUSE_HITS() { return PAUSE_HITS; },
   get WIN_HITS() { return WIN_HITS; },
+  get FINISHERS_CACHE() { return FINISHERS_CACHE; },
   get WORLD_H() { return WORLD_H; },
   get WORLD_W() { return WORLD_W; },
 };
