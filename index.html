@@ -306,7 +306,7 @@ const CHORUS = {
   N_WISPS: 7,
 };
 
-// Boss tuning — Nikita Boar. The charge is only setup: the marked flank is
+// Boss tuning — the Boar Pit boss. The charge is only setup: the marked flank is
 // vulnerable after he hits the wall and rolls onto his side.
 const NIKITA = {
   W: 72, H: 34,
@@ -1101,6 +1101,9 @@ const PATCH_NOTES_SOURCE_ARCHIVE = [
   ]},
 ];
 const PATCH_NOTES = [
+  { v: "V4.6.5  The Boar Pit", d: "2026-07-22 06:48 UTC", lines: [
+    "· The Boar Pit keeps its name. Its boss is no longer named on screen.",
+  ]},
   { v: "V4.6.4  Universal boss prompt", d: "2026-07-22 06:42 UTC", lines: [
     "· Barrow's glowing-belly prompt now says to jump and dash upward instead of naming a device-specific button.",
   ]},
@@ -1109,24 +1112,24 @@ const PATCH_NOTES = [
     "· The Underfield pauses once for a clear down-slam lesson, then descends through six breakable floors.",
     "· Underfield shelves now mix fast skitters, wisps, spitters, and a new bouncing firecap.",
     "· Truffle Runs is much longer, with visible truffles leading toward the Boar Pit.",
-    "· Nikita enters with a hard white title card, brighter lighting, and a heavy opening shake.",
-    "· Nikita's charges move faster, lock direction after a clear tell, and no longer fire surprise projectiles or ground waves.",
-    "· Nikita stays vulnerable longer. Every boss returns to full health after a player death.",
+    "· The Boar Pit opens with a hard white title card, brighter lighting, and a heavy opening shake.",
+    "· The boss's charges move faster, lock direction after a clear tell, and no longer fire surprise projectiles or ground waves.",
+    "· The boss stays vulnerable longer. Every boss returns to full health after a player death.",
   ]},
   { v: "V4.6.2  Rootworks gauntlet", d: "2026-07-22 05:41 UTC", lines: [
     "· Rootworks is now a much longer horizontal enemy-chain challenge with one earned checkpoint.",
-    "· The Boar Pit is flat, so no platform can block a slam on Nikita's flank.",
-    "· Nikita now fires arcing truffles in later phases and rebounds into a second rush in the final phase.",
+    "· The Boar Pit is flat, so no platform can block a slam on the glowing flank.",
+    "· The final phase gained a second full-arena rush.",
     "· Important instructions use a bright flashing card, stay longer, and pause while a resident is speaking.",
     "· The full checkpoint explanation appears once. Later checkpoints rely on their sound and animation.",
   ]},
-  { v: "V4.6.1  Nikita's eyes", d: "2026-07-22 05:17 UTC", lines: [
-    "· Nikita Boar now has two large white eyes with uneven pupils in every boss pose.",
+  { v: "V4.6.1  The boar's eyes", d: "2026-07-22 05:17 UTC", lines: [
+    "· The Boar Pit boss now has two large white eyes with uneven pupils in every pose.",
   ]},
   { v: "V4.6  The Boar Pit", d: "2026-07-22 04:42 UTC", lines: [
     "· Adventure now has 15 chambers, with the Underfield, Truffle Runs, Boar Pit, and Rootworks before the finale.",
     "· Cracked floors teach the straight-down slam and return in the new route.",
-    "· Nikita Boar charges the arena, rolls onto his side, and only takes damage from a slam on the marked flank.",
+    "· The Boar Pit boss charges the arena, rolls onto its side, and only takes damage from a slam on the marked flank.",
     "· Later Boar Pit phases add one ground wave after each crash.",
     "· Any% and 100% boards start fresh for the extended main route. Older scores remain stored separately.",
     "· The truffles make it home in time for the luau.",
@@ -4736,7 +4739,7 @@ function updateNikita(dt) {
   }
 
   if (["intro", "warn", "charge", "rebound", "crash", "getup"].includes(b.state) && p.invuln <= 0 && overlap(p, nikitaBodyBox(b)))
-    hurtPlayer(b.x, "Nikita Boar");
+    hurtPlayer(b.x, "the boar's charge");
 }
 
 function updateBoss(dt) {
@@ -6028,9 +6031,9 @@ function draw() {
     g.textAlign = "center";
     g.font = "bold 24px monospace";
     g.fillStyle = "#05070a";
-    g.fillText("NIKITA BOAR", W / 2 + jx + 3, 67 + jy + 3);
+    g.fillText("THE BOAR PIT", W / 2 + jx + 3, 67 + jy + 3);
     g.fillStyle = "#ffffff";
-    g.fillText("NIKITA BOAR", W / 2 + jx, 67 + jy);
+    g.fillText("THE BOAR PIT", W / 2 + jx, 67 + jy);
     // Hard cuts across the type give it a stamped, torn-metal silhouette.
     g.fillStyle = "#090c12";
     g.fillRect(W / 2 - 82 + jx, 54 + jy, 28, 2);
@@ -6507,7 +6510,7 @@ function drawNPCs() {
       g.fillRect(x + 8, y + 3 + hb, 3, 1);                    // brow
       g.fillRect(x + 9, y + 4 + hb, 1, 1);                    // eye
     } else if (n.sprite === "__retired_boar_npc") {
-      // NIKITA BOAR — low pink boar, dark swept hair, and an enormous truffle-sniffing snout.
+      // THE BOAR PIT BOSS — low pink boar, dark swept hair, and an enormous truffle-sniffing snout.
       const hb = Math.round(bob * 0.3);
       const hide = "#b87970", hideHi = "#d99a8f", hideLo = "#764842";
       const snout = "#e4aaa2", hair = "#211815", hoof = "#332520";

@@ -2171,8 +2171,9 @@ test("dialogue stays readable and every resident has a concrete voice", () => {
   assert.equal(frog.speakers[3], "YOU");
   assert.equal(frog.lines[3], "I can't understand you.");
 
-  assert.equal(residents.some(npc => npc.name === "NIKITA BOAR"), false, "Nikita is a boss, not a resident");
-  assert.equal(api.REUNION_SPRITES["NIKITA BOAR"], undefined);
+  const boarPit = api.LEVELS.find(level => level.name === "THE BOAR PIT");
+  assert.equal((boarPit.npcs || []).length, 0, "the Boar Pit boss is not a resident");
+  assert.equal(Object.keys(api.REUNION_SPRITES).some(name => /boar/i.test(name)), false);
 });
 
 test("the new chambers teach and reuse the straight-down slam", () => {
@@ -2215,7 +2216,7 @@ test("Rootworks is a long horizontal enemy chain and the Boar Pit has a clear fl
     "nothing above the arena floor can block a flank slam");
 });
 
-test("Nikita Boar rolls onto his side and only a down-slam hurts him", () => {
+test("The Boar Pit boss rolls onto its side and only a down-slam hurts it", () => {
   const { api } = bootGame();
   const pitIndex = api.LEVELS.findIndex(level => level.name === "THE BOAR PIT");
   api.loadLevel(pitIndex);
@@ -2278,7 +2279,7 @@ test("Nikita Boar rolls onto his side and only a down-slam hurts him", () => {
 
   boss.pips = 1;
   api.S.health = 1;
-  api.killPlayer("Nikita Boar");
+  api.killPlayer("the boar's charge");
   api.respawn();
   assert.equal(boss.pips, 3, "dying restarts the boss at full health");
   assert.equal(boss.state, "intro");
@@ -2287,7 +2288,7 @@ test("Nikita Boar rolls onto his side and only a down-slam hurts him", () => {
   slam();
   assert.equal(boss.pips, 0);
   assert.equal(boss.state, "defeated");
-  assert.ok(api.S.bossDoor, "defeating Nikita opens the Rootworks exit");
+  assert.ok(api.S.bossDoor, "defeating the boss opens the Rootworks exit");
 
   boss.state = "warn"; boss.dir = 1; boss.y = api.NIKITA.FLOOR - api.NIKITA.H;
   api.g.operations.length = 0;
@@ -2295,18 +2296,18 @@ test("Nikita Boar rolls onto his side and only a down-slam hurts him", () => {
   const painted = (fillStyle, width, height) => api.g.operations.some(op =>
     op.type === "fillRect" && op.fillStyle === fillStyle && op.width === width && op.height === height
   );
-  assert.ok(painted("#b87970", 55, 22), "Nikita has a broad pink boar body");
-  assert.ok(painted("#e4aaa2", 15, 10), "Nikita has the oversized pale snout from the reference");
-  assert.ok(painted("#211815", 18, 6), "Nikita keeps the reference's swept dark hair");
-  assert.ok(painted("#29313b", 15, 9), "Nikita carries a small product slate");
-  assert.ok(painted("#fff6e0", 6, 5), "Nikita has a large white eye");
-  assert.ok(painted("#fff6e0", 7, 6), "Nikita's second eye is slightly uneven");
+  assert.ok(painted("#b87970", 55, 22), "the boss has a broad pink boar body");
+  assert.ok(painted("#e4aaa2", 15, 10), "the boss has an oversized pale snout");
+  assert.ok(painted("#211815", 18, 6), "the boss keeps its swept dark hair");
+  assert.ok(painted("#29313b", 15, 9), "the boss carries a small product slate");
+  assert.ok(painted("#fff6e0", 6, 5), "the boss has a large white eye");
+  assert.ok(painted("#fff6e0", 7, 6), "the second eye is slightly uneven");
 
   boss.state = "side";
   api.g.operations.length = 0;
   api.drawNikitaBoss(boss);
-  assert.ok(painted("#aaf0c8", 30, 11), "the slam target is visibly marked while Nikita is down");
-  assert.ok(painted("#fff6e0", 6, 5), "the white eyes remain visible while Nikita is down");
+  assert.ok(painted("#aaf0c8", 30, 11), "the slam target is visibly marked while the boss is down");
+  assert.ok(painted("#fff6e0", 6, 5), "the white eyes remain visible while the boss is down");
 });
 
 test("dialogue lines can be finished and advanced by keyboard, controller, or tap", () => {
@@ -2384,7 +2385,10 @@ test("core instructions use plain sentences instead of the old slogan copy", () 
 
 test("the visible patch history uses plain factual copy", () => {
   const { api } = bootGame();
+  const retiredBossName = new RegExp(["niki", "ta", "bo", "ar"].join("\\s*"), "i");
   assert.match(api.PATCH_NOTES[0].v, /^V4\.6/);
+  assert.doesNotMatch(html, retiredBossName, "the Boar Pit boss stays unnamed in player-facing copy");
+  assert.match(html, /fillText\("THE BOAR PIT"/, "the boss entrance names the chamber instead");
   for (const block of api.PATCH_NOTES) {
     assert.equal(block.v.includes("—"), false, `patch title uses an em-dash slogan: ${block.v}`);
     for (const line of block.lines) {
