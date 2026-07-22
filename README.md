@@ -48,13 +48,15 @@ The leaderboard names each route directly: Any%, 100%, Pale Root, and The Reach.
 10. The Swallow
 11. The Underfield — cracked floors teach the down-slam
 12. The Truffle Runs — slam drops lead into a long enemy-refund crossing
-13. The Boar Pit — Nikita Boar
-14. The Rootworks
+13. The Boar Pit — a flat arena for Nikita Boar
+14. The Rootworks — three long horizontal enemy chains and one midpoint checkpoint
 15. The Mother's Throat — the Unbloomed and Shoggoth
 
 The Undrawn Map is hidden above the Spire. A second hidden room sits high beyond the Bloomheart's right wall. A small Frog sign and a berry trail mark the start, but three overhangs stop a straight wall climb; two enemy connectors return after a failed attempt. FROG lives inside beneath a pile of old hardware and only makes frog noises. The Pale Root unlocks after the main game is beaten; The Reach appears only after the Pale Root is cleared.
 
-Nikita Boar is the boss of the Boar Pit, drawn as a pink boar with swept dark hair, an oversized snout, and two uneven white eyes. He charges into the arena wall and rolls onto his side; only a straight-down slam on the marked flank hurts him. Later phases add one ground wave after each crash. The Rootworks gives the route a short cooldown before the final encounter, and the credits resolve the missing-truffle story with a luau.
+Nikita Boar is the boss of the Boar Pit, drawn as a pink boar with swept dark hair, an oversized snout, and two uneven white eyes. The arena has a clear floor so the marked flank is always reachable. Only a straight-down slam on that flank hurts him. His first phase teaches the wall crash, his second adds arcing truffle projectiles, and his last phase rebounds into a second full-arena rush before he falls. The Rootworks then tests the enemy-bounce and dash-refund mechanics across three long horizontal gaps before the final encounter. The credits resolve the missing-truffle story with a luau.
+
+Required move instructions stay on screen longer inside a bright high-contrast card. Their timers pause whenever resident dialogue is active, so the two kinds of text never compete. The full checkpoint explanation appears the first time a player activates one on that device; later checkpoints communicate through their sound and activation animation.
 
 ## Keepsakes
 

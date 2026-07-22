@@ -29,6 +29,15 @@ const ACTIONS = [
 const BASE_ACTION_COUNT = 17;
 
 const ROUTE_WAYPOINTS = {
+  "THE ROOTWORKS": [
+    { name: "slam seal", x: 15 * 16, y: 14 * 16 - 10, rx: 58, down: true },
+    { name: "first chain middle", x: 46 * 16, y: 17 * 16, rx: 110 },
+    { name: "first rest", x: 69 * 16, y: 21 * 16 - 10, rx: 72 },
+    { name: "long chain middle", x: 96 * 16, y: 16 * 16, rx: 110 },
+    { name: "second rest", x: 116 * 16, y: 19 * 16 - 10, rx: 72 },
+    { name: "last chain middle", x: 143 * 16, y: 14 * 16, rx: 110 },
+    { name: "goal ledge", x: 171 * 16, y: 16 * 16 - 10, rx: 84 },
+  ],
   "THE BLOOMHEART": [
     { name: "main shelf gap", x: 40 * 16, y: 15 * 16 - 10, rx: 112 },
     { name: "right ascent", x: 35 * 16, y: 10 * 16 - 10, rx: 100 },
@@ -172,6 +181,7 @@ export function probeRoute(levelName, {
   start = null,
   waypoints: waypointOverride = null,
   finishAtLastWaypoint = false,
+  includeEnemies = null,
 } = {}) {
   const startedAt = Date.now();
   const { api } = bootGame();
@@ -181,7 +191,10 @@ export function probeRoute(levelName, {
   if (level.boss || level.secret || !level.map.join("").includes("G"))
     throw new Error(`${levelName} does not use a normal goal route`);
 
-  api.prepareRouteProbe(levelIndex, level.trial === "reach");
+  const useEnemies = includeEnemies === null
+    ? level.trial === "reach" || levelName === "THE ROOTWORKS"
+    : includeEnemies;
+  api.prepareRouteProbe(levelIndex, useEnemies);
   if (start) {
     Object.assign(api.S.player, {
       x: start.x, y: start.y, vx: 0, vy: 0, grounded: false,

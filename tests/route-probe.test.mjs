@@ -25,6 +25,13 @@ test("the real-engine route probe can complete The Hollow", { timeout: 10_000 },
   assert.ok(result.seconds > 0, "the completed route advanced game time");
 });
 
+test("Rootworks clears through its real enemy chain", { timeout: 15_000 }, () => {
+  const result = probeRoute("THE ROOTWORKS", { beamWidth: 12, maxSteps: 600 });
+  assert.equal(result.ok, true,
+    `Rootworks route stopped at ${result.nextWaypoint || "the crossing"} after ${result.expanded} expansions`);
+  assert.ok(result.steps >= 120, "the route remains a sustained horizontal challenge");
+});
+
 test("The Reach clears in all three checkpoint retry chunks", { timeout: 30_000 }, () => {
   for (let chunk = 0; chunk < 3; chunk++) {
     const result = probeReachChunk(chunk, { beamWidth: 10, maxSteps: 620 });

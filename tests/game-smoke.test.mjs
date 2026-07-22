@@ -294,7 +294,7 @@ test("checkpoint spacing keeps each retry stretch meaningful", () => {
     ["THE UNDERFIELD", 1],
     ["THE TRUFFLE RUNS", 1],
     ["THE BOAR PIT", 0],
-    ["THE ROOTWORKS", 0],
+    ["THE ROOTWORKS", 1],
     ["THE MOTHER'S THROAT", 0],
     ["THE UNDRAWN MAP", 0],
     ["THE PALE ROOT", 2],
@@ -308,7 +308,7 @@ test("checkpoint spacing keeps each retry stretch meaningful", () => {
     total += count;
     assert.equal(count, expected.get(level.name), `${level.name} keeps its intentional checkpoint budget`);
   }
-  assert.equal(total, 12, "the expanded main route stays sparse and each standalone marathon has two checkpoints");
+  assert.equal(total, 13, "the expanded main route stays sparse and each standalone marathon has two checkpoints");
 
   const hollowCheckpoint = api.LEVELS[0].map.findIndex(row => row.includes("C"));
   assert.equal(hollowCheckpoint, 7, "The Hollow checkpoint stays on its supported platform row");
@@ -416,7 +416,7 @@ test("The Swallow saves one mid-shaft retry and respawns there", () => {
   assert.equal(api.updateDescentMercy(p), false, "the same shaft threshold cannot save repeatedly");
   assert.deepEqual({ ...api.S.checkPt }, { x: 8 * api.TILE + 3, y: 35 * api.TILE + 4 });
   const noticeText = [api.S.hint, ...api.S.hintQueue].filter(Boolean).map(notice => notice.text);
-  assert.ok(noticeText.includes("If the shaft gets you, you'll restart here."));
+  assert.ok(noticeText.includes("Checkpoint saved. You'll restart here if you die."));
 
   Object.assign(p, { x: 20 * api.TILE, y: 55 * api.TILE, vx: 70, vy: 180 });
   api.S.health = 1;
@@ -1380,9 +1380,37 @@ test("level instructions and transient notices share one prioritized lane", () =
   assert.ok(api.S.hintQueue.some(notice => /diving wisps/i.test(notice.text)), "the interrupted tip waits instead of disappearing");
 
   const remaining = api.S.hint.t;
-  api.S.talk = { npc: { y: 0 } };
+  api.S.talk = { npc: { y: 0, name: "TEST", lines: ["Hello."] }, line: 0, t: 0 };
   api.updateNoticeQueue(1);
   assert.equal(api.S.hint.t, remaining, "notice timers pause while dialogue owns the screen");
+  api.g.operations.length = 0;
+  api.draw();
+  assert.equal(api.g.operations.some(op => op.type === "fillText" && /heart is glowing/i.test(op.value)), false,
+    "the paused notice stays hidden while dialogue is visible");
+});
+
+test("tutorial notices use a bright card and the checkpoint explanation appears once", () => {
+  const { api, storage } = bootGame();
+  api.S.mode = "play";
+  api.S.bannerT = 0;
+  api.resetNotices();
+  api.queueNotice("Hold Down and dash through the bright seal.", 5.2, api.NOTICE_PRIORITY.TUTORIAL);
+  api.updateNoticeQueue(0);
+  api.g.operations.length = 0;
+  api.draw();
+  assert.ok(api.g.operations.some(op => op.type === "fillRect" && op.fillStyle === "#fffdf5"),
+    "critical instructions have an opaque pale backing");
+
+  api.resetNotices();
+  const first = { x: 40, y: 40, w: 16, h: 16, active: false };
+  api.activateCheckpoint(first);
+  assert.equal(storage.get("sd_checkpoint_lesson"), "1");
+  assert.match(api.S.hint?.text || api.S.hintQueue[0]?.text, /restart here if you die/i);
+  api.resetNotices();
+  const later = { x: 80, y: 40, w: 16, h: 16, active: false };
+  api.activateCheckpoint(later);
+  assert.equal(api.S.hint, null);
+  assert.equal(api.S.hintQueue.length, 0, "later checkpoints use their sound and animation without repeating the lesson");
 });
 
 test("required lessons and root warnings suppress the general notice lane", () => {
@@ -1723,7 +1751,7 @@ test("local browser fixtures expose visual states without creating a production 
   const swallowMercy = bootGame({ search: "?fixture=swallow-mercy&difficulty=normal" });
   assert.equal(swallowMercy.api.S.descentMercy.active, true);
   assert.deepEqual({ ...swallowMercy.api.S.checkPt }, { x: 8 * 16 + 3, y: 35 * 16 + 4 });
-  assert.match(swallowMercy.api.S.hint.text, /shaft gets you/i);
+  assert.match(swallowMercy.api.S.hint.text, /restart here if you die/i);
 
   const dialogue = bootGame({ search: "?fixture=dialogue" });
   assert.equal(dialogue.api.S.talk.npc.name, "BARNABY");
@@ -2142,6 +2170,20 @@ test("the new chambers teach and reuse the straight-down slam", () => {
   assert.equal(api.tileAt(center, row), ".");
   assert.equal(api.S.player.grounded, false, "breaking the floor lets the player drop through");
   assert.match(api.LEVELS[underfield].unlockText, /Hold Down and dash/i);
+  assert.match(api.LEVELS[underfield].unlockText, /bright seal/i);
+});
+
+test("Rootworks is a long horizontal enemy chain and the Boar Pit has a clear floor", () => {
+  const { api } = bootGame();
+  const rootworks = api.LEVELS.find(level => level.name === "THE ROOTWORKS");
+  const rootCells = rootworks.map.join("");
+  assert.ok(rootworks.map[0].length >= 170, "Rootworks is more than twice its former width");
+  assert.ok((rootCells.match(/[fw]/g) || []).length >= 12, "three crossings have multiple airborne enemy connectors");
+  assert.equal((rootCells.match(/C/g) || []).length, 1, "the long gauntlet has one earned midpoint checkpoint");
+
+  const pit = api.LEVELS.find(level => level.name === "THE BOAR PIT");
+  assert.ok(pit.map.slice(0, 16).every(row => !/[#Xq]/.test(row.slice(1, -1))),
+    "nothing above the arena floor can block a flank slam");
 });
 
 test("Nikita Boar rolls onto his side and only a down-slam hurts him", () => {
@@ -2179,7 +2221,28 @@ test("Nikita Boar rolls onto his side and only a down-slam hurts him", () => {
   assert.equal(boss.state, "side");
   assert.equal(boss.waves.length, 1, "later phases add one readable ground wave");
 
-  slam(); slam();
+  boss.state = "warn"; boss.t = api.NIKITA.SHOT_AT; boss.shotDone = false; boss.truffles = [];
+  api.updateNikita(0);
+  assert.equal(boss.truffles.length, 3, "the second phase adds a readable projectile fan");
+
+  slam();
+  assert.equal(boss.pips, 1);
+  boss.state = "warn"; boss.t = api.NIKITA.SHOT_AT; boss.shotDone = false; boss.truffles = [];
+  api.updateNikita(0);
+  assert.equal(boss.truffles.length, 5, "the final phase widens the projectile fan");
+  boss.state = "charge"; boss.x = api.NIKITA.RIGHT; boss.dir = 1; boss.rushesLeft = 1;
+  Object.assign(player, { x: 3 * api.TILE, y: 15 * api.TILE, dashing: false, slamDash: false, invuln: 99 });
+  api.updateNikita(0);
+  assert.equal(boss.state, "rebound", "the final phase turns the first wall hit into a second rush");
+  assert.equal(boss.dir, -1);
+  boss.t = api.NIKITA.REBOUND_WARN;
+  api.updateNikita(0);
+  assert.equal(boss.state, "charge");
+  boss.x = api.NIKITA.LEFT;
+  api.updateNikita(0);
+  assert.equal(boss.state, "crash", "the rebound ends in the normal vulnerable crash");
+
+  slam();
   assert.equal(boss.pips, 0);
   assert.equal(boss.state, "defeated");
   assert.ok(api.S.bossDoor, "defeating Nikita opens the Rootworks exit");

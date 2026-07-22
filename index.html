@@ -315,6 +315,11 @@ const NIKITA = {
   INTRO: 1.4,
   WARN: [0.95, 0.82, 0.7],
   CHARGE_V: [150, 180, 210],
+  SHOTS: [0, 3, 5],
+  SHOT_AT: 0.3,
+  SHOT_GRAVITY: 520,
+  REBOUNDS: [0, 0, 1],
+  REBOUND_WARN: 0.34,
   CRASH: 0.38,
   SIDE: [2.1, 1.75, 1.45],
   GETUP: 0.72,
@@ -1100,6 +1105,13 @@ const PATCH_NOTES_SOURCE_ARCHIVE = [
   ]},
 ];
 const PATCH_NOTES = [
+  { v: "V4.6.2  Rootworks gauntlet", d: "2026-07-22 05:41 UTC", lines: [
+    "· Rootworks is now a much longer horizontal enemy-chain challenge with one earned checkpoint.",
+    "· The Boar Pit is flat, so no platform can block a slam on Nikita's flank.",
+    "· Nikita now fires arcing truffles in later phases and rebounds into a second rush in the final phase.",
+    "· Important instructions use a bright flashing card, stay longer, and pause while a resident is speaking.",
+    "· The full checkpoint explanation appears once. Later checkpoints rely on their sound and animation.",
+  ]},
   { v: "V4.6.1  Nikita's eyes", d: "2026-07-22 05:17 UTC", lines: [
     "· Nikita Boar now has two large white eyes with uneven pupils in every boss pose.",
   ]},
@@ -2274,7 +2286,7 @@ const LEVELS = [
       set(8, 22, "f"); set(33, 22, "E"); set(39, 31, "e");
     }),
     clearText: "The buried way opens into the Truffle Runs.",
-    unlockText: "Hold Down and dash in the air to break cracked floors.",
+    unlockText: "Jump over the bright seal. Hold Down and dash straight through it.",
   },
   {
     name: "THE TRUFFLE RUNS", pal: 3,
@@ -2299,26 +2311,33 @@ const LEVELS = [
     name: "THE BOAR PIT", pal: 8, boss: "nikita",
     map: buildLevel(44, 19, ({ set, rect }) => {
       rect(0, 0, 0, 18); rect(43, 0, 43, 18); rect(1, 16, 42, 18);
-      rect(7, 12, 12, 12); rect(31, 12, 36, 12); rect(19, 8, 24, 8);
-      set(3, 15, "P"); set(9, 11, "B"); set(34, 11, "B"); set(21, 7, "B");
+      set(3, 15, "P"); set(10, 15, "B"); set(18, 15, "B"); set(34, 15, "B");
     }),
     clearText: "The Boar Pit goes quiet.",
     unlockText: "Make him hit the wall. Slam the marked flank while he is down.",
   },
   {
     name: "THE ROOTWORKS", pal: 1,
-    map: buildLevel(84, 24, ({ set, rect, seg }) => {
-      rect(0, 0, 0, 23); rect(83, 0, 83, 23);
-      rect(1, 10, 20, 10); for (let c = 17; c <= 19; c++) set(c, 10, "q");
-      rect(14, 20, 36, 23);
-      seg(37, 70, 23); for (let c = 38; c <= 69; c++) set(c, 22, "S");
-      rect(49, 17, 54, 17); rect(71, 14, 83, 23);
-      set(3, 9, "P"); set(80, 13, "G");
-      set(10, 9, "B"); set(29, 19, "B"); set(51, 16, "B"); set(75, 13, "B");
-      set(33, 16, "f"); set(42, 18, "w"); set(58, 16, "f"); set(66, 14, "w");
+    map: buildLevel(178, 30, ({ set, rect, seg }) => {
+      rect(0, 0, 0, 29); rect(177, 0, 177, 29);
+      // A forced slam seal drops the player onto the launch ledge.
+      rect(1, 14, 18, 14); for (let c = 14; c <= 16; c++) set(c, 14, "q");
+      rect(12, 22, 22, 29);
+      // The floor only catches mistakes. The intended route stays in the air.
+      seg(23, 166, 29); for (let c = 23; c <= 166; c++) set(c, 28, "S");
+      // Two small rests split three long enemy-refund chains.
+      rect(67, 22, 72, 29); rect(114, 20, 119, 29); rect(167, 17, 177, 29);
+      set(3, 13, "P"); set(69, 21, "C"); set(174, 16, "G");
+      set(9, 13, "B"); set(69, 20, "B"); set(116, 18, "B"); set(171, 16, "B");
+      // Chain one: a long, low run into a rising finish.
+      set(29, 19, "f"); set(39, 17, "w"); set(49, 19, "f"); set(59, 15, "w");
+      // Chain two: the longest crossing, with no ground between the ledges.
+      set(79, 18, "f"); set(89, 15, "w"); set(99, 18, "f"); set(109, 14, "w");
+      // Chain three climbs into the final landing.
+      set(127, 17, "f"); set(137, 13, "w"); set(147, 16, "f"); set(157, 12, "w");
     }),
     clearText: "The old rootworks lead back to Mother's path.",
-    unlockText: "One last working tunnel. Keep moving.",
+    unlockText: "Break the seal, then use each enemy to keep the crossing alive.",
   },
   {
     name: "THE MOTHER'S THROAT", pal: 5, boss: "unbloomed",
@@ -2663,6 +2682,16 @@ function updateNoticeQueue(dt) {
   }
 }
 
+const CHECKPOINT_LESSON_KEY = "sd_checkpoint_lesson";
+function showCheckpointLesson() {
+  let seen = false;
+  try { seen = localStorage.getItem(CHECKPOINT_LESSON_KEY) === "1"; } catch (e) {}
+  if (seen) return false;
+  try { localStorage.setItem(CHECKPOINT_LESSON_KEY, "1"); } catch (e) {}
+  queueNotice("Checkpoint saved. You'll restart here if you die.", 5.2, NOTICE_PRIORITY.TUTORIAL);
+  return true;
+}
+
 function beginDevAttempt() {
   if (DEV) DEV_METRICS.startedAt = S.score.time;
 }
@@ -2738,7 +2767,7 @@ function loadLevel(idx) {
   S.bloomheartSecretFuelArmed = false;
   S.shakeT = 0; S.freezeT = 0; S.jumpHeldForCut = false;
   S.bannerT = 2.4;
-  if (L.unlockText) queueNotice(L.unlockText, 3.6, NOTICE_PRIORITY.TUTORIAL);
+  if (L.unlockText) queueNotice(L.unlockText, 7, NOTICE_PRIORITY.TUTORIAL);
   SPIKES = []; STATIC_LIGHTS = []; DECOR = []; SPORES = []; ENEMY_SPAWNS = [];
   S.memoryObj = null; S.boss = null; S.bossDoor = null; S.shogGates = false;
   S.movers = (L.movers || []).map(m => {
@@ -2769,7 +2798,8 @@ function loadLevel(idx) {
       S.boss.wisps = [];
     } else if (L.boss === "nikita") {
       S.boss.x = 22 * TILE; S.boss.y = NIKITA.FLOOR - NIKITA.H; S.boss.dir = 1;
-      S.boss.waves = []; S.boss.sideHinted = false; S.boss.blockHinted = false;
+      S.boss.waves = []; S.boss.truffles = []; S.boss.shotDone = false; S.boss.rushesLeft = 0;
+      S.boss.sideHinted = false; S.boss.blockHinted = false;
     }
   }
   S.talk = null;
@@ -3104,6 +3134,14 @@ function bakeTerrain() {
         t.fillRect(px + 10, py + 4, 3, 2);
         t.fillRect(px + 8, py + 6, 3, 2);
         t.globalAlpha = 1;
+        // A pale box outline marks slam seals as an action, not ordinary rock.
+        t.fillStyle = "#fff8e2";
+        t.globalAlpha = 0.82;
+        t.fillRect(px + 1, py + 1, TILE - 2, 1);
+        t.fillRect(px + 1, py + TILE - 2, TILE - 2, 1);
+        t.fillRect(px + 1, py + 1, 1, TILE - 2);
+        t.fillRect(px + TILE - 2, py + 1, 1, TILE - 2);
+        t.globalAlpha = 1;
       }
     }
   }
@@ -3198,7 +3236,7 @@ function checkpointEligible(p, cp) {
 function activateCheckpoint(cp) {
   cp.active = true;
   S.checkPt = { x: cp.x + 3, y: cp.y - 4 };
-  queueNotice("Checkpoint saved. You'll restart here.", 2.4, NOTICE_PRIORITY.STATUS);
+  showCheckpointLesson();
   SFX.check();
   for (let i = 0; i < 10; i++) {
     burst(cp.x + 8, cp.y + 4, (Math.random() - 0.5) * 50, -40 - Math.random() * 40, 0.55, rgb(PAL.accent), 2);
@@ -3210,7 +3248,7 @@ function updateDescentMercy(p) {
   if (!mercy || mercy.active || p.y + p.h < mercy.triggerY) return false;
   mercy.active = true;
   S.checkPt = { x: mercy.x, y: mercy.y };
-  queueNotice("If the shaft gets you, you'll restart here.", 2.4, NOTICE_PRIORITY.STATUS);
+  showCheckpointLesson();
   SFX.check();
   for (let i = 0; i < 8; i++) {
     burst(p.x + p.w / 2, p.y + p.h / 2, (Math.random() - 0.5) * 45, -20 - Math.random() * 30, 0.45, rgb(PAL.accent), 2);
@@ -4451,11 +4489,37 @@ function nikitaFlankBox(b) {
   return { x: b.x - 20, y: NIKITA.FLOOR - 34, w: 40, h: 17 };
 }
 
+function startNikitaWarn(b, phaseIndex) {
+  b.state = "warn";
+  b.t = 0;
+  b.shotDone = false;
+  b.rushesLeft = NIKITA.REBOUNDS[phaseIndex];
+  b.dir = S.player.x + S.player.w / 2 < b.x ? -1 : 1;
+  SFX.bossWarn();
+}
+
+function fireNikitaTruffles(b, count) {
+  if (!count) return;
+  const middle = (count - 1) / 2;
+  const x = b.x + b.dir * 34;
+  const y = NIKITA.FLOOR - NIKITA.H + 9;
+  for (let i = 0; i < count; i++) {
+    const spread = i - middle;
+    b.truffles.push({
+      x: x - 4, y: y - 4, w: 8, h: 8,
+      vx: b.dir * (82 + spread * 16),
+      vy: -158 - Math.abs(spread) * 13,
+    });
+  }
+  blip(220, 115, 0.16, "square", 0.1);
+}
+
 function hitNikita(b) {
   const p = S.player;
   b.pips--;
   b.grace = false;
   b.waves = [];
+  b.truffles = [];
   p.dashing = false; p.slamDash = false; p.dashT = 0;
   p.vx = -b.dir * 55; p.vy = -275; p.grounded = false;
   p.invuln = 1.2; p.canDash = true; p.spores = MAX_SPORES; p.chainN = 0;
@@ -4484,12 +4548,14 @@ function updateNikita(dt) {
 
   if (b.state === "intro") {
     if (b.t >= NIKITA.INTRO) {
-      b.state = "warn"; b.t = 0;
-      b.dir = p.x + p.w / 2 < b.x ? -1 : 1;
-      SFX.bossWarn();
+      startNikitaWarn(b, phaseIndex);
     }
   } else if (b.state === "warn") {
     b.dir = p.x + p.w / 2 < b.x ? -1 : 1;
+    if (!b.shotDone && b.t >= NIKITA.SHOT_AT) {
+      b.shotDone = true;
+      fireNikitaTruffles(b, NIKITA.SHOTS[phaseIndex]);
+    }
     if (Math.random() < 0.3)
       burst(b.x + b.dir * 30, NIKITA.FLOOR - 4, -b.dir * (15 + Math.random() * 25), -12, 0.25, rgb(PAL.rockHi), 1);
     if (b.t >= NIKITA.WARN[phaseIndex] * (b.grace ? 1.25 : 1)) {
@@ -4500,19 +4566,35 @@ function updateNikita(dt) {
     b.x += b.dir * NIKITA.CHARGE_V[phaseIndex] * dt;
     const wall = b.dir < 0 ? NIKITA.LEFT : NIKITA.RIGHT;
     if ((b.dir < 0 && b.x <= wall) || (b.dir > 0 && b.x >= wall)) {
-      b.x = wall; b.state = "crash"; b.t = 0;
-      S.shakeT = 0.32; S.shakeMag = 3.2;
-      SFX.bossHorn();
-      for (let i = 0; i < 18; i++)
-        burst(b.x + b.dir * 30, NIKITA.FLOOR - 20, -b.dir * (20 + Math.random() * 90),
-          -20 - Math.random() * 80, 0.55, rgb(PAL.rockHi), 2);
+      b.x = wall;
+      if (b.rushesLeft > 0) {
+        b.rushesLeft--;
+        b.state = "rebound";
+        b.t = 0;
+        b.dir *= -1;
+        S.shakeT = 0.18; S.shakeMag = 2.2;
+        SFX.bossWarn();
+      } else {
+        b.state = "crash"; b.t = 0;
+        S.shakeT = 0.32; S.shakeMag = 3.2;
+        SFX.bossHorn();
+        for (let i = 0; i < 18; i++)
+          burst(b.x + b.dir * 30, NIKITA.FLOOR - 20, -b.dir * (20 + Math.random() * 90),
+            -20 - Math.random() * 80, 0.55, rgb(PAL.rockHi), 2);
+      }
+    }
+  } else if (b.state === "rebound") {
+    if (b.t >= NIKITA.REBOUND_WARN) {
+      b.state = "charge";
+      b.t = 0;
+      whoosh(0.42, 0.14, 560);
     }
   } else if (b.state === "crash") {
     if (b.t >= NIKITA.CRASH) {
       b.state = "side"; b.t = 0;
       if (!b.sideHinted) {
         b.sideHinted = true;
-        queueNotice("He's on his side. Hold Down and press " + dashBtnName() + " on the marked flank.", 4.8, NOTICE_PRIORITY.BOSS);
+        queueNotice("He's down. Hold Down and press " + dashBtnName() + " on the bright flank.", 6.2, NOTICE_PRIORITY.BOSS);
       }
       if (phase >= 2) {
         const vx = -b.dir * NIKITA.WAVE_V[phaseIndex];
@@ -4529,16 +4611,15 @@ function updateNikita(dt) {
       p.vy = -120;
       if (!b.blockHinted) {
         b.blockHinted = true;
-        queueNotice("Only a straight-down slam dents the marked flank.", 3.6, NOTICE_PRIORITY.BOSS);
+        queueNotice("Jump above the bright mark, then hold Down and dash straight into it.", 5.2, NOTICE_PRIORITY.BOSS);
       }
     } else if (b.t >= NIKITA.SIDE[phaseIndex] * (b.grace ? 1.25 : 1)) {
       b.state = "getup"; b.t = 0;
     }
   } else if (b.state === "getup") {
     if (b.t >= NIKITA.GETUP) {
-      b.state = "warn"; b.t = 0;
       b.y = NIKITA.FLOOR - NIKITA.H;
-      SFX.bossWarn();
+      startNikitaWarn(b, phaseIndex);
     }
   }
 
@@ -4549,7 +4630,19 @@ function updateNikita(dt) {
   }
   b.waves = b.waves.filter(wave => !wave.dead);
 
-  if (["intro", "warn", "charge", "crash", "getup"].includes(b.state) && p.invuln <= 0 && overlap(p, nikitaBodyBox(b)))
+  for (const shot of b.truffles) {
+    shot.vy += NIKITA.SHOT_GRAVITY * dt;
+    shot.x += shot.vx * dt;
+    shot.y += shot.vy * dt;
+    if (p.invuln <= 0 && overlap(p, shot)) {
+      hurtPlayer(shot.x + shot.w / 2, "a flying truffle");
+      shot.dead = true;
+    }
+    if (shot.y + shot.h >= NIKITA.FLOOR || shot.x < TILE || shot.x > WORLD_W - TILE) shot.dead = true;
+  }
+  b.truffles = b.truffles.filter(shot => !shot.dead);
+
+  if (["intro", "warn", "charge", "rebound", "crash", "getup"].includes(b.state) && p.invuln <= 0 && overlap(p, nikitaBodyBox(b)))
     hurtPlayer(b.x, "Nikita Boar");
 }
 
@@ -7018,6 +7111,16 @@ function drawNikitaBoss(b) {
     g.fillRect(wx + 8, wy - 2, 3, 6);
   }
 
+  for (const shot of b.truffles || []) {
+    const sx = Math.round(shot.x), sy = Math.round(shot.y);
+    g.fillStyle = "#6d413c";
+    g.fillRect(sx + 1, sy, 6, 8);
+    g.fillStyle = "#d99a8f";
+    g.fillRect(sx, sy + 1, 8, 4);
+    g.fillStyle = "#f4d2c9";
+    g.fillRect(sx + 2, sy + 1, 2, 1);
+  }
+
   g.save();
   g.translate(x, 0);
   g.scale(b.dir || 1, 1);
@@ -7056,7 +7159,7 @@ function drawNikitaBoss(b) {
     g.fillRect(1, y + 5, 7, 2);
   } else {
     const y = Math.round(b.y);
-    const lean = b.state === "charge" ? 4 : 0;
+    const lean = b.state === "charge" ? 4 : b.state === "rebound" ? -2 : 0;
     g.fillStyle = hideLo;
     g.fillRect(-30, y + 12, 58, 20);
     g.fillStyle = hide;
@@ -7777,22 +7880,39 @@ function drawBanner() {
     g.globalAlpha = 1;
   }
   if (S.hint && S.mode === "play" && !S.talk && !rootWarningActive() && !openingLessonNeeded()) {
-    const a = clamp(Math.min(S.hint.t, S.hint.duration - S.hint.t) * 2.5, 0, 1);
+    const critical = S.hint.priority >= NOTICE_PRIORITY.TUTORIAL;
+    const age = S.hint.duration - S.hint.t;
+    const a = critical
+      ? clamp(Math.min(S.hint.t * 4, age * 8), 0, 1)
+      : clamp(Math.min(S.hint.t, age) * 2.5, 0, 1);
     const words = S.hint.text.split(/\s+/);
     const lines = [""];
     for (const word of words) {
       const next = lines[lines.length - 1] ? lines[lines.length - 1] + " " + word : word;
-      if (next.length > 52 && lines.length < 2) lines.push(word);
+      if (next.length > 46 && lines.length < 3) lines.push(word);
       else lines[lines.length - 1] = next;
     }
-    const panelH = lines.length > 1 ? 22 : 13;
+    const panelW = critical ? 246 : 230;
+    const panelH = 10 + lines.length * 9;
+    const panelX = Math.round((W - panelW) / 2);
+    const panelY = 37;
     g.globalAlpha = a;
-    g.fillStyle = "rgba(8,12,18,0.75)";
-    g.fillRect(W / 2 - 110, 38, 220, panelH);
-    g.fillStyle = C.goalOpen;
-    g.font = "7px monospace";
+    if (critical) {
+      const flash = age < 1.35 && !reducedMotion ? Math.sin(age * 18) > 0 : false;
+      g.fillStyle = flash ? "#fff0a8" : "#fff8e2";
+      g.fillRect(panelX - 2, panelY - 2, panelW + 4, panelH + 4);
+      g.fillStyle = "#fffdf5";
+      g.fillRect(panelX, panelY, panelW, panelH);
+      g.fillStyle = "#080a10";
+      g.font = "bold 7px monospace";
+    } else {
+      g.fillStyle = "rgba(8,12,18,0.92)";
+      g.fillRect(panelX - 1, panelY - 1, panelW + 2, panelH + 2);
+      g.fillStyle = "#f6f1e7";
+      g.font = "7px monospace";
+    }
     g.textAlign = "center";
-    lines.forEach((line, i) => g.fillText(line, W / 2, 47 + i * 9));
+    lines.forEach((line, i) => g.fillText(line, W / 2, panelY + 10 + i * 9));
     g.globalAlpha = 1;
   }
 }
