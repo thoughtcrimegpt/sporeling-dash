@@ -2386,14 +2386,17 @@ test("core instructions use plain sentences instead of the old slogan copy", () 
 test("the visible patch history uses plain factual copy", () => {
   const { api } = bootGame();
   const retiredBossName = new RegExp(["niki", "ta", "bo", "ar"].join("\\s*"), "i");
+  const reviewPlacementCopy = /(?:review|reviews).*(?:added|joined|linked|quote|order|top|opens?)/i;
   assert.match(api.PATCH_NOTES[0].v, /^V4\.6/);
   assert.doesNotMatch(html, retiredBossName, "the Boar Pit boss stays unnamed in player-facing copy");
   assert.match(html, /fillText\("THE BOAR PIT"/, "the boss entrance names the chamber instead");
   for (const block of api.PATCH_NOTES) {
     assert.equal(block.v.includes("—"), false, `patch title uses an em-dash slogan: ${block.v}`);
+    assert.doesNotMatch(block.v, reviewPlacementCopy, `patch title exposes review placement: ${block.v}`);
     for (const line of block.lines) {
       assert.equal(line.includes("—"), false, `patch note uses an em-dash hinge: ${line}`);
       assert.doesNotMatch(line, /\bnot\b.+\bbut\b/i);
+      assert.doesNotMatch(line, reviewPlacementCopy, `patch note exposes review placement: ${line}`);
     }
   }
 });
