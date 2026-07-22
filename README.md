@@ -46,17 +46,17 @@ The leaderboard names each route directly: Any%, 100%, Pale Root, and The Reach.
 8. The Marrow
 9. The Chorus Hall — Chorus
 10. The Swallow
-11. The Underfield — cracked floors teach the down-slam
-12. The Truffle Runs — slam drops lead into a long enemy-refund crossing
+11. The Underfield — a one-time down-slam lesson followed by six breakable floors, fast runners, wisps, spitters, and bouncing firecaps
+12. The Truffle Runs — slam drops lead into a much longer enemy-refund crossing marked by visible truffles
 13. The Boar Pit — a flat arena for Nikita Boar
 14. The Rootworks — three long horizontal enemy chains and one midpoint checkpoint
 15. The Mother's Throat — the Unbloomed and Shoggoth
 
 The Undrawn Map is hidden above the Spire. A second hidden room sits high beyond the Bloomheart's right wall. A small Frog sign and a berry trail mark the start, but three overhangs stop a straight wall climb; two enemy connectors return after a failed attempt. FROG lives inside beneath a pile of old hardware and only makes frog noises. The Pale Root unlocks after the main game is beaten; The Reach appears only after the Pale Root is cleared.
 
-Nikita Boar is the boss of the Boar Pit, drawn as a pink boar with swept dark hair, an oversized snout, and two uneven white eyes. The arena has a clear floor so the marked flank is always reachable. Only a straight-down slam on that flank hurts him. His first phase teaches the wall crash, his second adds arcing truffle projectiles, and his last phase rebounds into a second full-arena rush before he falls. The Rootworks then tests the enemy-bounce and dash-refund mechanics across three long horizontal gaps before the final encounter. The credits resolve the missing-truffle story with a luau.
+Nikita Boar is the boss of the Boar Pit, drawn as a pink boar with swept dark hair, an oversized snout, and two uneven white eyes. A hard white title card, heavy opening shake, and brighter arena announce him without hiding his silhouette. The arena has a clear floor so the marked flank is always reachable. Only a straight-down slam on that flank hurts him. Each phase raises his charge speed, his tell locks before he moves, and the last phase rebounds into a second full-arena rush. He stays belly-up long enough to reposition and attack. His former projectile fan and ground wave are gone. If the player dies during any boss encounter, that boss returns to full health. The Rootworks then tests the enemy-bounce and dash-refund mechanics across three long horizontal gaps before the final encounter. The credits resolve the missing-truffle story with a luau.
 
-Required move instructions stay on screen longer inside a bright high-contrast card. Their timers pause whenever resident dialogue is active, so the two kinds of text never compete. The full checkpoint explanation appears the first time a player activates one on that device; later checkpoints communicate through their sound and activation animation.
+Ordinary checkpoint, enemy, and boss notices use a small high-contrast card in the upper-right corner, leaving the route visible. Their timers pause whenever resident dialogue is active, so the two kinds of text never compete. The first checkpoint explanation appears briefly once on that device; later checkpoints communicate through their sound and activation animation. The down-slam is first taught where it becomes useful in the Underfield: play pauses for a one-time high-contrast lesson until the player confirms it with A, Space, Enter, or the touch A button.
 
 ## Keepsakes
 

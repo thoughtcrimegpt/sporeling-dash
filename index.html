@@ -312,18 +312,14 @@ const NIKITA = {
   W: 72, H: 34,
   FLOOR: 16 * TILE,
   LEFT: 5 * TILE, RIGHT: 39 * TILE,
-  INTRO: 1.4,
-  WARN: [0.95, 0.82, 0.7],
-  CHARGE_V: [150, 180, 210],
-  SHOTS: [0, 3, 5],
-  SHOT_AT: 0.3,
-  SHOT_GRAVITY: 520,
+  INTRO: 3.0,
+  WARN: [1.2, 1.0, 0.85],
+  CHARGE_V: [175, 220, 265],
   REBOUNDS: [0, 0, 1],
-  REBOUND_WARN: 0.34,
+  REBOUND_WARN: 0.5,
   CRASH: 0.38,
-  SIDE: [2.1, 1.75, 1.45],
+  SIDE: [3.2, 3.0, 2.8],
   GETUP: 0.72,
-  WAVE_V: [0, 150, 190],
 };
 const rgb = c => "rgb(" + c[0] + "," + c[1] + "," + c[2] + ")";
 const rgbs = c => c[0] + "," + c[1] + "," + c[2];
@@ -1105,6 +1101,15 @@ const PATCH_NOTES_SOURCE_ARCHIVE = [
   ]},
 ];
 const PATCH_NOTES = [
+  { v: "V4.6.3  Read the room", d: "2026-07-22 06:20 UTC", lines: [
+    "· Checkpoint and enemy notices now use a small upper-right card that leaves the route visible.",
+    "· The Underfield pauses once for a clear down-slam lesson, then descends through six breakable floors.",
+    "· Underfield shelves now mix fast skitters, wisps, spitters, and a new bouncing firecap.",
+    "· Truffle Runs is much longer, with visible truffles leading toward the Boar Pit.",
+    "· Nikita enters with a hard white title card, brighter lighting, and a heavy opening shake.",
+    "· Nikita's charges move faster, lock direction after a clear tell, and no longer fire surprise projectiles or ground waves.",
+    "· Nikita stays vulnerable longer. Every boss returns to full health after a player death.",
+  ]},
   { v: "V4.6.2  Rootworks gauntlet", d: "2026-07-22 05:41 UTC", lines: [
     "· Rootworks is now a much longer horizontal enemy-chain challenge with one earned checkpoint.",
     "· The Boar Pit is flat, so no platform can block a slam on Nikita's flank.",
@@ -2275,34 +2280,44 @@ const LEVELS = [
   },
   {
     name: "THE UNDERFIELD", pal: 9,
-    map: buildLevel(52, 34, ({ set, rect }) => {
-      rect(0, 0, 0, 33); rect(51, 0, 51, 33); rect(1, 32, 50, 33);
-      rect(1, 7, 50, 7); for (let c = 9; c <= 11; c++) set(c, 7, "q");
-      rect(1, 15, 50, 15); for (let c = 36; c <= 38; c++) set(c, 15, "q");
-      rect(1, 23, 50, 23); for (let c = 21; c <= 23; c++) set(c, 23, "q");
-      set(3, 6, "P"); set(14, 14, "C"); set(47, 31, "G");
-      set(6, 6, "B"); set(28, 14, "B"); set(44, 22, "B"); set(27, 31, "B");
-      set(24, 6, "e"); set(17, 14, "f"); set(44, 14, "e");
-      set(8, 22, "f"); set(33, 22, "E"); set(39, 31, "e");
+    lesson: "slam",
+    map: buildLevel(56, 58, ({ set, rect }) => {
+      rect(0, 0, 0, 57); rect(55, 0, 55, 57); rect(1, 56, 54, 57);
+      const seal = (r, a) => { rect(1, r, 54, r); for (let c = a; c <= a + 2; c++) set(c, r, "q"); };
+      seal(7, 10); seal(15, 42); seal(23, 8); seal(31, 39); seal(39, 16); seal(47, 45);
+      set(3, 6, "P"); set(44, 30, "C"); set(51, 55, "G");
+      set(7, 6, "B"); set(27, 14, "B"); set(13, 22, "B");
+      set(35, 30, "B"); set(20, 38, "B"); set(49, 46, "B"); set(29, 55, "B");
+      // Each shelf asks for a different read before the next slam seal.
+      set(22, 14, "k"); set(31, 14, "k");
+      set(24, 22, "o"); set(37, 22, "E");
+      set(15, 27, "f"); set(27, 26, "w");
+      set(22, 38, "E"); set(33, 38, "k");
+      set(27, 46, "o"); set(38, 46, "s");
+      set(18, 55, "k"); set(40, 55, "E");
     }),
     clearText: "The buried way opens into the Truffle Runs.",
-    unlockText: "Jump over the bright seal. Hold Down and dash straight through it.",
   },
   {
     name: "THE TRUFFLE RUNS", pal: 3,
-    map: buildLevel(112, 28, ({ set, rect, seg }) => {
-      rect(0, 0, 0, 27); rect(111, 0, 111, 27);
-      rect(1, 8, 17, 8); for (let c = 14; c <= 16; c++) set(c, 8, "q");
-      rect(10, 15, 38, 15); for (let c = 33; c <= 35; c++) set(c, 15, "q");
-      rect(28, 23, 49, 27);
-      seg(50, 104, 27); for (let c = 50; c <= 104; c++) set(c, 26, "S");
-      rect(52, 22, 55, 22); rect(70, 23, 74, 23); rect(88, 20, 91, 20);
-      rect(105, 20, 111, 27);
-      set(3, 7, "P"); set(72, 22, "C"); set(108, 19, "G");
-      set(11, 7, "B"); set(25, 14, "B"); set(42, 22, "B");
-      set(62, 19, "B"); set(82, 17, "B"); set(99, 15, "B");
-      set(45, 19, "f"); set(58, 20, "w"); set(66, 17, "f");
-      set(78, 19, "w"); set(85, 16, "f"); set(96, 17, "w"); set(102, 14, "f");
+    map: buildLevel(176, 30, ({ set, rect, seg }) => {
+      rect(0, 0, 0, 29); rect(175, 0, 175, 29);
+      rect(1, 8, 22, 8); for (let c = 18; c <= 20; c++) set(c, 8, "q");
+      rect(14, 15, 50, 15); for (let c = 45; c <= 47; c++) set(c, 15, "q");
+      rect(38, 24, 65, 29);
+      seg(66, 160, 29); for (let c = 66; c <= 160; c++) set(c, 28, "S");
+      rect(68, 23, 73, 23); rect(88, 21, 93, 21); rect(109, 24, 114, 24);
+      rect(130, 20, 135, 20); rect(150, 23, 155, 23); rect(161, 19, 175, 29);
+      set(3, 7, "P"); set(111, 23, "C"); set(172, 18, "G");
+      set(11, 7, "B"); set(31, 14, "B"); set(54, 23, "B");
+      set(80, 18, "B"); set(101, 17, "B"); set(122, 18, "B"); set(143, 16, "B"); set(166, 18, "B");
+      set(57, 20, "f"); set(64, 18, "w"); set(78, 18, "f"); set(84, 15, "w");
+      set(99, 17, "f"); set(105, 15, "w"); set(121, 17, "f"); set(126, 14, "w");
+      set(141, 16, "f"); set(146, 14, "w"); set(158, 17, "f");
+      // Truffles mark the route long before the boar appears.
+      set(8, 7, "t"); set(16, 7, "t"); set(27, 14, "t"); set(41, 23, "t");
+      set(70, 22, "t"); set(90, 20, "t"); set(112, 23, "t"); set(132, 19, "t");
+      set(152, 22, "t"); set(165, 18, "t"); set(169, 18, "t");
     }),
     clearText: "The digging stops. A stone gate waits ahead.",
     unlockText: "Break through, then use enemies to keep the crossing alive.",
@@ -2314,7 +2329,6 @@ const LEVELS = [
       set(3, 15, "P"); set(10, 15, "B"); set(18, 15, "B"); set(34, 15, "B");
     }),
     clearText: "The Boar Pit goes quiet.",
-    unlockText: "Make him hit the wall. Slam the marked flank while he is down.",
   },
   {
     name: "THE ROOTWORKS", pal: 1,
@@ -2604,7 +2618,8 @@ const S = {
   deathT: 0, winT: 0, goalOpen: 0, time: 0, bannerT: 0,
   pauseSel: 0, pauseAy: 0,
   titleSel: 2, titleAy: 0,
-  hint: null, hintQueue: [], wispHinted: false, bloomLessonDone: false,
+  hint: null, hintQueue: [], lesson: null, wispHinted: false, bloomLessonDone: false,
+  shogTitleT: 0, nikitaTitleT: 0,
   devLevel: 0, devInf: false, devAx: 0, devAy: 0,
   boardTab: "any", boardAx: 0, boardFrom: "title", notesY: 0, reviewsY: 0,
   daily: false, dailyMods: null, reachTrial: false,
@@ -2668,7 +2683,7 @@ function openingLessonNeeded() {
 }
 
 function noticeBlocked() {
-  return S.bannerT > 0 || !!S.talk || rootWarningActive() || openingLessonNeeded();
+  return S.bannerT > 0 || !!S.talk || !!S.lesson || rootWarningActive() || openingLessonNeeded();
 }
 
 function updateNoticeQueue(dt) {
@@ -2688,7 +2703,34 @@ function showCheckpointLesson() {
   try { seen = localStorage.getItem(CHECKPOINT_LESSON_KEY) === "1"; } catch (e) {}
   if (seen) return false;
   try { localStorage.setItem(CHECKPOINT_LESSON_KEY, "1"); } catch (e) {}
-  queueNotice("Checkpoint saved. You'll restart here if you die.", 5.2, NOTICE_PRIORITY.TUTORIAL);
+  queueNotice("Checkpoint saved. Death returns you here.", 2.6, NOTICE_PRIORITY.STATUS);
+  return true;
+}
+
+const SLAM_LESSON_KEY = "sd_slam_lesson";
+const WISP_LESSON_KEY = "sd_wisp_lesson";
+function storedLessonSeen(key) {
+  try { return localStorage.getItem(key) === "1"; } catch (e) { return false; }
+}
+function markLessonSeen(key) {
+  try { localStorage.setItem(key, "1"); } catch (e) {}
+}
+function beginLevelLesson(kind) {
+  if (kind !== "slam" || storedLessonSeen(SLAM_LESSON_KEY)) return false;
+  S.lesson = {
+    kind: "slam",
+    title: "DOWN-SLAM",
+    lines: ["Jump over a bright seal.", "Hold Down and press " + dashBtnName() + " to break through."],
+  };
+  S.bannerT = 0;
+  releaseTransientInput();
+  return true;
+}
+function dismissLevelLesson() {
+  if (!S.lesson) return false;
+  if (S.lesson.kind === "slam") markLessonSeen(SLAM_LESSON_KEY);
+  S.lesson = null;
+  releaseTransientInput();
   return true;
 }
 
@@ -2763,6 +2805,7 @@ function loadLevel(idx) {
   S.berries = 0; S.berriesTotal = 0;
   S.berryList = []; S.keepsakeList = []; S.checkpoints = []; S.descentMercy = null; S.blooms = []; S.particles = []; S.trail = [];
   S.goal = null; S.goalOpen = 0; S.winT = 0; S.deathT = 0;
+  S.lesson = null;
   S.reachFinalFuelArmed = false;
   S.bloomheartSecretFuelArmed = false;
   S.shakeT = 0; S.freezeT = 0; S.jumpHeldForCut = false;
@@ -2799,7 +2842,7 @@ function loadLevel(idx) {
     } else if (L.boss === "nikita") {
       S.boss.x = 22 * TILE; S.boss.y = NIKITA.FLOOR - NIKITA.H; S.boss.dir = 1;
       S.boss.waves = []; S.boss.truffles = []; S.boss.shotDone = false; S.boss.rushesLeft = 0;
-      S.boss.sideHinted = false; S.boss.blockHinted = false;
+      S.boss.sideHinted = false; S.boss.blockHinted = false; S.boss.lockedDir = false;
     }
   }
   S.talk = null;
@@ -2847,6 +2890,10 @@ function loadLevel(idx) {
         ENEMY_SPAWNS.push({ t: "spitter", x: px + 2, y: py + TILE - 12 });
       } else if (ch === "n") {
         ENEMY_SPAWNS.push({ t: "mine", x: px + 4, y: py + 4 });
+      } else if (ch === "o") {
+        ENEMY_SPAWNS.push({ t: "ember", x: px + 3, y: py + TILE - 10 });
+      } else if (ch === "t") {
+        DECOR.push({ x: px + 8, y: py + TILE, type: "truffle", ph: rnd01(x * 19 + y * 43) * Math.PI * 2 });
       }
     }
   }
@@ -2959,6 +3006,14 @@ function loadLevel(idx) {
   S.camLook = 0;
   S.camX = clamp(S.player.x - W / 2, 0, Math.max(0, WORLD_W - W));
   S.camY = clamp(S.player.y - H / 2, 0, Math.max(0, WORLD_H - H));
+  if (L.lesson) beginLevelLesson(L.lesson);
+  if (L.boss === "nikita") {
+    S.nikitaTitleT = 3.2;
+    S.shakeT = 0.35; S.shakeMag = 4;
+    SFX.bossWarn();
+  } else {
+    S.nikitaTitleT = 0;
+  }
   beginDevAttempt();
 }
 
@@ -3357,7 +3412,7 @@ function burst(x, y, vx, vy, life, col, s) {
 // What took you — named for the death label
 const ENEMY_NAMES = {
   slug: "a slug", puff: "a spore puff", wisp: "a wisp",
-  skitter: "a skitter", spitter: "a spitter", mine: "a sporemine",
+  skitter: "a skitter", spitter: "a spitter", mine: "a sporemine", ember: "a firecap",
 };
 const REACH_FINAL_FUEL_CEILING = 56 * TILE;
 const REACH_FINAL_ARM_Y = 54 * TILE;
@@ -3376,6 +3431,8 @@ function enemyFromSpawn(sp) {
     e = { t: "spitter", x: sp.x, y: sp.y, w: 12, h: 12, hard: sp.hard, cd: (sp.hard ? 0.6 : 1) + Math.random(), ph: Math.random() * 6 };
   else if (sp.t === "mine")
     e = { t: "mine", cx: sp.x, cy: sp.y, x: sp.x, y: sp.y, w: 10, h: 10, armT: 0, ph: Math.random() * 6 };
+  else if (sp.t === "ember")
+    e = { t: "ember", x: sp.x, y: sp.y, w: 10, h: 10, vx: (Math.random() < 0.5 ? -1 : 1) * 82 * sm, vy: -185, ph: Math.random() * 6 };
   else
     e = { t: "wisp", x: sp.x, y: sp.y, hx: sp.x, hy: sp.y, w: 8, h: 8, ph: Math.random() * 6 };
   e.spawnX = sp.x;
@@ -3516,12 +3573,41 @@ function updateEnemies(dt) {
         e.armT = 0.6;
         blip(700, 950, 0.1, "square", 0.1);
       }
+    } else if (e.t === "ember") {
+      // A steady, readable bounce. It is quick enough to demand timing, but
+      // never changes speed or launches without showing its arc first.
+      const nx = e.x + e.vx * dt;
+      const sideX = e.vx > 0 ? nx + e.w : nx;
+      const sideTy = Math.floor((e.y + e.h / 2) / TILE);
+      if (isSolid(tileAt(Math.floor(sideX / TILE), sideTy))) e.vx *= -1;
+      else e.x = nx;
+      e.vy += 500 * dt;
+      const ny = e.y + e.vy * dt;
+      if (e.vy >= 0) {
+        const footTy = Math.floor((ny + e.h) / TILE);
+        const footTx = Math.floor((e.x + e.w / 2) / TILE);
+        if (isSolid(tileAt(footTx, footTy))) {
+          e.y = footTy * TILE - e.h;
+          e.vy = -185;
+          blip(180, 260, 0.06, "square", 0.035);
+        } else e.y = ny;
+      } else {
+        const headTy = Math.floor(ny / TILE);
+        const headTx = Math.floor((e.x + e.w / 2) / TILE);
+        if (isSolid(tileAt(headTx, headTy))) { e.y = (headTy + 1) * TILE; e.vy *= -0.7; }
+        else e.y = ny;
+      }
+      if (Math.random() < 0.45)
+        burst(e.x + 5, e.y + 7, -e.vx * 0.08, 18, 0.22, Math.random() < 0.5 ? "#ff8a42" : "#ffd36a", 1);
     } else {
       const dx = (p.x + 5) - (e.x + 4), dy = (p.y + 5) - (e.y + 4);
       const d = Math.hypot(dx, dy);
       if (d < 90 && !S.wispHinted) {
         S.wispHinted = true;
-        queueNotice("Air-dash through gray sporelings to wake them up.", 4, NOTICE_PRIORITY.TUTORIAL);
+        if (!storedLessonSeen(WISP_LESSON_KEY)) {
+          markLessonSeen(WISP_LESSON_KEY);
+          queueNotice("Dash through the gray one to clear it and refill a spore.", 3.2, NOTICE_PRIORITY.STATUS);
+        }
       }
       // Wisps hang back while someone living is speaking
       if (d < 110 && d > 4 && !S.talk) {
@@ -4492,26 +4578,53 @@ function nikitaFlankBox(b) {
 function startNikitaWarn(b, phaseIndex) {
   b.state = "warn";
   b.t = 0;
-  b.shotDone = false;
+  b.lockedDir = false;
   b.rushesLeft = NIKITA.REBOUNDS[phaseIndex];
   b.dir = S.player.x + S.player.w / 2 < b.x ? -1 : 1;
   SFX.bossWarn();
 }
 
-function fireNikitaTruffles(b, count) {
-  if (!count) return;
-  const middle = (count - 1) / 2;
-  const x = b.x + b.dir * 34;
-  const y = NIKITA.FLOOR - NIKITA.H + 9;
-  for (let i = 0; i < count; i++) {
-    const spread = i - middle;
-    b.truffles.push({
-      x: x - 4, y: y - 4, w: 8, h: 8,
-      vx: b.dir * (82 + spread * 16),
-      vy: -158 - Math.abs(spread) * 13,
+function resetNikitaBoss(b = S.boss) {
+  if (!b || b.kind !== "nikita") return false;
+  Object.assign(b, {
+    state: "intro", t: 0, pips: 3, grace: true,
+    x: 22 * TILE, y: NIKITA.FLOOR - NIKITA.H, dir: 1,
+    rushesLeft: 0, lockedDir: false,
+    waves: [], truffles: [], shotDone: false,
+    sideHinted: false, blockHinted: false,
+  });
+  S.eshots = [];
+  return true;
+}
+
+function resetBossAfterDeath() {
+  const b = S.boss;
+  if (!b || b.state === "defeated") return false;
+  if (b.kind === "nikita") return resetNikitaBoss(b);
+  const common = {
+    state: "intro", t: 0, pips: 3, grace: true,
+    arm: null, shots: [], bolts: [], lanes: [], windowHint: false,
+    floorPulseT: 0, capFlash: 0, sweepHints: 0, sweepN: 0,
+    sweepSide: false, rootPhase: 0, rootPhaseN: 0, lastRootTier: null,
+  };
+  if (b.kind === "barrow") {
+    Object.assign(b, common, {
+      x: 24 * TILE, y: 13 * TILE - BARROW.H, dir: 1,
+      spitN: 0, spitT: 0, vx: 0, vy: 0, taughtLeap: false,
     });
-  }
-  blip(220, 115, 0.16, "square", 0.1);
+  } else if (b.kind === "chorus") {
+    Object.assign(b, common, { x: 20 * TILE, y: 10 * TILE, wisps: [] });
+  } else if (b.kind === "shoggoth") {
+    Object.assign(b, common, {
+      state: "emerge", x: 31.5 * TILE, y: SHOG.FLOOR - SHOG.H, dir: 1,
+      atkI: 0, vx: 0, tent: null, tents: [], minions: [], rollers: [], grinN: 0, grinT: 0,
+    });
+    S.shogGates = true;
+  } else if (b.kind === "unbloomed") {
+    Object.assign(b, common, { x: 31.5 * TILE, y: 6 * TILE, homeY: 6 * TILE });
+  } else return false;
+  S.eshots = [];
+  return true;
 }
 
 function hitNikita(b) {
@@ -4551,14 +4664,14 @@ function updateNikita(dt) {
       startNikitaWarn(b, phaseIndex);
     }
   } else if (b.state === "warn") {
-    b.dir = p.x + p.w / 2 < b.x ? -1 : 1;
-    if (!b.shotDone && b.t >= NIKITA.SHOT_AT) {
-      b.shotDone = true;
-      fireNikitaTruffles(b, NIKITA.SHOTS[phaseIndex]);
+    const warnTime = NIKITA.WARN[phaseIndex] * (b.grace ? 1.25 : 1);
+    if (!b.lockedDir) {
+      if (b.t < warnTime * 0.55) b.dir = p.x + p.w / 2 < b.x ? -1 : 1;
+      else b.lockedDir = true;
     }
     if (Math.random() < 0.3)
       burst(b.x + b.dir * 30, NIKITA.FLOOR - 4, -b.dir * (15 + Math.random() * 25), -12, 0.25, rgb(PAL.rockHi), 1);
-    if (b.t >= NIKITA.WARN[phaseIndex] * (b.grace ? 1.25 : 1)) {
+    if (b.t >= warnTime) {
       b.state = "charge"; b.t = 0;
       whoosh(0.35, 0.12, 520);
     }
@@ -4594,11 +4707,7 @@ function updateNikita(dt) {
       b.state = "side"; b.t = 0;
       if (!b.sideHinted) {
         b.sideHinted = true;
-        queueNotice("He's down. Hold Down and press " + dashBtnName() + " on the bright flank.", 6.2, NOTICE_PRIORITY.BOSS);
-      }
-      if (phase >= 2) {
-        const vx = -b.dir * NIKITA.WAVE_V[phaseIndex];
-        b.waves.push({ x: b.x - b.dir * 34 - 7, y: NIKITA.FLOOR - 8, w: 14, h: 8, vx });
+        queueNotice("Bright flank: hold Down and press " + dashBtnName() + ".", 3.5, NOTICE_PRIORITY.BOSS);
       }
     }
   } else if (b.state === "side") {
@@ -4611,7 +4720,7 @@ function updateNikita(dt) {
       p.vy = -120;
       if (!b.blockHinted) {
         b.blockHinted = true;
-        queueNotice("Jump above the bright mark, then hold Down and dash straight into it.", 5.2, NOTICE_PRIORITY.BOSS);
+        queueNotice("Get above the bright mark, then down-slam it.", 3.2, NOTICE_PRIORITY.BOSS);
       }
     } else if (b.t >= NIKITA.SIDE[phaseIndex] * (b.grace ? 1.25 : 1)) {
       b.state = "getup"; b.t = 0;
@@ -4622,25 +4731,6 @@ function updateNikita(dt) {
       startNikitaWarn(b, phaseIndex);
     }
   }
-
-  for (const wave of b.waves) {
-    wave.x += wave.vx * dt;
-    if (overlap(p, wave)) { hurtPlayer(wave.x + wave.w / 2, "the impact wave"); wave.dead = true; }
-    if (wave.x < TILE || wave.x > WORLD_W - TILE) wave.dead = true;
-  }
-  b.waves = b.waves.filter(wave => !wave.dead);
-
-  for (const shot of b.truffles) {
-    shot.vy += NIKITA.SHOT_GRAVITY * dt;
-    shot.x += shot.vx * dt;
-    shot.y += shot.vy * dt;
-    if (p.invuln <= 0 && overlap(p, shot)) {
-      hurtPlayer(shot.x + shot.w / 2, "a flying truffle");
-      shot.dead = true;
-    }
-    if (shot.y + shot.h >= NIKITA.FLOOR || shot.x < TILE || shot.x > WORLD_W - TILE) shot.dead = true;
-  }
-  b.truffles = b.truffles.filter(shot => !shot.dead);
 
   if (["intro", "warn", "charge", "rebound", "crash", "getup"].includes(b.state) && p.invuln <= 0 && overlap(p, nikitaBodyBox(b)))
     hurtPlayer(b.x, "Nikita Boar");
@@ -4936,6 +5026,7 @@ function respawn() {
   p.invuln = 0.5;
   S.blooms = [];
   spawnEnemies();
+  resetBossAfterDeath();
   S.deathT = 0;
   S.mode = "play";
   beginDevAttempt();
@@ -4968,7 +5059,7 @@ function updateFallen(dt) {
       try { seen = localStorage.getItem("sd_stopped") === "1"; } catch (e) {}
       if (!seen) {
         try { localStorage.setItem("sd_stopped", "1"); } catch (e) {}
-        queueNotice("That gray sporeling is stuck. Air-dash through them.", 4.5, NOTICE_PRIORITY.TUTORIAL);
+        queueNotice("Dash through the gray one to free it.", 3.2, NOTICE_PRIORITY.STATUS);
       }
     }
   }
@@ -5043,6 +5134,7 @@ function tick(dt) {
   const inp = readInput();
   S.time += dt;
   if (S.shogTitleT > 0) S.shogTitleT -= dt;
+  if (S.nikitaTitleT > 0) S.nikitaTitleT -= dt;
   if (just.KeyM) {
     musicOn = !musicOn;
     try { localStorage.setItem("sd_music", musicOn ? "1" : "0"); } catch (e) {}
@@ -5286,6 +5378,15 @@ function tick(dt) {
     }
     if (inp.dashEdge && competitiveRun()) activateWinItem("submit");
     if (inp.jumpEdge) activateWinItem(S.lbConfirm ? "cancel" : "title");
+    clearJust();
+    return;
+  }
+
+  if (S.mode === "play" && S.lesson) {
+    if (inp.startEdge || inp.jumpEdge || inp.dashEdge || inp.talkEdge) {
+      dismissLevelLesson();
+      SFX.check();
+    }
     clearJust();
     return;
   }
@@ -5913,6 +6014,34 @@ function draw() {
     g.textAlign = "left";
   }
 
+  // Nikita gets a hard white title card: blunt, cut up, and nothing like the
+  // Shoggoth's red, dripping announcement.
+  if (S.nikitaTitleT > 0 && S.mode === "play") {
+    const life = 3.2;
+    const a = Math.min(1, (life - S.nikitaTitleT) / 0.22) * Math.min(1, S.nikitaTitleT / 0.55);
+    const kick = !reducedMotion && S.nikitaTitleT > 2.45 ? 3 : 0.7;
+    const jx = (Math.random() - 0.5) * kick, jy = (Math.random() - 0.5) * kick;
+    g.globalAlpha = a;
+    g.textAlign = "center";
+    g.font = "bold 24px monospace";
+    g.fillStyle = "#05070a";
+    g.fillText("NIKITA BOAR", W / 2 + jx + 3, 67 + jy + 3);
+    g.fillStyle = "#ffffff";
+    g.fillText("NIKITA BOAR", W / 2 + jx, 67 + jy);
+    // Hard cuts across the type give it a stamped, torn-metal silhouette.
+    g.fillStyle = "#090c12";
+    g.fillRect(W / 2 - 82 + jx, 54 + jy, 28, 2);
+    g.fillRect(W / 2 - 34 + jx, 61 + jy, 39, 2);
+    g.fillRect(W / 2 + 27 + jx, 50 + jy, 31, 2);
+    g.fillRect(W / 2 + 56 + jx, 65 + jy, 24, 2);
+    g.fillStyle = "#ffffff";
+    g.fillRect(W / 2 - 102, 76, 78, 2);
+    g.fillRect(W / 2 + 24, 76, 78, 2);
+    g.fillRect(W / 2 - 24, 74, 48, 1);
+    g.globalAlpha = 1;
+    g.textAlign = "left";
+  }
+
   // Keep the cause visible during the short retry pause.
   if (S.mode === "dead" && S.deathCause) {
     g.textAlign = "center";
@@ -5927,6 +6056,7 @@ function draw() {
   drawTalk();
   drawBanner();
   drawOpeningLesson();
+  drawLevelLesson();
   drawEndOverlay();
 
   if (S.mode === "pause") {
@@ -6104,6 +6234,18 @@ function drawDecor() {
       g.fillRect(d.x - 2, d.y - hh - 2, 6, 3);
       g.fillStyle = C.cap;
       g.fillRect(d.x - 1, d.y - hh - 3, 4, 2);
+    } else if (d.type === "truffle") {
+      const bob = near ? 1 : 0;
+      g.fillStyle = "#3b241c";
+      g.fillRect(Math.round(d.x - 6), Math.round(d.y - 5 + bob), 12, 5);
+      g.fillRect(Math.round(d.x - 4), Math.round(d.y - 8 + bob), 5, 3);
+      g.fillRect(Math.round(d.x + 1), Math.round(d.y - 7 + bob), 5, 3);
+      g.fillStyle = "#7e5140";
+      g.fillRect(Math.round(d.x - 4), Math.round(d.y - 5 + bob), 9, 3);
+      g.fillRect(Math.round(d.x - 2), Math.round(d.y - 7 + bob), 3, 2);
+      g.fillStyle = "#d4a17c";
+      g.fillRect(Math.round(d.x - 2), Math.round(d.y - 6 + bob), 2, 1);
+      g.fillRect(Math.round(d.x + 2), Math.round(d.y - 4 + bob), 2, 1);
     } else {
       const pulse = 0.7 + Math.sin(S.time * 3 + d.ph) * 0.3;
       const hh = Math.round(6 * sq);
@@ -6541,6 +6683,19 @@ function drawEnemies() {
       g.fillRect(cx - 5, cy - 1, 10, 2);
       g.fillStyle = "#fff0f4";
       g.fillRect(cx - 1, cy - 1, 2, 2);
+    } else if (e.t === "ember") {
+      const cx = Math.round(e.x + 5), cy = Math.round(e.y + 5);
+      const pulse = ((S.time * 10 + e.ph) | 0) & 1;
+      g.globalAlpha = 0.28;
+      g.fillStyle = "#ff6a32";
+      g.fillRect(cx - 6, cy - 6, 12, 12);
+      g.globalAlpha = 1;
+      g.fillStyle = pulse ? "#ff8a42" : "#e84c2c";
+      g.fillRect(cx - 4, cy - 4, 8, 8);
+      g.fillStyle = "#ffd36a";
+      g.fillRect(cx - 2, cy - 3, 4, 5);
+      g.fillStyle = "#fff0a0";
+      g.fillRect(cx - 1, cy - 2, 2, 2);
     } else {
       const bob = Math.sin(S.time * 4 + e.ph);
       const cx = e.x + 4, cy = e.y + 4 + bob;
@@ -7102,25 +7257,6 @@ function drawNikitaBoss(b) {
   const hide = "#b87970", hideHi = "#d99a8f", hideLo = "#764842";
   const snout = "#e4aaa2", hair = "#211815", hoof = "#332520";
 
-  for (const wave of b.waves || []) {
-    const wx = Math.round(wave.x), wy = Math.round(wave.y);
-    g.fillStyle = rgb(PAL.accent);
-    g.fillRect(wx, wy + 3, wave.w, 2);
-    g.fillStyle = rgb(PAL.rockHi);
-    g.fillRect(wx + 2, wy, 3, 4);
-    g.fillRect(wx + 8, wy - 2, 3, 6);
-  }
-
-  for (const shot of b.truffles || []) {
-    const sx = Math.round(shot.x), sy = Math.round(shot.y);
-    g.fillStyle = "#6d413c";
-    g.fillRect(sx + 1, sy, 6, 8);
-    g.fillStyle = "#d99a8f";
-    g.fillRect(sx, sy + 1, 8, 4);
-    g.fillStyle = "#f4d2c9";
-    g.fillRect(sx + 2, sy + 1, 2, 1);
-  }
-
   g.save();
   g.translate(x, 0);
   g.scale(b.dir || 1, 1);
@@ -7191,6 +7327,18 @@ function drawNikitaBoss(b) {
     g.fillStyle = "#ffffff";
     g.fillRect(23 + lean, y + 12, 1, 1);
     g.fillRect(32 + lean, y + 13, 1, 1);
+    if (b.state === "warn" || b.state === "rebound") {
+      const flash = ((S.time * 12) | 0) & 1;
+      g.fillStyle = flash ? "#ffffff" : "#b7e7e2";
+      g.fillRect(20 + lean, y + 10, 6, 1);
+      g.fillRect(28 + lean, y + 10, 7, 1);
+      for (let i = 0; i < 3; i++) {
+        const cx = 43 + i * 9;
+        g.fillRect(cx, y + 15, 5, 2);
+        g.fillRect(cx + 3, y + 13, 2, 2);
+        g.fillRect(cx + 3, y + 17, 2, 2);
+      }
+    }
     g.fillStyle = hideLo;
     g.fillRect(-20, y + 27, 8, 6); g.fillRect(10, y + 27, 8, 6);
     g.fillStyle = hoof;
@@ -7519,7 +7667,8 @@ function drawLighting(ox, oy) {
 
   dctx.globalCompositeOperation = "source-over";
   dctx.clearRect(0, 0, lw, lh);
-  dctx.fillStyle = dMod("dim") ? "rgba(2,4,9,0.78)" : "rgba(3,6,13,0.52)";
+  const boarLit = S.boss && S.boss.kind === "nikita";
+  dctx.fillStyle = dMod("dim") ? "rgba(2,4,9,0.78)" : boarLit ? "rgba(3,6,13,0.34)" : "rgba(3,6,13,0.52)";
   dctx.fillRect(0, 0, lw, lh);
   dctx.globalCompositeOperation = "destination-out";
 
@@ -7880,41 +8029,51 @@ function drawBanner() {
     g.globalAlpha = 1;
   }
   if (S.hint && S.mode === "play" && !S.talk && !rootWarningActive() && !openingLessonNeeded()) {
-    const critical = S.hint.priority >= NOTICE_PRIORITY.TUTORIAL;
     const age = S.hint.duration - S.hint.t;
-    const a = critical
-      ? clamp(Math.min(S.hint.t * 4, age * 8), 0, 1)
-      : clamp(Math.min(S.hint.t, age) * 2.5, 0, 1);
+    const a = clamp(Math.min(S.hint.t, age) * 4, 0, 1);
     const words = S.hint.text.split(/\s+/);
     const lines = [""];
     for (const word of words) {
       const next = lines[lines.length - 1] ? lines[lines.length - 1] + " " + word : word;
-      if (next.length > 46 && lines.length < 3) lines.push(word);
+      if (next.length > 27 && lines.length < 3) lines.push(word);
       else lines[lines.length - 1] = next;
     }
-    const panelW = critical ? 246 : 230;
-    const panelH = 10 + lines.length * 9;
-    const panelX = Math.round((W - panelW) / 2);
-    const panelY = 37;
+    const panelW = 148;
+    const panelH = 9 + lines.length * 8;
+    const panelX = W - panelW - 5;
+    const panelY = 34;
     g.globalAlpha = a;
-    if (critical) {
-      const flash = age < 1.35 && !reducedMotion ? Math.sin(age * 18) > 0 : false;
-      g.fillStyle = flash ? "#fff0a8" : "#fff8e2";
-      g.fillRect(panelX - 2, panelY - 2, panelW + 4, panelH + 4);
-      g.fillStyle = "#fffdf5";
-      g.fillRect(panelX, panelY, panelW, panelH);
-      g.fillStyle = "#080a10";
-      g.font = "bold 7px monospace";
-    } else {
-      g.fillStyle = "rgba(8,12,18,0.92)";
-      g.fillRect(panelX - 1, panelY - 1, panelW + 2, panelH + 2);
-      g.fillStyle = "#f6f1e7";
-      g.font = "7px monospace";
-    }
-    g.textAlign = "center";
-    lines.forEach((line, i) => g.fillText(line, W / 2, panelY + 10 + i * 9));
+    g.fillStyle = S.hint.priority >= NOTICE_PRIORITY.BOSS ? "#f4f0e8" : rgb(PAL.accent);
+    g.fillRect(panelX - 1, panelY - 1, panelW + 2, panelH + 2);
+    g.fillStyle = "rgba(7,10,15,0.96)";
+    g.fillRect(panelX, panelY, panelW, panelH);
+    g.fillStyle = "#f6f1e7";
+    g.font = S.hint.priority >= NOTICE_PRIORITY.BOSS ? "bold 6px monospace" : "6px monospace";
+    g.textAlign = "left";
+    lines.forEach((line, i) => g.fillText(line, panelX + 6, panelY + 9 + i * 8));
     g.globalAlpha = 1;
   }
+}
+
+function drawLevelLesson() {
+  if (!S.lesson || S.mode !== "play") return;
+  g.fillStyle = "rgba(2,4,8,0.68)";
+  g.fillRect(0, 0, W, H);
+  const bw = 270, bh = 86, bx = Math.round((W - bw) / 2), by = Math.round((H - bh) / 2);
+  g.fillStyle = "#f4f0e8";
+  g.fillRect(bx - 2, by - 2, bw + 4, bh + 4);
+  g.fillStyle = "#090c12";
+  g.fillRect(bx, by, bw, bh);
+  g.fillStyle = "#ffffff";
+  g.textAlign = "center";
+  g.font = "bold 14px monospace";
+  g.fillText(S.lesson.title, W / 2, by + 20);
+  g.font = "8px monospace";
+  S.lesson.lines.forEach((line, i) => g.fillText(line, W / 2, by + 39 + i * 12));
+  g.fillStyle = rgb(PAL.accent);
+  g.font = "bold 7px monospace";
+  g.fillText(TOUCH.active ? "TAP A: GOT IT" : gp() ? "A: GOT IT" : "SPACE / ENTER: GOT IT", W / 2, by + 76);
+  g.textAlign = "left";
 }
 
 function decorMush(x, y, s) {
@@ -8538,6 +8697,7 @@ function applyDevFixture() {
     S.mode = "play";
     S.bannerT = 0;
     resetNotices();
+    S.lesson = null;
     S.talk = null;
     S.bloomLessonDone = true;
   };
@@ -8548,6 +8708,44 @@ function applyDevFixture() {
     S.mode = "play";
     S.bannerT = 0;
     updateNoticeQueue(0);
+    return true;
+  }
+
+  if (fixture === "underfield-lesson" || fixture === "underfield") {
+    openLevel(LEVELS.findIndex(level => level.name === "THE UNDERFIELD"));
+    if (fixture === "underfield-lesson") {
+      S.lesson = {
+        kind: "slam", title: "DOWN-SLAM",
+        lines: ["Jump over a bright seal.", "Hold Down and press " + dashBtnName() + " to break through."],
+      };
+      placePlayer(7 * TILE, 7 * TILE - S.player.h);
+    } else {
+      S.lesson = null;
+      placePlayer(29 * TILE, 23 * TILE - S.player.h);
+      S.player.grounded = true;
+    }
+    return true;
+  }
+
+  if (fixture === "truffle-runs") {
+    openLevel(LEVELS.findIndex(level => level.name === "THE TRUFFLE RUNS"));
+    placePlayer(88 * TILE, 21 * TILE - S.player.h);
+    S.player.grounded = true;
+    return true;
+  }
+
+  if (fixture === "nikita-intro" || fixture === "nikita-warn" || fixture === "nikita-side") {
+    openLevel(LEVELS.findIndex(level => level.boss === "nikita"));
+    const b = S.boss;
+    placePlayer(12 * TILE, 16 * TILE - S.player.h);
+    S.nikitaTitleT = fixture === "nikita-intro" ? 2.7 : 0;
+    if (fixture === "nikita-warn") {
+      b.state = "warn"; b.t = NIKITA.WARN[0] * 0.62; b.lockedDir = true; b.dir = 1;
+    } else if (fixture === "nikita-side") {
+      b.state = "side"; b.t = 0.5; b.dir = 1;
+      queueNotice("Bright flank: hold Down and press " + dashBtnName() + ".", 99, NOTICE_PRIORITY.BOSS);
+      updateNoticeQueue(0);
+    }
     return true;
   }
 

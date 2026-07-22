@@ -128,6 +128,7 @@ globalThis.__SD_TEST__ = {
   activateTitleItem, activatePauseItem, activateWinItem, activateCreditJoin, beginCredits, beginCreditRoll, startTitleRun, startDaily, startReach, setRunModePref, cycleGhostPref, competitiveRun, applyDevFixture,
   dailyUnlocked, rootCleared, reachCleared, stepAdventureLevel, adventureLevelName, cycleAdventureDifficulty, configureRunRules,
   queueNotice, resetNotices, updateNoticeQueue, noticeBlocked, rootWarningActive, openingLessonNeeded,
+  beginLevelLesson, dismissLevelLesson, resetBossAfterDeath,
   advanceTalk, talkHitAt, talkLayout, titleControlLines,
   chamberClear, submitScore, mainFullEligible, checkpointEligible, checkpointPathClear, activateCheckpoint, enterSecret, exitSecret,
   mercyRetriesEnabled, updateDescentMercy,
@@ -416,7 +417,7 @@ test("The Swallow saves one mid-shaft retry and respawns there", () => {
   assert.equal(api.updateDescentMercy(p), false, "the same shaft threshold cannot save repeatedly");
   assert.deepEqual({ ...api.S.checkPt }, { x: 8 * api.TILE + 3, y: 35 * api.TILE + 4 });
   const noticeText = [api.S.hint, ...api.S.hintQueue].filter(Boolean).map(notice => notice.text);
-  assert.ok(noticeText.includes("Checkpoint saved. You'll restart here if you die."));
+  assert.ok(noticeText.includes("Checkpoint saved. Death returns you here."));
 
   Object.assign(p, { x: 20 * api.TILE, y: 55 * api.TILE, vx: 70, vy: 180 });
   api.S.health = 1;
@@ -1305,7 +1306,7 @@ test("checkpoints credit close passes from open directions without reaching thro
   api.updateNoticeQueue(0);
   assert.equal(cp.active, true, "the normal gameplay update awards the close pass");
   assert.deepEqual({ ...api.S.checkPt }, { x: 67, y: 44 });
-  assert.match(api.S.hint.text, /restart here/i);
+  assert.match(api.S.hint.text, /Death returns you here/i);
 });
 
 test("every placed checkpoint has at least one clear forgiving approach", () => {
@@ -1389,7 +1390,7 @@ test("level instructions and transient notices share one prioritized lane", () =
     "the paused notice stays hidden while dialogue is visible");
 });
 
-test("tutorial notices use a bright card and the checkpoint explanation appears once", () => {
+test("ordinary notices stay in a compact corner card and the checkpoint explanation appears once", () => {
   const { api, storage } = bootGame();
   api.S.mode = "play";
   api.S.bannerT = 0;
@@ -1398,14 +1399,16 @@ test("tutorial notices use a bright card and the checkpoint explanation appears 
   api.updateNoticeQueue(0);
   api.g.operations.length = 0;
   api.draw();
-  assert.ok(api.g.operations.some(op => op.type === "fillRect" && op.fillStyle === "#fffdf5"),
-    "critical instructions have an opaque pale backing");
+  assert.ok(api.g.operations.some(op => op.type === "fillRect" && op.fillStyle === "rgba(7,10,15,0.96)" && op.x > 160 && op.y === 34 && op.width === 148),
+    "ordinary instructions use the compact upper-right card");
+  assert.equal(api.g.operations.some(op => op.type === "fillRect" && op.fillStyle === "#fffdf5"), false,
+    "transient notices never cover the middle of the playfield with the old pale card");
 
   api.resetNotices();
   const first = { x: 40, y: 40, w: 16, h: 16, active: false };
   api.activateCheckpoint(first);
   assert.equal(storage.get("sd_checkpoint_lesson"), "1");
-  assert.match(api.S.hint?.text || api.S.hintQueue[0]?.text, /restart here if you die/i);
+  assert.match(api.S.hint?.text || api.S.hintQueue[0]?.text, /Death returns you here/i);
   api.resetNotices();
   const later = { x: 80, y: 40, w: 16, h: 16, active: false };
   api.activateCheckpoint(later);
@@ -1740,7 +1743,7 @@ test("local browser fixtures expose visual states without creating a production 
 
   const checkpoint = bootGame({ search: "?fixture=checkpoint" });
   assert.equal(checkpoint.api.S.checkpoints[0].active, true);
-  assert.match(checkpoint.api.S.hint.text, /restart here/i);
+  assert.match(checkpoint.api.S.hint.text, /Death returns you here/i);
 
   const skitterIndex = hardTitle.api.LEVELS.findIndex(level => level.name === "THE SKITTERWAY");
   const skitterCheckpoint = bootGame({ search: "?fixture=checkpoint&level=" + skitterIndex + "&difficulty=normal" });
@@ -1751,7 +1754,22 @@ test("local browser fixtures expose visual states without creating a production 
   const swallowMercy = bootGame({ search: "?fixture=swallow-mercy&difficulty=normal" });
   assert.equal(swallowMercy.api.S.descentMercy.active, true);
   assert.deepEqual({ ...swallowMercy.api.S.checkPt }, { x: 8 * 16 + 3, y: 35 * 16 + 4 });
-  assert.match(swallowMercy.api.S.hint.text, /restart here if you die/i);
+  assert.match(swallowMercy.api.S.hint.text, /Death returns you here/i);
+
+  const slamLesson = bootGame({ search: "?fixture=underfield-lesson" });
+  assert.equal(slamLesson.api.S.lesson?.title, "DOWN-SLAM");
+  const firecapShelf = bootGame({ search: "?fixture=underfield" });
+  assert.ok(firecapShelf.api.S.enemies.some(enemy => enemy.t === "ember"));
+  const truffleRuns = bootGame({ search: "?fixture=truffle-runs" });
+  assert.equal(truffleRuns.api.S.levelIdx, truffleRuns.api.LEVELS.findIndex(level => level.name === "THE TRUFFLE RUNS"));
+  const nikitaIntro = bootGame({ search: "?fixture=nikita-intro" });
+  assert.ok(nikitaIntro.api.S.nikitaTitleT > 0);
+  const nikitaTell = bootGame({ search: "?fixture=nikita-warn" });
+  assert.equal(nikitaTell.api.S.boss.state, "warn");
+  assert.equal(nikitaTell.api.S.boss.lockedDir, true);
+  const nikitaFlank = bootGame({ search: "?fixture=nikita-side" });
+  assert.equal(nikitaFlank.api.S.boss.state, "side");
+  assert.match(nikitaFlank.api.S.hint.text, /Bright flank/i);
 
   const dialogue = bootGame({ search: "?fixture=dialogue" });
   assert.equal(dialogue.api.S.talk.npc.name, "BARNABY");
@@ -2163,14 +2181,22 @@ test("the new chambers teach and reuse the straight-down slam", () => {
   }
   const underfield = api.LEVELS.findIndex(level => level.name === "THE UNDERFIELD");
   api.loadLevel(underfield);
+  const underfieldLevel = api.LEVELS[underfield];
+  assert.equal(underfieldLevel.map.length, 58, "the Underfield is now a full six-tier descent");
+  assert.equal((underfieldLevel.map.join("").match(/qqq/g) || []).length, 6, "all six shelves require a slam");
+  assert.equal(underfieldLevel.lesson, "slam");
+  assert.equal(api.S.lesson?.title, "DOWN-SLAM", "the first useful slam chamber pauses for an explicit lesson");
+  assert.match(api.S.lesson.lines.join(" "), /Hold Down and press/i);
+  api.dismissLevelLesson();
+  assert.equal(api.S.lesson, null);
   const row = api.LEVELS[underfield].map.findIndex(line => line.includes("qqq"));
   const center = api.LEVELS[underfield].map[row].indexOf("qqq") + 1;
   Object.assign(api.S.player, { x: center * api.TILE + 3, y: row * api.TILE - api.S.player.h, grounded: true });
   assert.equal(api.breakSlamTiles(api.S.player), 3);
   assert.equal(api.tileAt(center, row), ".");
   assert.equal(api.S.player.grounded, false, "breaking the floor lets the player drop through");
-  assert.match(api.LEVELS[underfield].unlockText, /Hold Down and dash/i);
-  assert.match(api.LEVELS[underfield].unlockText, /bright seal/i);
+  assert.equal((underfieldLevel.map.join("").match(/C/g) || []).length, 1, "the six-floor descent has one midpoint checkpoint");
+  assert.ok(/[koEws]/.test(underfieldLevel.map.join("")), "the descent mixes moving threats between seals");
 });
 
 test("Rootworks is a long horizontal enemy chain and the Boar Pit has a clear floor", () => {
@@ -2219,17 +2245,22 @@ test("Nikita Boar rolls onto his side and only a down-slam hurts him", () => {
   Object.assign(player, { x: 3 * api.TILE, y: 15 * api.TILE, dashing: false, slamDash: false, invuln: 99 });
   api.updateNikita(0);
   assert.equal(boss.state, "side");
-  assert.equal(boss.waves.length, 1, "later phases add one readable ground wave");
+  assert.equal(boss.waves.length, 0, "the unfair ground wave was removed");
+  assert.ok(api.NIKITA.SIDE.every(seconds => seconds >= 2.8), "every belly-up window leaves time to reposition and slam");
+  assert.ok(api.NIKITA.CHARGE_V[2] > api.NIKITA.CHARGE_V[1] && api.NIKITA.CHARGE_V[1] > api.NIKITA.CHARGE_V[0],
+    "later phases intensify through movement speed instead of surprise projectiles");
 
-  boss.state = "warn"; boss.t = api.NIKITA.SHOT_AT; boss.shotDone = false; boss.truffles = [];
+  boss.state = "warn"; boss.t = api.NIKITA.WARN[1] * 0.6; boss.lockedDir = false; boss.dir = 1;
+  Object.assign(player, { x: 2 * api.TILE, y: 15 * api.TILE, invuln: 99 });
   api.updateNikita(0);
-  assert.equal(boss.truffles.length, 3, "the second phase adds a readable projectile fan");
+  assert.equal(boss.lockedDir, true, "the warning commits to a direction before the rush");
+  const committed = boss.dir;
+  player.x = 38 * api.TILE;
+  api.updateNikita(0.1);
+  assert.equal(boss.dir, committed, "crossing behind him after the tell cannot bend the charge");
 
   slam();
   assert.equal(boss.pips, 1);
-  boss.state = "warn"; boss.t = api.NIKITA.SHOT_AT; boss.shotDone = false; boss.truffles = [];
-  api.updateNikita(0);
-  assert.equal(boss.truffles.length, 5, "the final phase widens the projectile fan");
   boss.state = "charge"; boss.x = api.NIKITA.RIGHT; boss.dir = 1; boss.rushesLeft = 1;
   Object.assign(player, { x: 3 * api.TILE, y: 15 * api.TILE, dashing: false, slamDash: false, invuln: 99 });
   api.updateNikita(0);
@@ -2242,6 +2273,14 @@ test("Nikita Boar rolls onto his side and only a down-slam hurts him", () => {
   api.updateNikita(0);
   assert.equal(boss.state, "crash", "the rebound ends in the normal vulnerable crash");
 
+  boss.pips = 1;
+  api.S.health = 1;
+  api.killPlayer("Nikita Boar");
+  api.respawn();
+  assert.equal(boss.pips, 3, "dying restarts the boss at full health");
+  assert.equal(boss.state, "intro");
+
+  boss.pips = 1;
   slam();
   assert.equal(boss.pips, 0);
   assert.equal(boss.state, "defeated");
@@ -2335,8 +2374,8 @@ test("core instructions use plain sentences instead of the old slogan copy", () 
   api.updateNoticeQueue(0);
   api.g.operations.length = 0;
   api.draw();
-  const hintLines = api.g.operations.filter(op => op.type === "fillText" && op.x === 160 && op.y >= 47 && op.y <= 56);
-  assert.equal(hintLines.length, 2, "long hints wrap instead of being compressed into slogan fragments");
+  const hintLines = api.g.operations.filter(op => op.type === "fillText" && op.x > 160 && op.y >= 43 && op.y <= 60);
+  assert.ok(hintLines.length >= 2, "long hints wrap inside the compact card instead of being compressed into slogan fragments");
   assert.equal(hintLines.map(op => op.value).join(" "), api.S.hint.text);
 });
 
