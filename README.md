@@ -4,7 +4,7 @@ A fungal platformer built in a single HTML file.
 
 The Mother Bloom has gone quiet. Dash in mid-air and a mushroom platform grows under your landing path. Jump from it and dash again before it wilts.
 
-The main Adventure crosses 11 chambers, introduces wall-cling and spore-glide, and ends in a three-stage run of the Chorus, the Swallow, and the Unbloomed. Two hidden rooms, four persistent keepsakes, the Pale Root, and The Reach sit outside that route.
+The main Adventure crosses 15 chambers. It introduces wall-cling, spore-glide, cracked floors, and the straight-down slam before a four-boss route through Barrow, the Chorus, Nikita Boar, and the Unbloomed/Shoggoth finale. Two hidden rooms, four persistent keepsakes, the Pale Root, and The Reach sit outside that route.
 
 **Play:** https://thoughtcrimegpt.github.io/sporeling-dash/
 
@@ -26,7 +26,7 @@ Deaths return you to the latest checkpoint and restore the current difficulty's 
 
 Timed Run always starts in The Hollow with 4 health. Its original sparse checkpoint layout stays intact, and the clock keeps running through deaths. Ghosts are off by default; players can opt into a personal-best or leaderboard ghost.
 
-Every completed run qualifies for the Any% board. Collecting every berry, meeting every resident, finding the secret memory, and owning all four keepsakes also qualifies for the optional 100% board.
+Every completed run qualifies for the Any% board. Collecting every berry, meeting every resident, finding the secret memory, and owning all four keepsakes also qualifies for the optional 100% board. The 15-chamber route uses fresh Any% and 100% board categories so its times are not mixed with the former 11-chamber route.
 
 ### New Game+
 
@@ -46,9 +46,15 @@ The leaderboard names each route directly: Any%, 100%, Pale Root, and The Reach.
 8. The Marrow
 9. The Chorus Hall — Chorus
 10. The Swallow
-11. The Mother's Throat — the Unbloomed and Shoggoth
+11. The Underfield — cracked floors teach the down-slam
+12. The Truffle Runs — slam drops lead into a long enemy-refund crossing
+13. The Boar Pit — Nikita Boar
+14. The Rootworks
+15. The Mother's Throat — the Unbloomed and Shoggoth
 
 The Undrawn Map is hidden above the Spire. A second hidden room sits high beyond the Bloomheart's right wall. A small Frog sign and a berry trail mark the start, but three overhangs stop a straight wall climb; two enemy connectors return after a failed attempt. FROG lives inside beneath a pile of old hardware and only makes frog noises. The Pale Root unlocks after the main game is beaten; The Reach appears only after the Pale Root is cleared.
+
+Nikita Boar is the boss of the Boar Pit. He charges into the arena wall and rolls onto his side; only a straight-down slam on the marked flank hurts him. Later phases add one ground wave after each crash. The Rootworks gives the route a short cooldown before the final encounter, and the credits resolve the missing-truffle story with a luau.
 
 ## Keepsakes
 
@@ -61,6 +67,7 @@ Four keepsakes persist on the device that found them. They are placed on the Rot
 | Move       | A / D or Left / Right | Stick / D-pad |
 | Jump       | Space / Z / K         | A / B         |
 | Dash       | Shift / J             | X / RB / LB   |
+| Down-slam  | Hold Down + Dash in air | Down + Dash |
 | Finish dialogue text | E / Enter   | Y             |
 | Pause      | Esc / P               | Start         |
 

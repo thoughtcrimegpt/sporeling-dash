@@ -116,14 +116,15 @@ function bootGame({ hostname = "127.0.0.1", protocol = "http:", search = "", ini
   assert.match(scripts[0], marker, "test export marker must match the game loop");
   const source = scripts[0].replace(marker, `
 globalThis.__SD_TEST__ = {
-  S, LEVELS, PATCH_NOTES, BARROW, BOSS, CHORUS, SHOG, ROOT_TIERS, ROOT_TIER_ORDER,
+  S, LEVELS, PATCH_NOTES, BARROW, BOSS, CHORUS, NIKITA, SHOG, ROOT_TIERS, ROOT_TIER_ORDER,
+  REUNION_SPRITES, REUNION_LINES,
   MAIN_LAST_INDEX, UNDRAWN_INDEX, PALE_ROOT_INDEX, BLOOMHEART_INDEX, PRESSED_GARDEN_INDEX, REACH_INDEX,
   REVIEWS,
-  KEEPSAKE_IDS, TOTAL_KEEPSAKES,
+  KEEPSAKE_IDS, TOTAL_KEEPSAKES, MAIN_BOARD_DB,
   FIXED_DT, MAX_FRAME_DT, MAX_SPORES, START_HEALTH, MAX_HEALTH, TILE,
   ADVENTURE_DIFFICULTIES, ADVENTURE_RULES, TIMED_RUN_RULES, NOTICE_PRIORITY,
   keys, just, TOUCH, touchPrev, padPrev, SCREEN_BACK_HIT,
-  canvas, handleFocusLoss, handleFocusReturn, loadLevel, pauseIds, titleIds, readInput,
+  canvas, handleFocusLoss, handleFocusReturn, loadLevel, pauseIds, titleIds, readInput, tileAt,
   activateTitleItem, activatePauseItem, activateWinItem, activateCreditJoin, beginCredits, beginCreditRoll, startTitleRun, startDaily, startReach, setRunModePref, cycleGhostPref, competitiveRun, applyDevFixture,
   dailyUnlocked, rootCleared, reachCleared, stepAdventureLevel, adventureLevelName, cycleAdventureDifficulty, configureRunRules,
   queueNotice, resetNotices, updateNoticeQueue, noticeBlocked, rootWarningActive, openingLessonNeeded,
@@ -131,13 +132,13 @@ globalThis.__SD_TEST__ = {
   chamberClear, submitScore, mainFullEligible, checkpointEligible, checkpointPathClear, activateCheckpoint, enterSecret, exitSecret,
   mercyRetriesEnabled, updateDescentMercy,
   gainHealth, hurtPlayer, killPlayer,
-  bloomPlacement, spawnBloom, openingLessonLines,
+  bloomPlacement, spawnBloom, breakSlamTiles, doSlam, openingLessonLines,
   bossStartAttack, bossLanded, nextRootTier, cameraTargetX, rootCameraCenterY,
   draw, drawBossWarnings, frame, g, moveAxis, resize, respawn,
   restartCurrentChamber, solidBlocked, spawnShoggoth, startPracticeRun, tick, touchingWallDir,
   resetReachFinalFuel, updateReachFinalFuelReset, resetBloomheartSecretFuel, updateBloomheartSecretFuelReset,
   devMetricsSnapshot, recordDevAttempt, toggleReducedMotion, toggleTouchHand, syncTouchVisibility, touchPulse,
-  updateBarrow, updateBoss, updateChorus, updateShoggoth,
+  updateBarrow, updateBoss, updateChorus, updateNikita, updateShoggoth, drawNikitaBoss,
   setTestMap(rows) {
     LEVEL = rows.slice();
     ROWS = LEVEL.length;
@@ -196,7 +197,7 @@ test("every route has valid exits and the Pale Root keeps an open structural spi
   const supportWithin = (level, point, rows) => {
     for (let d = 1; d <= rows; d++) {
       const row = level.map[point.r + d];
-      if (row && row[point.c] === "#") return d;
+      if (row && (row[point.c] === "#" || row[point.c] === "q")) return d;
     }
     return null;
   };
@@ -290,6 +291,10 @@ test("checkpoint spacing keeps each retry stretch meaningful", () => {
     ["THE MARROW", 1],
     ["THE CHORUS HALL", 0],
     ["THE SWALLOW", 0],
+    ["THE UNDERFIELD", 1],
+    ["THE TRUFFLE RUNS", 1],
+    ["THE BOAR PIT", 0],
+    ["THE ROOTWORKS", 0],
     ["THE MOTHER'S THROAT", 0],
     ["THE UNDRAWN MAP", 0],
     ["THE PALE ROOT", 2],
@@ -303,7 +308,7 @@ test("checkpoint spacing keeps each retry stretch meaningful", () => {
     total += count;
     assert.equal(count, expected.get(level.name), `${level.name} keeps its intentional checkpoint budget`);
   }
-  assert.equal(total, 10, "the main route stays sparse and each standalone marathon has two checkpoints");
+  assert.equal(total, 12, "the expanded main route stays sparse and each standalone marathon has two checkpoints");
 
   const hollowCheckpoint = api.LEVELS[0].map.findIndex(row => row.includes("C"));
   assert.equal(hollowCheckpoint, 7, "The Hollow checkpoint stays on its supported platform row");
@@ -366,7 +371,7 @@ test("Easy and Normal add sparse retries without changing Hard or Timed Run", ()
     const swallow = loadFor(difficulty, "adventure", "THE SWALLOW");
     assert.ok(swallow.S.descentMercy);
 
-    for (let index = 0; index <= 10; index++) {
+    for (let index = 0; index <= swallow.MAIN_LAST_INDEX; index++) {
       swallow.loadLevel(index);
       const retryCount = swallow.S.checkpoints.length + (swallow.S.descentMercy ? 1 : 0);
       assert.ok(retryCount <= 2, swallow.LEVELS[index].name + " stays within the two-retry ceiling");
@@ -952,15 +957,16 @@ test("The Pale Root remains visible as locked New Game+ content", () => {
   assert.equal(unlocked.api.S.levelIdx, unlocked.api.PALE_ROOT_INDEX);
 });
 
-test("The Reach stays outside the eleven-chamber route and unlocks only after the Pale Root", () => {
+test("The Reach stays outside the fifteen-chamber route and unlocks only after the Pale Root", () => {
   const mainNames = [
     "THE HOLLOW", "ROTROOT CHASM", "THE SPIRE", "MYCEL GARDENS", "THE SKITTERWAY",
     "THE BROODNEST", "THE BLOOMHEART", "THE MARROW", "THE CHORUS HALL", "THE SWALLOW",
+    "THE UNDERFIELD", "THE TRUFFLE RUNS", "THE BOAR PIT", "THE ROOTWORKS",
     "THE MOTHER'S THROAT",
   ];
   const locked = bootGame({ initialStorage: { sd_beaten: "1" } });
-  assert.equal(locked.api.MAIN_LAST_INDEX, 10);
-  assert.deepEqual(JSON.parse(JSON.stringify(locked.api.LEVELS.slice(0, 11).map(level => level.name))), mainNames);
+  assert.equal(locked.api.MAIN_LAST_INDEX, 14);
+  assert.deepEqual(JSON.parse(JSON.stringify(locked.api.LEVELS.slice(0, 15).map(level => level.name))), mainNames);
   assert.equal(locked.api.titleIds().includes("reach"), false, "beating the main route alone does not reveal the Reach");
 
   locked.api.startDaily();
@@ -1180,7 +1186,7 @@ test("personal-best and leaderboard ghosts are loaded only when deliberately sel
   const personal = bootGame({ initialStorage: {
     sd_run_mode: "speedrun",
     sd_ghost_pref: "personal",
-    sd_pb: JSON.stringify({ t: 4.2, frames }),
+    sd_pb15: JSON.stringify({ t: 4.2, frames }),
   } });
   personal.api.startTitleRun();
   assert.equal(personal.api.S.ghost.name, "your echo");
@@ -2115,6 +2121,84 @@ test("dialogue stays readable and every resident has a concrete voice", () => {
   assert.deepEqual([frog.c, frog.r, frog.sprite], [18, 7, "frog"]);
   assert.equal(frog.speakers[3], "YOU");
   assert.equal(frog.lines[3], "I can't understand you.");
+
+  assert.equal(residents.some(npc => npc.name === "NIKITA BOAR"), false, "Nikita is a boss, not a resident");
+  assert.equal(api.REUNION_SPRITES["NIKITA BOAR"], undefined);
+});
+
+test("the new chambers teach and reuse the straight-down slam", () => {
+  const { api } = bootGame();
+  const names = ["THE UNDERFIELD", "THE TRUFFLE RUNS", "THE ROOTWORKS"];
+  for (const name of names) {
+    const level = api.LEVELS.find(candidate => candidate.name === name);
+    assert.ok(level.map.join("").includes("q"), name + " contains cracked floors");
+  }
+  const underfield = api.LEVELS.findIndex(level => level.name === "THE UNDERFIELD");
+  api.loadLevel(underfield);
+  const row = api.LEVELS[underfield].map.findIndex(line => line.includes("qqq"));
+  const center = api.LEVELS[underfield].map[row].indexOf("qqq") + 1;
+  Object.assign(api.S.player, { x: center * api.TILE + 3, y: row * api.TILE - api.S.player.h, grounded: true });
+  assert.equal(api.breakSlamTiles(api.S.player), 3);
+  assert.equal(api.tileAt(center, row), ".");
+  assert.equal(api.S.player.grounded, false, "breaking the floor lets the player drop through");
+  assert.match(api.LEVELS[underfield].unlockText, /Hold Down and dash/i);
+});
+
+test("Nikita Boar rolls onto his side and only a down-slam hurts him", () => {
+  const { api } = bootGame();
+  const pitIndex = api.LEVELS.findIndex(level => level.name === "THE BOAR PIT");
+  api.loadLevel(pitIndex);
+  const boss = api.S.boss;
+  const player = api.S.player;
+  assert.equal(boss.kind, "nikita");
+  assert.equal(boss.pips, 3);
+
+  boss.state = "side"; boss.t = 0; boss.dir = 1;
+  Object.assign(player, {
+    x: boss.x - 5, y: api.NIKITA.FLOOR - 30,
+    dashing: true, slamDash: false, dashDX: 1, dashDY: 0, dashT: 0.1,
+  });
+  api.updateNikita(0);
+  assert.equal(boss.pips, 3, "a normal dash cannot damage the marked flank");
+
+  const slam = () => {
+    boss.state = "side"; boss.t = 0;
+    Object.assign(player, {
+      x: boss.x - 5, y: api.NIKITA.FLOOR - 38,
+      dashing: true, slamDash: true, dashDX: 0, dashDY: 1, dashT: 0.4, invuln: 0,
+    });
+    api.updateNikita(0);
+  };
+  slam();
+  assert.equal(boss.pips, 2);
+  assert.equal(boss.state, "getup");
+
+  boss.state = "crash"; boss.t = api.NIKITA.CRASH; boss.waves = [];
+  Object.assign(player, { x: 3 * api.TILE, y: 15 * api.TILE, dashing: false, slamDash: false, invuln: 99 });
+  api.updateNikita(0);
+  assert.equal(boss.state, "side");
+  assert.equal(boss.waves.length, 1, "later phases add one readable ground wave");
+
+  slam(); slam();
+  assert.equal(boss.pips, 0);
+  assert.equal(boss.state, "defeated");
+  assert.ok(api.S.bossDoor, "defeating Nikita opens the Rootworks exit");
+
+  boss.state = "warn"; boss.dir = 1; boss.y = api.NIKITA.FLOOR - api.NIKITA.H;
+  api.g.operations.length = 0;
+  api.drawNikitaBoss(boss);
+  const painted = (fillStyle, width, height) => api.g.operations.some(op =>
+    op.type === "fillRect" && op.fillStyle === fillStyle && op.width === width && op.height === height
+  );
+  assert.ok(painted("#b87970", 55, 22), "Nikita has a broad pink boar body");
+  assert.ok(painted("#e4aaa2", 15, 10), "Nikita has the oversized pale snout from the reference");
+  assert.ok(painted("#211815", 18, 6), "Nikita keeps the reference's swept dark hair");
+  assert.ok(painted("#29313b", 15, 9), "Nikita carries a small product slate");
+
+  boss.state = "side";
+  api.g.operations.length = 0;
+  api.drawNikitaBoss(boss);
+  assert.ok(painted("#aaf0c8", 30, 11), "the slam target is visibly marked while Nikita is down");
 });
 
 test("dialogue lines can be finished and advanced by keyboard, controller, or tap", () => {
@@ -2192,7 +2276,7 @@ test("core instructions use plain sentences instead of the old slogan copy", () 
 
 test("the visible patch history uses plain factual copy", () => {
   const { api } = bootGame();
-  assert.match(api.PATCH_NOTES[0].v, /^V4\.5/);
+  assert.match(api.PATCH_NOTES[0].v, /^V4\.6/);
   for (const block of api.PATCH_NOTES) {
     assert.equal(block.v.includes("—"), false, `patch title uses an em-dash slogan: ${block.v}`);
     for (const line of block.lines) {

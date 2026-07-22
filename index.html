@@ -305,6 +305,21 @@ const CHORUS = {
   GATHER: [2.4, 1.45, 1.15],      // core-open window per phase (long first — learn it)
   N_WISPS: 7,
 };
+
+// Boss tuning — Nikita Boar. The charge is only setup: the marked flank is
+// vulnerable after he hits the wall and rolls onto his side.
+const NIKITA = {
+  W: 72, H: 34,
+  FLOOR: 16 * TILE,
+  LEFT: 5 * TILE, RIGHT: 39 * TILE,
+  INTRO: 1.4,
+  WARN: [0.95, 0.82, 0.7],
+  CHARGE_V: [150, 180, 210],
+  CRASH: 0.38,
+  SIDE: [2.1, 1.75, 1.45],
+  GETUP: 0.72,
+  WAVE_V: [0, 150, 190],
+};
 const rgb = c => "rgb(" + c[0] + "," + c[1] + "," + c[2] + ")";
 const rgbs = c => c[0] + "," + c[1] + "," + c[2];
 const mix = (a, b, t) => [a[0] + (b[0] - a[0]) * t | 0, a[1] + (b[1] - a[1]) * t | 0, a[2] + (b[2] - a[2]) * t | 0];
@@ -707,7 +722,7 @@ function freshScore() {
 // Furthest chamber ever reached by playing — unlocks CONTINUE/PRACTICE starts.
 // The secret chamber doesn't count.
 const reachGet = () => {
-  try { return Math.min(10, parseInt(localStorage.getItem("sd_reach") || "0", 10) || 0); } catch (e) { return 0; }
+  try { return Math.min(MAIN_LAST_INDEX, parseInt(localStorage.getItem("sd_reach") || "0", 10) || 0); } catch (e) { return 0; }
 };
 const reachSet = idx => {
   try { if (idx > reachGet()) localStorage.setItem("sd_reach", String(idx)); } catch (e) {}
@@ -791,7 +806,7 @@ function startTitleRun() {
       : "Timed Run: there isn't a leaderboard ghost to load yet.";
   } else if (S.runMode === "speedrun" && ghostPref === "personal") {
     try {
-      const pb = JSON.parse(localStorage.getItem("sd_pb") || "null");
+      const pb = JSON.parse(localStorage.getItem("sd_pb15") || "null");
       if (pb && pb.frames) {
         S.ghost = { frames: pb.frames, name: "your echo" };
         runNotice = "Timed Run: you're racing your " + fmtMs(pb.t * 1000) + " personal best.";
@@ -837,7 +852,7 @@ function startPracticeRun(sel) {
   S.runMode = "adventure";
   configureRunRules("adventure");
   S.rec = []; S.ghost = null; S.ghostPos = null;
-  loadLevel(sel === 99 ? 10 : sel);
+  loadLevel(sel === 99 ? MAIN_LAST_INDEX : sel);
   S.mode = "play";
   if (sel === 99) stageShoggothPractice();
   queueNotice("Practice: " + pracName(sel) + ". This run won't be submitted.", 3.2, NOTICE_PRIORITY.RUN);
@@ -1085,6 +1100,14 @@ const PATCH_NOTES_SOURCE_ARCHIVE = [
   ]},
 ];
 const PATCH_NOTES = [
+  { v: "V4.6  The Boar Pit", d: "2026-07-22 04:42 UTC", lines: [
+    "· Adventure now has 15 chambers, with the Underfield, Truffle Runs, Boar Pit, and Rootworks before the finale.",
+    "· Cracked floors teach the straight-down slam and return in the new route.",
+    "· Nikita Boar charges the arena, rolls onto his side, and only takes damage from a slam on the marked flank.",
+    "· Later Boar Pit phases add one ground wave after each crash.",
+    "· Any% and 100% boards start fresh for the extended main route. Older scores remain stored separately.",
+    "· The truffles make it home in time for the luau.",
+  ]},
   { v: "V4.5.11  Jason takes the top", d: "2026-07-21 22:21 UTC", lines: [
     "· Jason's game-of-the-year verdict now opens the Reviews screen.",
     "· Cory joined the page: This mf cares about the player base.",
@@ -1249,6 +1272,7 @@ const fmtMs = ms => {
   const s2 = t - m * 60;
   return m + ":" + (s2 < 10 ? "0" : "") + s2.toFixed(1);
 };
+const MAIN_BOARD_DB = Object.freeze({ any: "any15", full: "full15", fallen: "fallen15" });
 
 async function lbFetch(cat) {
   try {
@@ -1276,8 +1300,8 @@ let LB_DAY = null;   // which UTC day the daily cache was fetched for
 function lbRefresh() {
   if (!lbOn()) return;
   LB_DAY = dailySeedStr();
-  lbFetch("any").then(d => { if (d) { LB_CACHE.any = d; prefetchLeader("any", d); } });
-  lbFetch("full").then(d => { if (d) { LB_CACHE.full = d; prefetchLeader("full", d); } });
+  lbFetch(MAIN_BOARD_DB.any).then(d => { if (d) { LB_CACHE.any = d; prefetchLeader("any", d); } });
+  lbFetch(MAIN_BOARD_DB.full).then(d => { if (d) { LB_CACHE.full = d; prefetchLeader("full", d); } });
   lbFetch("root").then(d => { if (d) { LB_CACHE.daily = d; prefetchLeader("daily", d); } });
   lbFetch("reach").then(d => { if (d) { LB_CACHE.reach = d; prefetchLeader("reach", d); } });
   fallenFetch();
@@ -1385,13 +1409,13 @@ function fallenPost(lvl, x, y) {
   fetch(LB.url + "/rest/v1/scores", {
     method: "POST",
     headers: { apikey: LB.key, Authorization: "Bearer " + LB.key, "Content-Type": "application/json" },
-    body: JSON.stringify({ name: "fallen", category: "fallen", time_ms: 1, ghost: JSON.stringify([lvl, Math.round(fx), Math.round(y)]) }),
+    body: JSON.stringify({ name: "fallen", category: MAIN_BOARD_DB.fallen, time_ms: 1, ghost: JSON.stringify([lvl, Math.round(fx), Math.round(y)]) }),
   }).catch(() => {});
 }
 async function fallenFetch() {
   if (!lbOn()) return;
   try {
-    const r = await fetch(LB.url + "/rest/v1/scores?category=eq.fallen&select=ghost&order=id.desc&limit=300", {
+    const r = await fetch(LB.url + "/rest/v1/scores?category=eq." + MAIN_BOARD_DB.fallen + "&select=ghost&order=id.desc&limit=300", {
       headers: { apikey: LB.key, Authorization: "Bearer " + LB.key },
     });
     if (!r.ok) return;
@@ -1564,15 +1588,16 @@ function submitScore() {
     return;
   }
 
-  Promise.all([lbPost(name, "any", ms, ghost), full ? lbPost(name, "full", ms, ghost) : Promise.resolve({ ok: true, id: null })])
+  Promise.all([lbPost(name, MAIN_BOARD_DB.any, ms, ghost), full ? lbPost(name, MAIN_BOARD_DB.full, ms, ghost) : Promise.resolve({ ok: true, id: null })])
     .then(res => {
       S.lbMsg = res[0].ok && res[1].ok ? (full ? "Your time is on both boards." : "Your time is on the Any% board.") : "That didn't submit. Try again later.";
       if (!res[0].ok) S.score.lbDone = false;
       lbRefresh();
       if (res[0].ok) {
         const cat = full ? "full" : "any";
+        const dbCat = full ? MAIN_BOARD_DB.full : MAIN_BOARD_DB.any;
         const result = full && res[1].ok ? res[1] : res[0];
-        lbRank(cat, ms).then(rank => {
+        lbRank(dbCat, ms).then(rank => {
           const link = result.id && ghost ? gameUrl + "?race=" + result.id : gameUrl;
           const tweet = fmtMs(ms) + ". " + (rank ? "#" + rank + " " : "") +
             "on the Sporeling Dash " + (full ? "100%" : "any%") + " leaderboard 🍄 Race my ghost: " + link;
@@ -2234,6 +2259,65 @@ const LEVELS = [
     }],
   },
   {
+    name: "THE UNDERFIELD", pal: 9,
+    map: buildLevel(52, 34, ({ set, rect }) => {
+      rect(0, 0, 0, 33); rect(51, 0, 51, 33); rect(1, 32, 50, 33);
+      rect(1, 7, 50, 7); for (let c = 9; c <= 11; c++) set(c, 7, "q");
+      rect(1, 15, 50, 15); for (let c = 36; c <= 38; c++) set(c, 15, "q");
+      rect(1, 23, 50, 23); for (let c = 21; c <= 23; c++) set(c, 23, "q");
+      set(3, 6, "P"); set(14, 14, "C"); set(47, 31, "G");
+      set(6, 6, "B"); set(28, 14, "B"); set(44, 22, "B"); set(27, 31, "B");
+      set(24, 6, "e"); set(17, 14, "f"); set(44, 14, "e");
+      set(8, 22, "f"); set(33, 22, "E"); set(39, 31, "e");
+    }),
+    clearText: "The buried way opens into the Truffle Runs.",
+    unlockText: "Hold Down and dash in the air to break cracked floors.",
+  },
+  {
+    name: "THE TRUFFLE RUNS", pal: 3,
+    map: buildLevel(112, 28, ({ set, rect, seg }) => {
+      rect(0, 0, 0, 27); rect(111, 0, 111, 27);
+      rect(1, 8, 17, 8); for (let c = 14; c <= 16; c++) set(c, 8, "q");
+      rect(10, 15, 38, 15); for (let c = 33; c <= 35; c++) set(c, 15, "q");
+      rect(28, 23, 49, 27);
+      seg(50, 104, 27); for (let c = 50; c <= 104; c++) set(c, 26, "S");
+      rect(52, 22, 55, 22); rect(70, 23, 74, 23); rect(88, 20, 91, 20);
+      rect(105, 20, 111, 27);
+      set(3, 7, "P"); set(72, 22, "C"); set(108, 19, "G");
+      set(11, 7, "B"); set(25, 14, "B"); set(42, 22, "B");
+      set(62, 19, "B"); set(82, 17, "B"); set(99, 15, "B");
+      set(45, 19, "f"); set(58, 20, "w"); set(66, 17, "f");
+      set(78, 19, "w"); set(85, 16, "f"); set(96, 17, "w"); set(102, 14, "f");
+    }),
+    clearText: "The digging stops. A stone gate waits ahead.",
+    unlockText: "Break through, then use enemies to keep the crossing alive.",
+  },
+  {
+    name: "THE BOAR PIT", pal: 8, boss: "nikita",
+    map: buildLevel(44, 19, ({ set, rect }) => {
+      rect(0, 0, 0, 18); rect(43, 0, 43, 18); rect(1, 16, 42, 18);
+      rect(7, 12, 12, 12); rect(31, 12, 36, 12); rect(19, 8, 24, 8);
+      set(3, 15, "P"); set(9, 11, "B"); set(34, 11, "B"); set(21, 7, "B");
+    }),
+    clearText: "The Boar Pit goes quiet.",
+    unlockText: "Make him hit the wall. Slam the marked flank while he is down.",
+  },
+  {
+    name: "THE ROOTWORKS", pal: 1,
+    map: buildLevel(84, 24, ({ set, rect, seg }) => {
+      rect(0, 0, 0, 23); rect(83, 0, 83, 23);
+      rect(1, 10, 20, 10); for (let c = 17; c <= 19; c++) set(c, 10, "q");
+      rect(14, 20, 36, 23);
+      seg(37, 70, 23); for (let c = 38; c <= 69; c++) set(c, 22, "S");
+      rect(49, 17, 54, 17); rect(71, 14, 83, 23);
+      set(3, 9, "P"); set(80, 13, "G");
+      set(10, 9, "B"); set(29, 19, "B"); set(51, 16, "B"); set(75, 13, "B");
+      set(33, 16, "f"); set(42, 18, "w"); set(58, 16, "f"); set(66, 14, "w");
+    }),
+    clearText: "The old rootworks lead back to Mother's path.",
+    unlockText: "One last working tunnel. Keep moving.",
+  },
+  {
     name: "THE MOTHER'S THROAT", pal: 5, boss: "unbloomed",
     movers: [
       { c0: 24, c1: 27, rA: 18, rB: 6, period: 3.2, phase: 0 },   // elevators flank the boss
@@ -2401,7 +2485,7 @@ const LEVELS = [
   },
 ];
 
-const MAIN_LAST_INDEX = 10;
+const MAIN_LAST_INDEX = 14;
 const UNDRAWN_INDEX = LEVELS.findIndex(level => level.name === "THE UNDRAWN MAP");
 const PALE_ROOT_INDEX = LEVELS.findIndex(level => level.name === "THE PALE ROOT");
 const BLOOMHEART_INDEX = LEVELS.findIndex(level => level.name === "THE BLOOMHEART");
@@ -2620,14 +2704,14 @@ function tileAt(tx, ty) {
   if (ty >= ROWS) return ".";                    // below the world = the void
   return LEVEL[ty][tx];
 }
-const isSolid = ch => ch === "#" || ch === "X";
+const isSolid = ch => ch === "#" || ch === "X" || ch === "q";
 
 function makePlayer(x, y) {
   return {
     x, y, w: 10, h: 10,
     vx: 0, vy: 0, facing: 1,
     grounded: false, coyote: 0, jumpBuf: 0, dashBuf: 0,
-    canDash: true, spores: MAX_SPORES, chainN: 0, dashing: false, dashT: 0, dashDX: 0, dashDY: 0,
+    canDash: true, spores: MAX_SPORES, chainN: 0, dashing: false, dashT: 0, dashDX: 0, dashDY: 0, slamDash: false,
     grip: GRIP_TIME, wallDir: 0, wallCoyote: 0, wjLock: 0, gliding: false, sliding: false,
     anim: "idle", animT: 0, frame: 0,
     squish: 1, squishT: 0, invuln: 0,
@@ -2680,6 +2764,9 @@ function loadLevel(idx) {
     } else if (L.boss === "chorus") {
       S.boss.x = 20 * TILE; S.boss.y = 10 * TILE;
       S.boss.wisps = [];
+    } else if (L.boss === "nikita") {
+      S.boss.x = 22 * TILE; S.boss.y = NIKITA.FLOOR - NIKITA.H; S.boss.dir = 1;
+      S.boss.waves = []; S.boss.sideHinted = false; S.boss.blockHinted = false;
     }
   }
   S.talk = null;
@@ -2994,6 +3081,25 @@ function bakeTerrain() {
         t.fillStyle = rockHi;
         t.fillRect(px + 1, py, 1, TILE);
         t.fillRect(px + TILE - 2, py, 1, TILE);
+        t.globalAlpha = 1;
+      }
+
+      // Cracked floors stay solid until a straight-down slam breaks them.
+      if (tileAt(tx, ty) === "q") {
+        t.fillStyle = rgb(mix(PAL.rockHi, PAL.accent, 0.42));
+        t.fillRect(px + 2, py + 1, TILE - 4, 2);
+        t.fillStyle = rockLo;
+        t.fillRect(px + 7, py + 3, 2, 5);
+        t.fillRect(px + 5, py + 7, 3, 2);
+        t.fillRect(px + 9, py + 8, 3, 2);
+        t.fillRect(px + 4, py + 12, 3, 2);
+        t.fillRect(px + 10, py + 12, 3, 2);
+        t.fillStyle = accent;
+        t.globalAlpha = 0.6;
+        t.fillRect(px + 3, py + 4, 3, 2);
+        t.fillRect(px + 5, py + 6, 3, 2);
+        t.fillRect(px + 10, py + 4, 3, 2);
+        t.fillRect(px + 8, py + 6, 3, 2);
         t.globalAlpha = 1;
       }
     }
@@ -3550,6 +3656,28 @@ function doSlam(p) {
     if (!e.dead && Math.abs(e.x + e.w / 2 - (p.x + 5)) < 46 && Math.abs(e.y + e.h / 2 - (p.y + 6)) < 30)
       killEnemy(e, true);
   }
+  breakSlamTiles(p);
+}
+
+function breakSlamTiles(p) {
+  const ty = Math.floor((p.y + p.h + 2) / TILE);
+  const center = Math.floor((p.x + p.w / 2) / TILE);
+  let broken = 0;
+  for (let tx = center - 1; tx <= center + 1; tx++) {
+    if (tileAt(tx, ty) !== "q") continue;
+    const row = LEVEL[ty].split("");
+    row[tx] = ".";
+    LEVEL[ty] = row.join("");
+    broken++;
+  }
+  if (!broken) return 0;
+  p.grounded = false;
+  STATIC_LIGHTS = [];
+  bakeTerrain();
+  for (let i = 0; i < broken * 6; i++)
+    burst((center + (Math.random() - 0.5) * 2) * TILE, ty * TILE + 4,
+      (Math.random() - 0.5) * 90, -20 - Math.random() * 55, 0.5, rgb(PAL.rockHi), 2);
+  return broken;
 }
 
 function failBloom(p) {
@@ -3692,7 +3820,9 @@ function bossVanquished(b) {
   }
   S.bossDoor = b.kind === "barrow"
     ? { x: 44 * TILE + 6, y: 13 * TILE - 48, w: 22, h: 48 }
-    : { x: 36 * TILE + 6, y: 14 * TILE - 48, w: 22, h: 48 };
+    : b.kind === "nikita"
+      ? { x: 42 * TILE - 4, y: 16 * TILE - 48, w: 22, h: 48 }
+      : { x: 36 * TILE + 6, y: 14 * TILE - 48, w: 22, h: 48 };
   SFX.check();
   queueNotice("The exit is open.", 3.5, NOTICE_PRIORITY.STATUS);
 }
@@ -4308,6 +4438,118 @@ function bossLanded(b) {
   }
 }
 
+function nikitaBodyBox(b) {
+  if (b.state === "side")
+    return { x: b.x - NIKITA.W / 2, y: NIKITA.FLOOR - 27, w: NIKITA.W, h: 27 };
+  return { x: b.x - NIKITA.W / 2, y: b.y, w: NIKITA.W, h: NIKITA.H };
+}
+
+function nikitaFlankBox(b) {
+  return { x: b.x - 20, y: NIKITA.FLOOR - 34, w: 40, h: 17 };
+}
+
+function hitNikita(b) {
+  const p = S.player;
+  b.pips--;
+  b.grace = false;
+  b.waves = [];
+  p.dashing = false; p.slamDash = false; p.dashT = 0;
+  p.vx = -b.dir * 55; p.vy = -275; p.grounded = false;
+  p.invuln = 1.2; p.canDash = true; p.spores = MAX_SPORES; p.chainN = 0;
+  S.freezeT = 0.1; S.shakeT = 0.3; S.shakeMag = 3.5;
+  SFX.bossHit();
+  for (let i = 0; i < 24; i++) {
+    const a = Math.random() * Math.PI * 2;
+    burst(b.x, NIKITA.FLOOR - 24, Math.cos(a) * 115, Math.sin(a) * 90 - 45, 0.65,
+      i & 1 ? rgb(PAL.accent) : "#e4aaa2", 2);
+  }
+  if (b.pips <= 0) {
+    b.y = NIKITA.FLOOR - 25;
+    bossVanquished(b);
+  } else {
+    b.state = "getup";
+    b.t = 0;
+  }
+}
+
+function updateNikita(dt) {
+  const b = S.boss, p = S.player;
+  if (!b || b.state === "defeated") return;
+  b.t += dt;
+  const phase = 4 - b.pips;
+  const phaseIndex = clamp(phase - 1, 0, 2);
+
+  if (b.state === "intro") {
+    if (b.t >= NIKITA.INTRO) {
+      b.state = "warn"; b.t = 0;
+      b.dir = p.x + p.w / 2 < b.x ? -1 : 1;
+      SFX.bossWarn();
+    }
+  } else if (b.state === "warn") {
+    b.dir = p.x + p.w / 2 < b.x ? -1 : 1;
+    if (Math.random() < 0.3)
+      burst(b.x + b.dir * 30, NIKITA.FLOOR - 4, -b.dir * (15 + Math.random() * 25), -12, 0.25, rgb(PAL.rockHi), 1);
+    if (b.t >= NIKITA.WARN[phaseIndex] * (b.grace ? 1.25 : 1)) {
+      b.state = "charge"; b.t = 0;
+      whoosh(0.35, 0.12, 520);
+    }
+  } else if (b.state === "charge") {
+    b.x += b.dir * NIKITA.CHARGE_V[phaseIndex] * dt;
+    const wall = b.dir < 0 ? NIKITA.LEFT : NIKITA.RIGHT;
+    if ((b.dir < 0 && b.x <= wall) || (b.dir > 0 && b.x >= wall)) {
+      b.x = wall; b.state = "crash"; b.t = 0;
+      S.shakeT = 0.32; S.shakeMag = 3.2;
+      SFX.bossHorn();
+      for (let i = 0; i < 18; i++)
+        burst(b.x + b.dir * 30, NIKITA.FLOOR - 20, -b.dir * (20 + Math.random() * 90),
+          -20 - Math.random() * 80, 0.55, rgb(PAL.rockHi), 2);
+    }
+  } else if (b.state === "crash") {
+    if (b.t >= NIKITA.CRASH) {
+      b.state = "side"; b.t = 0;
+      if (!b.sideHinted) {
+        b.sideHinted = true;
+        queueNotice("He's on his side. Hold Down and press " + dashBtnName() + " on the marked flank.", 4.8, NOTICE_PRIORITY.BOSS);
+      }
+      if (phase >= 2) {
+        const vx = -b.dir * NIKITA.WAVE_V[phaseIndex];
+        b.waves.push({ x: b.x - b.dir * 34 - 7, y: NIKITA.FLOOR - 8, w: 14, h: 8, vx });
+      }
+    }
+  } else if (b.state === "side") {
+    const flank = nikitaFlankBox(b);
+    if (p.dashing && p.slamDash && p.dashDY > 0.9 && overlap(p, flank)) {
+      hitNikita(b);
+    } else if (p.dashing && overlap(p, nikitaBodyBox(b))) {
+      endDash(p);
+      p.vx = (p.x + p.w / 2 < b.x ? -1 : 1) * 130;
+      p.vy = -120;
+      if (!b.blockHinted) {
+        b.blockHinted = true;
+        queueNotice("Only a straight-down slam dents the marked flank.", 3.6, NOTICE_PRIORITY.BOSS);
+      }
+    } else if (b.t >= NIKITA.SIDE[phaseIndex] * (b.grace ? 1.25 : 1)) {
+      b.state = "getup"; b.t = 0;
+    }
+  } else if (b.state === "getup") {
+    if (b.t >= NIKITA.GETUP) {
+      b.state = "warn"; b.t = 0;
+      b.y = NIKITA.FLOOR - NIKITA.H;
+      SFX.bossWarn();
+    }
+  }
+
+  for (const wave of b.waves) {
+    wave.x += wave.vx * dt;
+    if (overlap(p, wave)) { hurtPlayer(wave.x + wave.w / 2, "the impact wave"); wave.dead = true; }
+    if (wave.x < TILE || wave.x > WORLD_W - TILE) wave.dead = true;
+  }
+  b.waves = b.waves.filter(wave => !wave.dead);
+
+  if (["intro", "warn", "charge", "crash", "getup"].includes(b.state) && p.invuln <= 0 && overlap(p, nikitaBodyBox(b)))
+    hurtPlayer(b.x, "Nikita Boar");
+}
+
 function updateBoss(dt) {
   const b = S.boss, p = S.player;
   if (!b || b.state === "defeated") return;
@@ -4315,6 +4557,7 @@ function updateBoss(dt) {
   if (b.kind === "shoggoth") return updateShoggoth(dt);
   if (b.kind === "barrow") return updateBarrow(dt);
   if (b.kind === "chorus") return updateChorus(dt);
+  if (b.kind === "nikita") return updateNikita(dt);
   b.t += dt;
   b.capFlash = Math.max(0, b.capFlash - dt);
   const phase = bossPhase(b);
@@ -4484,9 +4727,9 @@ function startEnding() {
   // remember your best echo
   try {
     if (competitiveRun() && !S.daily) {
-      const pb = JSON.parse(localStorage.getItem("sd_pb") || "null");
+      const pb = JSON.parse(localStorage.getItem("sd_pb15") || "null");
       if (!pb || S.score.time < pb.t)
-        localStorage.setItem("sd_pb", JSON.stringify({ t: S.score.time, frames: S.rec }));
+        localStorage.setItem("sd_pb15", JSON.stringify({ t: S.score.time, frames: S.rec }));
     }
   } catch (e) {}
   S.mode = "freed";
@@ -4559,7 +4802,7 @@ function hurtPlayer(sx, cause) {
   p.vx = (p.x + p.w / 2 < sx ? -1 : 1) * 170;
   p.vy = -170;
   p.wjLock = 0.2;
-  p.dashing = false; p.dashT = 0;
+  p.dashing = false; p.dashT = 0; p.slamDash = false;
   S.shakeT = 0.12; S.shakeMag = 2;
   SFX.hurt();
   SFX.oof();
@@ -4655,6 +4898,8 @@ function cameraTargetX(p) {
   // its short gather window at the screen edge, so frame both subjects.
   if (b && b.kind === "chorus" && b.state !== "defeated")
     return (px + b.x) / 2 - W / 2;
+  if (b && b.kind === "nikita" && b.state !== "defeated" && Math.abs(px - b.x) < W * 1.2)
+    return (px + b.x) / 2 - W / 2;
   return px - W / 2 + S.camLook;
 }
 
@@ -4666,7 +4911,8 @@ async function fetchRace(id) {
     if (!r.ok) return null;
     const row = (await r.json())[0];
     if (!row || !row.ghost) return null;
-    return { frames: JSON.parse(row.ghost), category: row.category || "any" };
+    const category = row.category === "any15" ? "any" : row.category === "full15" ? "full" : row.category || "any";
+    return { frames: JSON.parse(row.ghost), category };
   } catch (e) { return null; }
 }
 
@@ -4851,7 +5097,7 @@ function tick(dt) {
       const name = r.names[r.idx];
       const sprite = REUNION_SPRITES[name];
       // floating in an arc above the player, front and center
-      const arc = [[-40, -6], [42, -6], [-80, 8], [82, 8], [0, -22], [-120, 20], [122, 20]][r.idx] || [0, -40];
+      const arc = [[-40, -6], [42, -6], [-80, 8], [82, 8], [0, -22], [-120, 20], [122, 20], [-154, 30], [156, 30]][r.idx] || [0, -40];
       const line = (name === "THE CARTOGRAPHER" && S.score.secretMemory)
         ? CARTOGRAPHER_SECRET_LINE : REUNION_LINES[name];
       const actor = {
@@ -6019,6 +6265,45 @@ function drawNPCs() {
       g.fillStyle = C.eye;
       g.fillRect(x + 8, y + 3 + hb, 3, 1);                    // brow
       g.fillRect(x + 9, y + 4 + hb, 1, 1);                    // eye
+    } else if (n.sprite === "__retired_boar_npc") {
+      // NIKITA BOAR — low pink boar, dark swept hair, and an enormous truffle-sniffing snout.
+      const hb = Math.round(bob * 0.3);
+      const hide = "#b87970", hideHi = "#d99a8f", hideLo = "#764842";
+      const snout = "#e4aaa2", hair = "#211815", hoof = "#332520";
+      g.fillStyle = hideLo;
+      g.fillRect(x + 3, y + 6, 16, 8);                        // body shadow
+      g.fillStyle = hide;
+      g.fillRect(x + 3, y + 4, 16, 9);                        // broad body
+      g.fillRect(x, y + 3 + hb, 9, 9);                        // head
+      g.fillStyle = hideHi;
+      g.fillRect(x + 6, y + 5, 10, 2);                        // back highlight
+      g.fillStyle = "#29313b";
+      g.fillRect(x + 10, y + 7, 6, 4);                        // tiny product slate
+      g.fillStyle = "#69b9d8";
+      g.fillRect(x + 11, y + 8, 3, 1);
+      g.fillRect(x + 12, y + 10, 3, 1);
+      g.fillStyle = snout;
+      g.fillRect(x - 4, y + 7 + hb, 7, 5);                    // searching snout
+      g.fillStyle = hideLo;
+      g.fillRect(x - 2, y + 9 + hb, 1, 1);
+      g.fillRect(x + 1, y + 9 + hb, 1, 1);                    // nostrils
+      g.fillStyle = hair;
+      g.fillRect(x, y + hb, 9, 3);
+      g.fillRect(x + 4, y - 1 + hb, 6, 2);                    // swept dark hair
+      g.fillRect(x + 1, y + 3 + hb, 3, 1);
+      g.fillRect(x + 6, y + 3 + hb, 3, 1);                    // heavy brows
+      g.fillStyle = C.eye;
+      g.fillRect(x + 2, y + 4 + hb, 1, 1);
+      g.fillRect(x + 7, y + 4 + hb, 1, 1);
+      g.fillStyle = hideLo;
+      g.fillRect(x + 5, y + 12, 3, 3);
+      g.fillRect(x + 14, y + 12, 3, 3);                       // short legs
+      g.fillStyle = hoof;
+      g.fillRect(x + 5, y + 14, 3, 1);
+      g.fillRect(x + 14, y + 14, 3, 1);
+      g.fillStyle = hideHi;
+      g.fillRect(x + 19, y + 5, 2, 1);
+      g.fillRect(x + 20, y + 4, 1, 2);                        // curled tail
     } else if (n.sprite === "grel") {
       // Three pale pointy-eared friends — the first believers
       const line = "#1a1a20";
@@ -6451,6 +6736,8 @@ function drawStrikeMark() {
     x = b.x; y = b.y - 16;
   } else if (b.kind === "chorus" && b.state === "gather") {
     x = b.x; y = b.y - 26;
+  } else if (b.kind === "nikita" && b.state === "side") {
+    x = b.x; y = NIKITA.FLOOR - 38;
   } else if (b.kind === "unbloomed" && b.state === "open") {
     x = b.x; y = b.y - BOSS.CAP_H - 20;
   } else if (b.kind === "shoggoth" && b.state === "eyeOpen") {
@@ -6713,12 +7000,94 @@ function drawShoggoth(b) {
   }
 }
 
+function drawNikitaBoss(b) {
+  const x = Math.round(b.x), floor = NIKITA.FLOOR;
+  const side = b.state === "side" || b.state === "getup" || b.state === "defeated";
+  const hide = "#b87970", hideHi = "#d99a8f", hideLo = "#764842";
+  const snout = "#e4aaa2", hair = "#211815", hoof = "#332520";
+
+  for (const wave of b.waves || []) {
+    const wx = Math.round(wave.x), wy = Math.round(wave.y);
+    g.fillStyle = rgb(PAL.accent);
+    g.fillRect(wx, wy + 3, wave.w, 2);
+    g.fillStyle = rgb(PAL.rockHi);
+    g.fillRect(wx + 2, wy, 3, 4);
+    g.fillRect(wx + 8, wy - 2, 3, 6);
+  }
+
+  g.save();
+  g.translate(x, 0);
+  g.scale(b.dir || 1, 1);
+  if (side) {
+    const y = floor - 25;
+    g.fillStyle = hideLo;
+    g.fillRect(-34, y + 8, 68, 17);
+    g.fillStyle = hide;
+    g.fillRect(-31, y + 3, 61, 19);
+    g.fillStyle = hideHi;
+    g.fillRect(-22, y + 4, 38, 3);
+    g.fillStyle = snout;
+    g.fillRect(27, y + 11, 14, 10);
+    g.fillStyle = hideLo;
+    g.fillRect(31, y + 15, 2, 2); g.fillRect(36, y + 15, 2, 2);
+    g.fillStyle = hair;
+    g.fillRect(18, y + 4, 17, 5);
+    g.fillRect(14, y + 2, 13, 3);
+    g.fillStyle = C.eye;
+    g.fillRect(27, y + 9, 3, 2);
+    // The pale mint patch is the one damage target in this encounter.
+    g.fillStyle = "#aaf0c8";
+    g.fillRect(-15, y - 2, 30, 11);
+    g.fillStyle = "#e8fff2";
+    g.fillRect(-11, y, 22, 5);
+    g.fillStyle = "#527866";
+    g.fillRect(-1, y, 2, 7);
+    g.fillRect(-7, y + 4, 7, 2);
+    g.fillRect(1, y + 5, 7, 2);
+  } else {
+    const y = Math.round(b.y);
+    const lean = b.state === "charge" ? 4 : 0;
+    g.fillStyle = hideLo;
+    g.fillRect(-30, y + 12, 58, 20);
+    g.fillStyle = hide;
+    g.fillRect(-29, y + 7, 55, 22);
+    g.fillStyle = hideHi;
+    g.fillRect(-19, y + 8, 34, 4);
+    // Small product slate on the flank, kept secondary to the silhouette.
+    g.fillStyle = "#29313b";
+    g.fillRect(-13, y + 14, 15, 9);
+    g.fillStyle = "#69b9d8";
+    g.fillRect(-10, y + 16, 8, 2);
+    g.fillRect(-7, y + 20, 6, 1);
+    g.fillStyle = hide;
+    g.fillRect(19 + lean, y + 8, 17, 18);
+    g.fillStyle = snout;
+    g.fillRect(31 + lean, y + 14, 15, 10);
+    g.fillStyle = hideLo;
+    g.fillRect(35 + lean, y + 18, 2, 2); g.fillRect(41 + lean, y + 18, 2, 2);
+    g.fillStyle = hair;
+    g.fillRect(18 + lean, y + 4, 18, 6);
+    g.fillRect(13 + lean, y + 2, 14, 4);
+    g.fillRect(24 + lean, y + 9, 11, 2);
+    g.fillStyle = C.eye;
+    g.fillRect(29 + lean, y + 11, 3, 2);
+    g.fillStyle = hideLo;
+    g.fillRect(-20, y + 27, 8, 6); g.fillRect(10, y + 27, 8, 6);
+    g.fillStyle = hoof;
+    g.fillRect(-20, y + 32, 8, 2); g.fillRect(10, y + 32, 8, 2);
+    g.fillStyle = hideHi;
+    g.fillRect(-33, y + 10, 4, 3); g.fillRect(-35, y + 7, 3, 4);
+  }
+  g.restore();
+}
+
 function drawBoss() {
   const b = S.boss;
   if (!b) return;
   if (b.kind === "shoggoth") return drawShoggoth(b);
   if (b.kind === "barrow") return drawBarrow(b);
   if (b.kind === "chorus") return drawChorus(b);
+  if (b.kind === "nikita") return drawNikitaBoss(b);
   const x = Math.round(b.x), y = Math.round(b.y);
   const t = S.time;
   // Through the whole false bloom it wears the freed glow — you won, as far
@@ -6995,6 +7364,12 @@ function collectLights() {
       out.push({ x: b.x, y: b.y, r: gath ? 52 : 30, a: gath ? 0.9 : 0.5, col: gath ? "170,240,200" : "255,164,205", ga: gath ? 0.16 : 0.08 });
       for (const wsp of b.wisps || [])
         if (!wsp.dead) out.push({ x: wsp.x + 4, y: wsp.y + 4, r: 14, a: 0.45, col: "255,164,205", ga: 0.05 });
+    } else if (b.kind === "nikita") {
+      const open = b.state === "side";
+      out.push({ x: b.x, y: open ? NIKITA.FLOOR - 26 : b.y + 15, r: open ? 54 : 38,
+        a: open ? 0.9 : 0.5, col: open ? "170,240,200" : "228,170,162", ga: open ? 0.15 : 0.06 });
+      for (const wave of b.waves || [])
+        out.push({ x: wave.x + wave.w / 2, y: wave.y + 4, r: 20, a: 0.55, col: rgbs(PAL.accent), ga: 0.07 });
     } else if (b.state === "defeated") {
       out.push({ x: b.x, y: b.y - 16, r: 70, a: 0.9, col: rgbs(PAL.accent), ga: 0.14 });
     } else {
@@ -7241,6 +7616,8 @@ function creditLines() {
     ["", "", ""],
     ["Created by ThoughtCrime", "bold 9px monospace", "#ffffff"],
     ["Code, art, and sound by ThoughtCrime", "8px monospace", "#ffffff"],
+    ["", "", ""],
+    ["The truffles came home. Everyone stayed for the luau.", "8px monospace", "#ffffff"],
     ["", "", ""],
     ["Thanks for playing", "bold 9px monospace", "#ffffff"],
   ];
