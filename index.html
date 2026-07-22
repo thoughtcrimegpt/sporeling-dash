@@ -1101,6 +1101,9 @@ const PATCH_NOTES_SOURCE_ARCHIVE = [
   ]},
 ];
 const PATCH_NOTES = [
+  { v: "V4.6.4  Universal boss prompt", d: "2026-07-22 06:42 UTC", lines: [
+    "· Barrow's glowing-belly prompt now says to jump and dash upward instead of naming a device-specific button.",
+  ]},
   { v: "V4.6.3  Read the room", d: "2026-07-22 06:20 UTC", lines: [
     "· Checkpoint and enemy notices now use a small upper-right card that leaves the route visible.",
     "· The Underfield pauses once for a clear down-slam lesson, then descends through six breakable floors.",
@@ -3993,7 +3996,7 @@ function updateBarrow(dt) {
       // teach the verb once, on the first leap — then let them figure it out
       if (b.grace && !b.taughtLeap) {
         b.taughtLeap = true;
-        queueNotice("The belly is glowing. Hold Up and press " + dashBtnName() + ".", 3.8, NOTICE_PRIORITY.BOSS);
+        queueNotice("When the belly glows, jump and dash upward into it.", 3.8, NOTICE_PRIORITY.BOSS);
       }
       b.dir = (p.x + 5) >= b.x ? 1 : -1;
       b.vx = b.dir * BARROW.DRIFT;

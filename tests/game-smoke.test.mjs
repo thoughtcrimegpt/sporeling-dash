@@ -1912,6 +1912,9 @@ test("boss grace telegraphs preserve their configured readable windows", () => {
   assert.equal(barrow.state, "telegraph");
   api.updateBarrow(0.001);
   assert.equal(barrow.state, "arc");
+  const barrowPrompt = [api.S.hint, ...api.S.hintQueue].filter(Boolean).map(notice => notice.text).join(" ");
+  assert.match(barrowPrompt, /jump and dash upward into it/i);
+  assert.doesNotMatch(barrowPrompt, /press|Shift|\bX\b/i, "the boss lesson cannot assume a keyboard or controller button");
 
   const chorusIndex = api.LEVELS.findIndex(level => level.boss === "chorus");
   api.loadLevel(chorusIndex);
