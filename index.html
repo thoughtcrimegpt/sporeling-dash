@@ -1100,6 +1100,9 @@ const PATCH_NOTES_SOURCE_ARCHIVE = [
   ]},
 ];
 const PATCH_NOTES = [
+  { v: "V4.6.1  Nikita's eyes", d: "2026-07-22 05:17 UTC", lines: [
+    "· Nikita Boar now has two large white eyes with uneven pupils in every boss pose.",
+  ]},
   { v: "V4.6  The Boar Pit", d: "2026-07-22 04:42 UTC", lines: [
     "· Adventure now has 15 chambers, with the Underfield, Truffle Runs, Boar Pit, and Rootworks before the finale.",
     "· Cracked floors teach the straight-down slam and return in the new route.",
@@ -7033,8 +7036,15 @@ function drawNikitaBoss(b) {
     g.fillStyle = hair;
     g.fillRect(18, y + 4, 17, 5);
     g.fillRect(14, y + 2, 13, 3);
+    g.fillStyle = "#fff6e0";
+    g.fillRect(20, y + 8, 6, 5);
+    g.fillRect(27, y + 8, 7, 6);
     g.fillStyle = C.eye;
-    g.fillRect(27, y + 9, 3, 2);
+    g.fillRect(23, y + 10, 2, 2);
+    g.fillRect(31, y + 11, 2, 2);
+    g.fillStyle = "#ffffff";
+    g.fillRect(23, y + 10, 1, 1);
+    g.fillRect(31, y + 11, 1, 1);
     // The pale mint patch is the one damage target in this encounter.
     g.fillStyle = "#aaf0c8";
     g.fillRect(-15, y - 2, 30, 11);
@@ -7069,8 +7079,15 @@ function drawNikitaBoss(b) {
     g.fillRect(18 + lean, y + 4, 18, 6);
     g.fillRect(13 + lean, y + 2, 14, 4);
     g.fillRect(24 + lean, y + 9, 11, 2);
+    g.fillStyle = "#fff6e0";
+    g.fillRect(20 + lean, y + 10, 6, 5);
+    g.fillRect(28 + lean, y + 10, 7, 6);
     g.fillStyle = C.eye;
-    g.fillRect(29 + lean, y + 11, 3, 2);
+    g.fillRect(23 + lean, y + 12, 2, 2);
+    g.fillRect(32 + lean, y + 13, 2, 2);
+    g.fillStyle = "#ffffff";
+    g.fillRect(23 + lean, y + 12, 1, 1);
+    g.fillRect(32 + lean, y + 13, 1, 1);
     g.fillStyle = hideLo;
     g.fillRect(-20, y + 27, 8, 6); g.fillRect(10, y + 27, 8, 6);
     g.fillStyle = hoof;

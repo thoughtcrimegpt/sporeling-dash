@@ -2194,11 +2194,14 @@ test("Nikita Boar rolls onto his side and only a down-slam hurts him", () => {
   assert.ok(painted("#e4aaa2", 15, 10), "Nikita has the oversized pale snout from the reference");
   assert.ok(painted("#211815", 18, 6), "Nikita keeps the reference's swept dark hair");
   assert.ok(painted("#29313b", 15, 9), "Nikita carries a small product slate");
+  assert.ok(painted("#fff6e0", 6, 5), "Nikita has a large white eye");
+  assert.ok(painted("#fff6e0", 7, 6), "Nikita's second eye is slightly uneven");
 
   boss.state = "side";
   api.g.operations.length = 0;
   api.drawNikitaBoss(boss);
   assert.ok(painted("#aaf0c8", 30, 11), "the slam target is visibly marked while Nikita is down");
+  assert.ok(painted("#fff6e0", 6, 5), "the white eyes remain visible while Nikita is down");
 });
 
 test("dialogue lines can be finished and advanced by keyboard, controller, or tap", () => {

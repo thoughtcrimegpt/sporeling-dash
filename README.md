@@ -54,7 +54,7 @@ The leaderboard names each route directly: Any%, 100%, Pale Root, and The Reach.
 
 The Undrawn Map is hidden above the Spire. A second hidden room sits high beyond the Bloomheart's right wall. A small Frog sign and a berry trail mark the start, but three overhangs stop a straight wall climb; two enemy connectors return after a failed attempt. FROG lives inside beneath a pile of old hardware and only makes frog noises. The Pale Root unlocks after the main game is beaten; The Reach appears only after the Pale Root is cleared.
 
-Nikita Boar is the boss of the Boar Pit. He charges into the arena wall and rolls onto his side; only a straight-down slam on the marked flank hurts him. Later phases add one ground wave after each crash. The Rootworks gives the route a short cooldown before the final encounter, and the credits resolve the missing-truffle story with a luau.
+Nikita Boar is the boss of the Boar Pit, drawn as a pink boar with swept dark hair, an oversized snout, and two uneven white eyes. He charges into the arena wall and rolls onto his side; only a straight-down slam on the marked flank hurts him. Later phases add one ground wave after each crash. The Rootworks gives the route a short cooldown before the final encounter, and the credits resolve the missing-truffle story with a luau.
 
 ## Keepsakes
 
