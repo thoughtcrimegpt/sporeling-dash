@@ -56,6 +56,8 @@ The Undrawn Map is hidden above the Spire. A second hidden room sits high beyond
 
 The Boar Pit's unnamed boss is drawn as a pink boar with swept dark hair, an oversized snout, and two uneven white eyes. A hard white title card, heavy opening shake, and brighter arena announce the fight without hiding its silhouette. The arena has a clear floor so the marked flank is always reachable. Only a straight-down slam on that flank deals damage. Each phase raises the charge speed, the tell locks before the rush, and the last phase rebounds into a second full-arena charge. The boss stays belly-up long enough to reposition and attack. Its former projectile fan and ground wave are gone. If the player dies during any boss encounter, that boss returns to full health. The Rootworks then tests the enemy-bounce and dash-refund mechanics across three long horizontal gaps before the final encounter. The credits resolve the missing-truffle story with a luau.
 
+During the Shoggoth's opening, any player contact with the raised eye deals damage, regardless of movement direction. Dashing through the body during that same opening also deals damage.
+
 Ordinary checkpoint, enemy, and boss notices use a small high-contrast card in the upper-right corner, leaving the route visible. Their timers pause whenever resident dialogue is active, so the two kinds of text never compete. The first checkpoint explanation appears briefly once on that device; later checkpoints communicate through their sound and activation animation. The down-slam is first taught where it becomes useful in the Underfield: play pauses for a one-time high-contrast lesson until the player confirms it with A, Space, Enter, or the touch A button.
 
 ## Keepsakes

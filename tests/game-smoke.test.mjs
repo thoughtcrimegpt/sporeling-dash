@@ -1952,6 +1952,46 @@ test("boss grace telegraphs preserve their configured readable windows", () => {
   assert.equal(shoggoth.state, "lunge");
 });
 
+test("the Shoggoth takes a hit from any eye contact or a body dash during its opening", () => {
+  const { api } = bootGame();
+  const unbloomedIndex = api.LEVELS.findIndex(level => level.boss === "unbloomed");
+  api.loadLevel(unbloomedIndex);
+  api.spawnShoggoth();
+  const boss = api.S.boss;
+  const player = api.S.player;
+
+  boss.state = "eyeOpen";
+  boss.t = 0;
+  Object.assign(player, {
+    x: boss.x - 5, y: boss.y - 42,
+    vx: 0, vy: -120, dashing: false, dashT: 0, invuln: 0,
+  });
+  api.updateShoggoth(0);
+  assert.equal(boss.pips, 2, "rising into the eye counts even when the player is not falling or dashing");
+  assert.equal(boss.state, "crawl");
+  assert.equal(player.vy, -280, "eye contact gives a clear bounce away from the boss");
+
+  boss.state = "eyeOpen";
+  boss.t = 0;
+  Object.assign(player, {
+    x: boss.x - 5, y: boss.y + 10,
+    vx: 180, vy: 0, dashing: true, dashT: 0.15, dashDX: 1, dashDY: 0, invuln: 0,
+  });
+  api.updateShoggoth(0);
+  assert.equal(boss.pips, 1, "dashing through the body during the eye opening also counts");
+  assert.equal(boss.state, "crawl");
+  assert.equal(player.dashing, false, "the successful dash ends cleanly instead of striking twice");
+
+  boss.state = "eyeOpen";
+  boss.t = 0;
+  Object.assign(player, {
+    x: boss.x - 5, y: boss.y + 10,
+    vx: 0, vy: 0, dashing: false, dashT: 0, invuln: 99,
+  });
+  api.updateShoggoth(0);
+  assert.equal(boss.pips, 1, "ordinary body contact is not mistaken for the raised eye");
+});
+
 test("Chorus Hall names the glowing opening and sends diving wisps farther", () => {
   const { api } = bootGame();
   const chorusIndex = api.LEVELS.findIndex(level => level.boss === "chorus");
