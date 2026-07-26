@@ -960,147 +960,12 @@ function prefetchLeader(slot, list) {
   });
 }
 // ── Patch notes — the cave remembers its own growth. Newest first. ─────────
-const PATCH_NOTES_SOURCE_ARCHIVE = [
-  { v: "V4.3.8 — TEACH, THEN TRUST", d: "2026-07-20 21:15 UTC", lines: [
-    "· Patch Notes is now a full desktop click target with clear hover feedback",
-    "· Root Sweep names its direction twice per fight, then lets you read the attack",
-  ]},
-  { v: "V4.3.5 — START AT THE FIGHT", d: "2026-07-20 08:42 UTC", lines: [
-    "· Direct Shoggoth practice now begins beside the fight, not at the far entrance",
-    "· Its practice checkpoint stays there too, so a retry returns to the arena",
-  ]},
-  { v: "V4.3.4 — KEEP THEM IN FRAME", d: "2026-07-20 08:40 UTC", lines: [
-    "· The Chorus camera now frames both you and its fixed heart during the fight",
-    "· Vulnerable gather windows no longer begin with the target at the screen edge",
-  ]},
-  { v: "V4.3.3 — EITHER HAND", d: "2026-07-20 08:34 UTC", lines: [
-    "· Touch Layout in pause now mirrors stick and buttons for left-handed play",
-    "· The choice stays on this device and respects notches on either side",
-  ]},
-  { v: "V4.3.2 — PRACTICE MEANS AGAIN", d: "2026-07-20 08:28 UTC", lines: [
-    "· Restart Chamber now restores every spark during a practice run",
-    "· A spent practice run retries its current chamber instead of detouring to title",
-  ]},
-  { v: "V4.3.1 — THE ROOT POINTS FIRST", d: "2026-07-20 08:26 UTC", lines: [
-    "· The Unbloomed's root sweep now names its entry edge and direction",
-    "· Its warning bar is the real danger timer — full means move now",
-  ]},
-  { v: "V4.3 — STEADY HANDS", d: "2026-07-20 08:08 UTC", lines: [
-    "· Switching tabs or apps now pauses safely and clears stale inputs",
-    "· Quick direction taps no longer vanish between fixed updates",
-    "· Reduced Motion removes screen shake and directional camera drift",
-  ]},
-  { v: "V4.2.3 — NO FALSE MERCIES", d: "2026-07-20 03:58 UTC", lines: [
-    "· The pointless checkpoint at the Root's doorstep is gone — the two",
-    "  real mercies wait a third and three-quarters of the way up",
-  ]},
-  { v: "V4.2.2 — ONE ROOT, ONE BOARD", d: "2026-07-20 03:50 UTC", lines: [
-    "· The Pale Root is not a daily. It is THE trial — one climb, one name,",
-    "  one eternal leaderboard. Its champion's echo races every challenger",
-  ]},
-  { v: "V4.2.1 — THE ROOT GOES DEEPER", d: "2026-07-20 03:35 UTC", lines: [
-    "· The trial doubled: two hundred rows, nine segments, two mercies",
-    "· All daily modifiers stripped from it — no tricks, only the climb",
-    "· Every chain now asks for your maximum reach",
-  ]},
-  { v: "V4.2 — THE PALE ROOT", d: "2026-07-20 02:50 UTC", lines: [
-    "· The Daily Spore is reborn: one pale climb, brutal and fair, in the",
-    "  Mother's oldest root. Pure platforming. One mercy checkpoint",
-    "· Posts over spikes, a studded chimney, a ladder you must grow yourself,",
-    "  a crossing between two rows of teeth, and the thread to the crown",
-    "· Daily modifiers still twist it; the dated board and echoes carry on",
-    "· Heavy air no longer removes the glide — it just sinks faster",
-  ]},
-  { v: "V4.1.3 — ONE ECHO PER SPORELING", d: "2026-07-20 02:32 UTC", lines: [
-    "· The boards show each name's best run only — no more stacking the top with yourself",
-  ]},
-  { v: "V4.1.2 — WITHIN THE MARGINS", d: "2026-07-20 02:26 UTC", lines: [
-    "· Long lines on this page now wrap instead of wandering off the right edge",
-  ]},
-  { v: "V4.1.1 — READ THE NOTES", d: "2026-07-20 02:22 UTC", lines: [
-    "· This very page earned its full name and a little shine. Hello",
-    "· Every entry now wears the moment it shipped",
-  ]},
-  { v: "V4.1 — THE BARROW, UNEARTHED", d: "2026-07-20 02:10 UTC", lines: [
-    "· The Oldest Slug stopped pacing. It swims the earth now",
-    "· Read the mound, dodge the eruption, then dash UP and drive a bloom",
-    "  into the glowing belly mid-leap. It will teach you exactly once",
-    "· Chamber splits: every clear shows your time against the echo you race",
-    "· iPhone: the buttons now bow politely around the Dynamic Island",
-  ]},
-  { v: "V4.0.4 — CRISP LETTERING", d: "2026-07-20 01:20 UTC", lines: [
-    "· Text everywhere renders at double resolution — same chunky world, sharper words",
-  ]},
-  { v: "V4.0.3 — SHARP ON EVERY SCREEN", d: "2026-07-20 01:10 UTC", lines: [
-    "· 4K and HiDPI monitors: game pixels now land 1:1 on real pixels. No more blur",
-  ]},
-  { v: "V4.0.2 — NO SURFING THE CEILING", d: "2026-07-20 01:07 UTC", lines: [
-    "· Three spores per flight (was four), and late blooms in a chain wilt fast",
-    "· Everything resets when you touch real ground; enemy kills still refund",
-  ]},
-  { v: "V4.0.1 — THE TITLE SCREEN BREATHES", d: "2026-07-20 00:56 UTC", lines: [
-    "· No more overlapping panels; practice is front and center",
-    "· Practice also lives in the pause menu now, with a fair warning",
-  ]},
-  { v: "V4 — IT WAS NEVER HER VOICE", d: "2026-07-20 00:39 UTC", lines: [
-    "· The ending you knew is not the ending",
-    "· Something waits under the crown. It announces itself in something like blood",
-    "· It coils before it moves. It smiles before it spits",
-    "· Its spores are stepping stones. Stomp what rises, dash what it hides",
-    "· The gates open when it's done. Once you've met it, practice it from the title",
-    "· The board is wiped once more, for the longest route yet",
-  ]},
-  { v: "V3.7 — THE CAVE FORGIVES", d: "2026-07-19 23:51 UTC", lines: [
-    "· The cave hums now: quiet music, a different mood for every depth (M mutes)",
-    "· Continue & practice from the title — pick any chamber you've reached",
-    "· Full runs still start from the top; only they touch the board",
-    "· NEW MOVE — the down-slam: dash straight down, ride it to the ground, boom",
-    "· The sporeling now squeaks when hurt. Four squeaks. They rotate",
-    "· The Swallow's bottom teeth got filed down a little",
-    "· Grel found a better seat. The margins hold a new scribble",
-  ]},
-  { v: "V3.6 — THE TEACHING PATCH", d: "2026-07-19 22:58 UTC", lines: [
-    "· Every death names what took you, briefly",
-    "· Bosses teach once: longer first windows, a mint mark on the weak point",
-    "· Land one hit and the training wheels vanish mid-fight",
-  ]},
-  { v: "V3.5 — THE FEEL PATCH", d: "2026-07-19 22:42 UTC", lines: [
-    "· Camera looks ~2 tiles ahead of your facing; quick taps no longer swing the screen",
-    "· Vertical dead zone: jumps don't bounce the camera; falling snaps it down fast",
-    "· Dash presses now buffer 0.1s — press early, it fires the instant it re-arms",
-    "· Mobile: bigger stick with crisp 8-way snap, bigger buttons, press haptics",
-  ]},
-  { v: "V3.4 — THE STOPPED", d: "2026-07-19 22:19 UTC", lines: [
-    "· Where a real player falls, a faded sporeling now stands in everyone's cave",
-    "· Posted anonymously (position only). Dash through them to set them free",
-  ]},
-  { v: "V3.3 — THE SWALLOW", d: "2026-07-19 19:35 UTC", lines: [
-    "· New chamber: a long vertical drop lined with teeth, before the Mother's Throat",
-    "· Controller menu support: Y = daily spore, Select = leaderboard",
-    "· Daily surge reworked: extra enemies spawn apart and come back wrong",
-    "· Leaderboard wiped for the longer route",
-  ]},
-  { v: "V3.2 — THE CHAMPION RUNS BESIDE YOU", d: "2026-07-19 18:11 UTC", lines: [
-    "· The #1 echo auto-races every run, name overhead — no clicks",
-    "· Dailies race the daily champion. Dethrone them and everyone races you",
-    "· Dailies hardened: 3 modifiers a night; boards refresh at UTC midnight",
-  ]},
-  { v: "V3.1 — THE DAILY SPORE & SPORE ECHOES", d: "2026-07-19 17:45 UTC", lines: [
-    "· A remixed descent every night, same dream for everyone, own dated board",
-    "· Every run records an echo; race any ▸ echo, your PB, or a ?race= challenge link",
-  ]},
-  { v: "V3 — THE DEEP CHAMBERS", d: "2026-07-19 12:32 UTC", lines: [
-    "· Three new chambers, two new bosses, three new enemies",
-    "· Share cards, clickable @names, the full-board screen",
-  ]},
-  { v: "V2 — THE MOTHER'S THROAT", d: "2026-07-19 11:49 UTC", lines: [
-    "· The Unbloomed finale, the hidden Undrawn Map, live leaderboards",
-  ]},
-  { v: "V1 — FIRST BLOOM", d: "2026-07-19 05:49 UTC", lines: [
-    "· Eleven... no. Six chambers, one frightened guardian, and a dash that blooms",
-  ]},
-];
 const PATCH_NOTES = [
+  { v: "V4.6.7  Housekeeping", d: "2026-07-26 04:37 UTC", lines: [
+    "· Every patch entry now shows its real ship time in UTC.",
+    "· The credits name list stops paging once it runs out of names.",
+    "· Resizing the window no longer stacks up display listeners.",
+  ]},
   { v: "V4.6.6  Final boss contact", d: "2026-07-24 03:43 UTC", lines: [
     "· Touching the raised eye now deals damage from any direction.",
     "· Dashing through the body during the same opening also deals damage.",
@@ -1147,43 +1012,43 @@ const PATCH_NOTES = [
     "· The Bloomheart route to Frog now has marked ledges, two enemy connectors, and a reset after a fall.",
     "· The Patch Notes label now sits inside its actual click target.",
   ]},
-  { v: "V4.5.7  Mobile menu navigation", d: "2026-07-21 DEV", lines: [
+  { v: "V4.5.7  Mobile menu navigation", d: "2026-07-21 08:31 UTC", lines: [
     "· Mobile navigation controls now remain visible on the title screen.",
     "· Patch Notes and Leaderboards now have a large Back button.",
     "· The mobile A button confirms title choices and exits those screens.",
   ]},
-  { v: "V4.5.6  Longer Reach", d: "2026-07-21 DEV", lines: [
+  { v: "V4.5.6  Longer Reach", d: "2026-07-21 08:07 UTC", lines: [
     "· Walls used by the Reach route are rough and climbable again.",
     "· Striped smooth stone now marks shortcut barriers before the player touches them.",
     "· The Gale and final ascent have longer enemy chains, with one small recovery island.",
     "· The Spire has more airborne connectors and fewer resting shelves.",
   ]},
-  { v: "V4.5.5  Frog", d: "2026-07-21 DEV", lines: [
+  { v: "V4.5.5  Frog", d: "2026-07-21 07:49 UTC", lines: [
     "· FROG now waits in The Pressed Garden beneath a pile of old hardware.",
     "· FROG makes frog noises. The sporeling cannot understand him.",
   ]},
-  { v: "V4.5.4  Reach retries", d: "2026-07-21 DEV", lines: [
+  { v: "V4.5.4  Reach retries", d: "2026-07-21 07:39 UTC", lines: [
     "· Falling back from the final Reach climb now restores that section's enemy connectors.",
     "· The reset waits until the player lands below the climb and does not alter earlier sections.",
   ]},
-  { v: "V4.5.3  One Reach", d: "2026-07-21 DEV", lines: [
+  { v: "V4.5.3  One Reach", d: "2026-07-21 07:21 UTC", lines: [
     "· The Reach has no collectibles and only one leaderboard: get to the crown.",
     "· The four keepsakes stay in the main game and its hidden rooms for optional 100% runs.",
     "· The Reach's outer walls are now slick, closing the straight wall-climb shortcut.",
   ]},
-  { v: "V4.5.2  Clear test and board labels", d: "2026-07-20 DEV", lines: [
+  { v: "V4.5.2  Clear test and board labels", d: "2026-07-21 07:05 UTC", lines: [
     "· Leaderboard tabs now use complete route names instead of abbreviations.",
     "· Local test mode can open every chamber, secret room, and standalone trial.",
     "· The damage override is labeled Test Damage and remains local-only.",
   ]},
-  { v: "V4.5.1  Touch menus", d: "2026-07-20 DEV", lines: [
+  { v: "V4.5.1  Touch menus", d: "2026-07-21 06:29 UTC", lines: [
     "· The title now uses a clear Adventure or Timed selector above a large Play button.",
     "· Every pause option can be tapped, including the left and right practice arrows.",
     "· Touch menu rows are larger and give pressed and haptic feedback.",
     "· Gameplay touch controls now leave the screen outside active play.",
     "· The win screen now has touch targets for submission, cancellation, and the title screen.",
   ]},
-  { v: "V4.5  The Reach", d: "2026-07-20 DEV", lines: [
+  { v: "V4.5  The Reach", d: "2026-07-21 06:12 UTC", lines: [
     "· Clearing the Pale Root now unlocks The Reach, a standalone five-part trial.",
     "· The Reach has two checkpoints and uses enemies to restore spent blooms.",
     "· The Reach has its own board, champion ghost, and personal-best ghost.",
@@ -1191,7 +1056,7 @@ const PATCH_NOTES = [
     "· A second secret room waits beyond the Bloomheart's right-wall skip.",
     "· The original eleven-chamber Adventure route and level order are unchanged.",
   ]},
-  { v: "V4.4  Player feedback pass", d: "2026-07-20 DEV", lines: [
+  { v: "V4.4  Player feedback pass", d: "2026-07-20 23:48 UTC", lines: [
     "· The title starts only when you confirm the highlighted Start row.",
     "· Adventure is the default. Timed Run and ghosts are separate choices.",
     "· Air-dash blooms now sit under your landing path instead of behind it.",
@@ -1211,61 +1076,61 @@ const PATCH_NOTES = [
     "· Control labels now show keyboard, controller, or touch buttons separately.",
     "· JB now repairs the shifting bridge in The Marrow.",
   ]},
-  { v: "V4.3.8  Controls and boss warnings", d: "2026-07-20", lines: [
+  { v: "V4.3.8  Controls and boss warnings", d: "2026-07-20 23:48 UTC", lines: [
     "· Patch Notes became a large clickable target on desktop.",
     "· The first two Unbloomed sweeps show their direction in text.",
     "· Switching tabs pauses the game and clears held input.",
   ]},
-  { v: "V4.3  Practice and accessibility", d: "2026-07-20", lines: [
+  { v: "V4.3  Practice and accessibility", d: "2026-07-20 23:48 UTC", lines: [
     "· Practice retries restore full health and restart the current encounter.",
     "· Shoggoth practice begins inside its arena.",
     "· Left-handed touch controls mirror the full layout.",
     "· Reduced Motion removes shake and directional camera drift.",
     "· The Chorus camera keeps both the player and its heart in frame.",
   ]},
-  { v: "V4.2  The Pale Root", d: "2026-07-20", lines: [
+  { v: "V4.2  The Pale Root", d: "2026-07-20 03:28 UTC", lines: [
     "· The Pale Root became one permanent climb with one leaderboard.",
     "· The climb has nine sections and two checkpoints.",
     "· Daily modifiers were removed from this route.",
   ]},
-  { v: "V4.1  Barrow and leaderboard updates", d: "2026-07-20", lines: [
+  { v: "V4.1  Barrow and leaderboard updates", d: "2026-07-20 02:10 UTC", lines: [
     "· Barrow now burrows, warns before surfacing, and exposes its belly in the air.",
     "· Leaderboards keep each player's best time instead of duplicate entries.",
     "· Long patch-note lines wrap inside the panel.",
   ]},
-  { v: "V4.0  Shoggoth and display updates", d: "2026-07-20", lines: [
+  { v: "V4.0  Shoggoth and display updates", d: "2026-07-20 00:39 UTC", lines: [
     "· The Shoggoth was added after the Unbloomed fight.",
     "· Text and game pixels render sharply on high-density displays.",
     "· A player can create three blooms before returning to solid ground.",
   ]},
-  { v: "V3.7  Practice, music, and movement", d: "2026-07-19", lines: [
+  { v: "V3.7  Practice, music, and movement", d: "2026-07-19 23:51 UTC", lines: [
     "· Added chamber practice, a pause-menu practice shortcut, and the down-slam.",
     "· Added music for each part of the cave and a mute control.",
     "· Full runs remained separate from practice and continued to use the board.",
   ]},
-  { v: "V3.6  Teaching and game feel", d: "2026-07-19", lines: [
+  { v: "V3.6  Teaching and game feel", d: "2026-07-19 22:58 UTC", lines: [
     "· Death messages identify the hazard that hit you.",
     "· Bosses give a longer first opening and mark the weak point once.",
     "· Camera look-ahead, dash buffering, and touch input were tightened.",
   ]},
-  { v: "V3.4  The Stopped", d: "2026-07-19", lines: [
+  { v: "V3.4  The Stopped", d: "2026-07-19 22:19 UTC", lines: [
     "· Anonymous fallen sporelings appear where other players died.",
     "· Air-dashing through one frees it.",
   ]},
-  { v: "V3.3  The Swallow", d: "2026-07-19", lines: [
+  { v: "V3.3  The Swallow", d: "2026-07-19 19:35 UTC", lines: [
     "· Added the vertical tooth shaft before the Mother's Throat.",
     "· Added controller shortcuts for the board and the old daily route.",
   ]},
-  { v: "V3.1  Daily runs and ghosts", d: "2026-07-19", lines: [
+  { v: "V3.1  Daily runs and ghosts", d: "2026-07-19 17:45 UTC", lines: [
     "· Added a shared nightly route, dated boards, replay ghosts, and race links.",
   ]},
-  { v: "V3  Deep chambers", d: "2026-07-19", lines: [
+  { v: "V3  Deep chambers", d: "2026-07-19 12:32 UTC", lines: [
     "· Added three chambers, two bosses, three enemies, share cards, and the full board.",
   ]},
-  { v: "V2  The Mother's Throat", d: "2026-07-19", lines: [
+  { v: "V2  The Mother's Throat", d: "2026-07-19 11:49 UTC", lines: [
     "· Added the Unbloomed, the Undrawn Map, and live leaderboards.",
   ]},
-  { v: "V1  First build", d: "2026-07-19", lines: [
+  { v: "V1  First build", d: "2026-07-19 05:49 UTC", lines: [
     "· Shipped six chambers, one boss, and the air-dash bloom mechanic.",
   ]},
 ];
@@ -1354,15 +1219,18 @@ async function finishersFetch() {
   try {
     const rows = [];
     const pageSize = 1000;
-    for (let offset = 0; ; offset += pageSize) {
+    // Bounded: a page short of pageSize ends it normally; the page cap stops
+    // a runaway loop if the API ever stops honouring offset.
+    const maxPages = 20;
+    for (let page = 0, offset = 0; page < maxPages; page++, offset += pageSize) {
       const r = await fetch(LB.url + "/rest/v1/scores?category=eq.adventure" +
         "&select=name,id&order=id.asc&limit=" + pageSize + "&offset=" + offset, {
         headers: { apikey: LB.key, Authorization: "Bearer " + LB.key },
       });
       if (!r.ok) return FINISHERS_CACHE;
-      const page = await r.json();
-      rows.push(...page);
-      if (page.length < pageSize) break;
+      const rowsPage = await r.json();
+      rows.push(...rowsPage);
+      if (rowsPage.length < pageSize) break;
     }
     const seen = new Set();
     FINISHERS_CACHE = rows.filter(row => {
@@ -5737,6 +5605,7 @@ const buf = mkCv(W * SS, H * SS);
 const g = buf.getContext("2d");
 g.scale(SS, SS);
 let scale = 1;
+const dprWatch = { dpr: 0, mql: null };
 
 function resize() {
   // Size the backing store in DEVICE pixels: on 4K/HiDPI screens the game
@@ -5752,8 +5621,17 @@ function resize() {
   canvas.style.width = (canvas.width / dpr) + "px";
   canvas.style.height = (canvas.height / dpr) + "px";
   ctx.imageSmoothingEnabled = false;
-  // re-run when the window moves to a monitor with a different pixel ratio
-  try { matchMedia("(resolution: " + dpr + "dppx)").addEventListener("change", resize, { once: true }); } catch (e) {}
+  // Re-run when the window moves to a monitor with a different pixel ratio.
+  // Only one listener is ever live; resizing at a fixed DPR must not stack them.
+  if (dprWatch.dpr !== dpr) {
+    try { dprWatch.mql?.removeEventListener("change", resize); } catch (e) {}
+    dprWatch.dpr = dpr;
+    dprWatch.mql = null;
+    try {
+      dprWatch.mql = matchMedia("(resolution: " + dpr + "dppx)");
+      dprWatch.mql.addEventListener("change", resize, { once: true });
+    } catch (e) {}
+  }
 }
 addEventListener("resize", resize);
 resize();
