@@ -1,0 +1,15 @@
+{
+  "name": "Sporeling Dash",
+  "short_name": "Sporeling",
+  "description": "In Sporeling Dash, your air-dash creates a temporary platform beneath you.",
+  "start_url": "./",
+  "scope": "./",
+  "display": "standalone",
+  "orientation": "landscape",
+  "background_color": "#0a0c10",
+  "theme_color": "#0a0c10",
+  "icons": [
+    { "src": "./icons/icon-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any maskable" },
+    { "src": "./icons/icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any maskable" }
+  ]
+}
