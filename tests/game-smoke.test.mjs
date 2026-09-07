@@ -1339,18 +1339,13 @@ test("the HUD shows only the active health cap alongside blooms and dash state",
   api.draw();
   const textOps = api.g.operations.filter(op => op.type === "fillText");
   const labels = textOps.map(op => op.value);
-  assert.ok(labels.includes("HEALTH 3"));
-  assert.ok(labels.includes("BLOOMS 2"));
-  assert.ok(labels.includes("DASH READY"));
+  assert.ok(labels.includes("3/4"), "health shows the active difficulty cap");
+  assert.ok(labels.includes("2/3"), "blooms show remaining and maximum fuel");
+  assert.ok(labels.includes("Dash"));
   assert.equal(labels.some(label => label.startsWith("LIVES")), false, "the removed life counter is absent from the HUD");
-  const healthPips = api.g.operations.filter(op =>
-    op.type === "fillRect" && op.y === 9 && op.width === 4 && op.height === 4 && op.x >= 52
-  );
-  assert.equal(healthPips.length, 4, "Normal draws four health marks rather than the old nine-mark meter");
-  const health = textOps.find(op => op.value === "HEALTH 3");
-  const blooms = textOps.find(op => op.value === "BLOOMS 2");
-  assert.equal(health.x, blooms.x, "survival and bloom resource share one HUD column");
-  assert.ok(Math.abs(health.y - blooms.y) <= 14);
+  const health = textOps.find(op => op.value === "3/4");
+  const blooms = textOps.find(op => op.value === "2/3");
+  assert.equal(health.y, blooms.y, "survival and bloom resources share one compact row");
 
   api.gainHealth();
   assert.equal(api.S.health, 4);

@@ -1030,6 +1030,10 @@ function prefetchLeader(slot, list) {
 }
 // ── Patch notes — the cave remembers its own growth. Newest first. ─────────
 const PATCH_NOTES = [
+  { v: "V5.1.1  A quieter HUD", d: "2026-09-07 23:50 UTC", lines: [
+    "· A compact glass HUD with health and bloom icons, a thin Resonance meter, and subtle ability indicators.",
+    "· The Burst button prompt appears only when the ability is ready.",
+  ] },
   { v: "V5.1  Clear paths", d: "2026-09-07 23:39 UTC", lines: [
     "· Readable title and pause menus, with dedicated Controls & Help and Settings.",
     "· Phone instructions and conversations now use text sized for the screen.",
@@ -8023,55 +8027,67 @@ function drawHUD() {
   if (playOverlay && TOUCH.active) return;
   const p = S.player;
   if (!p) return;
-  g.fillStyle = "rgba(5,16,24,0.88)";
-  g.fillRect(4, 4, 132, 29);
-  g.fillStyle = "rgba(142,243,211,0.45)";
-  g.fillRect(4, 4, 1, 29);
-  g.fillStyle = C.ui;
-  g.font = "bold 7px monospace";
+  const adventure = !competitiveRun();
+  const charge = clamp(p.resonance || 0, 0, RESONANCE_MAX);
+  const burstReady = charge >= RESONANCE_MAX;
+  const dashReady = p.canDash || p.dashing || p.grounded;
+  // One quiet glass strip. Icons carry the persistent state; only a charged
+  // ability gets a call to action. Keep the level visible through the backing.
+  g.save();
+  g.beginPath();
+  g.roundRect(6, 6, 106, adventure ? 30 : 18, 5);
+  g.fillStyle = "rgba(5,17,24,0.46)";
+  g.fill();
+  g.strokeStyle = "rgba(187,221,204,0.10)";
+  g.lineWidth = 0.5;
+  g.stroke();
   g.textAlign = "left";
-  g.fillText("HEALTH " + (DEV && S.devInf ? "∞" : S.health), 8, 14);
-  for (let i = 0; i < S.maxHealth; i++) {
-    const on = DEV && S.devInf || i < S.health;
-    g.fillStyle = on ? (S.health > 1 ? C.capHi : C.berryHi) : "#3a3540";
-    g.fillRect(52 + i * 6, 9, 4, 4);
-  }
-
-  g.fillStyle = C.ui;
-  g.font = "7px monospace";
-  g.fillText("BLOOMS " + p.spores, 8, 27);
-  for (let i = 0; i < MAX_SPORES; i++) {
-    g.fillStyle = i < p.spores ? rgb(PAL.accent) : "#3a4250";
-    g.fillRect(52 + i * 8, 22, 5, 4);
-  }
-  g.fillStyle = p.canDash || p.dashing || p.grounded ? C.bloomHi : C.uiDim;
-  g.fillText(p.canDash || p.dashing || p.grounded ? "DASH READY" : "DASH SPENT", 77, 27);
-  if (!competitiveRun()) {
-    const charge = clamp(p.resonance || 0, 0, 100);
-    const ready = charge >= 100;
-    g.fillStyle = "rgba(5,16,24,0.88)";
-    g.fillRect(4, 35, 132, 22);
-    g.fillStyle = ready ? "#dcffae" : "#a1e5d8";
-    g.font = "bold 6px monospace";
+  g.font = "600 7px system-ui, sans-serif";
+  // Heart and current / maximum health, without a second set of health pips.
+  g.fillStyle = S.health <= 1 ? "#f19089" : "#cda7a3";
+  g.beginPath();
+  g.moveTo(15, 18);
+  g.bezierCurveTo(8, 13, 12, 9, 15, 12);
+  g.bezierCurveTo(18, 9, 22, 13, 15, 18);
+  g.fill();
+  g.fillStyle = "#d2ddd5";
+  g.fillText((DEV && S.devInf ? "∞" : S.health) + "/" + S.maxHealth, 23, 17);
+  // A mushroom silhouette makes the bloom count recognizable at a glance.
+  g.fillStyle = "#a4cbb3";
+  g.beginPath(); g.ellipse(51, 13, 4, 2.5, 0, Math.PI, Math.PI * 2); g.fill();
+  g.fillRect(50.25, 13, 1.5, 4);
+  g.fillStyle = "#c3d4ca";
+  g.fillText(p.spores + "/" + MAX_SPORES, 59, 17);
+  // A subdued Dash label changes brightness with availability.
+  g.fillStyle = dashReady ? "#a9cbb7" : "#596c66";
+  g.font = "500 6px system-ui, sans-serif";
+  g.fillText("Dash", 87, 17);
+  g.strokeStyle = dashReady ? "#bcd9c7" : "#52625d";
+  g.lineWidth = 0.8;
+  g.beginPath(); g.moveTo(81, 12); g.lineTo(83, 14.5); g.lineTo(81, 17); g.stroke();
+  if (adventure) {
+    g.font = "500 5.5px system-ui, sans-serif";
+    g.fillStyle = burstReady ? "#d7eab4" : "#8aa79d";
     const burstKey = gp() ? "Y" : TOUCH.active ? "BURST" : "Q";
-    g.fillText(ready ? burstKey + ": SPORE BURST READY" : "RESONANCE " + Math.floor(charge) + "%", 8, 43);
-    g.fillStyle = "#18373e";
-    g.fillRect(8, 47, 82, 3);
-    const energy = g.createLinearGradient(8, 0, 90, 0);
-    energy.addColorStop(0, "#49beb9");
-    energy.addColorStop(1, "#d9ff9f");
-    g.fillStyle = energy;
-    g.fillRect(8, 47, 82 * charge / 100, 3);
-    g.fillStyle = p.flutterReady ? "#c9f6e9" : "#687e88";
-    g.font = "5px monospace";
-    g.fillText(p.flutterReady ? "FLUTTER +" : "FLUTTER -", 96, 50);
+    g.fillText(burstReady ? burstKey + " · Burst" : "Resonance", 12, 29);
+    g.fillStyle = "rgba(163,199,179,0.16)";
+    g.fillRect(45, 26, 29, 1.5);
+    g.fillStyle = burstReady ? "#c3dca0" : "#80b6a1";
+    g.fillRect(45, 26, 29 * charge / RESONANCE_MAX, 1.5);
+    // Flutter is a pair of small wings, lit only while the extra jump remains.
+    g.fillStyle = p.flutterReady ? "#a8c3b5" : "#4d6159";
+    g.beginPath();
+    g.ellipse(101, 26.5, 2.8, 1.2, 0.6, 0, Math.PI * 2);
+    g.ellipse(106, 26.5, 2.8, 1.2, -0.6, 0, Math.PI * 2);
+    g.fill();
     if ((p.resonanceChain || 0) > 1) {
-      g.fillStyle = "#d9ff9f";
-      g.font = "bold 6px monospace";
-      g.fillText(p.resonanceChain + "x", 118, 43);
+      g.fillStyle = "#a9cbb0";
+      g.fillText(p.resonanceChain + "x", 80, 29);
     }
   }
+  g.restore();
   // The Reach has no collectible track. Its HUD is only movement and survival.
+  g.textAlign = "left";
   if (!S.reachTrial) {
     // Berries are a collectible, not survival state, so they remain separate.
     g.fillStyle = "rgba(8,12,18,0.55)";
