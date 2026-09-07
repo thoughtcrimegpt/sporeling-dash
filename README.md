@@ -80,6 +80,8 @@ Four keepsakes persist on the device that found them. They are placed on the Rot
 | Finish dialogue text | E / Enter   | Y             |
 | Pause      | Esc / P               | Start         |
 
+Press F or click Full screen in the title/pause menu. Fullscreen includes the menus and touch controls. Use F or the browser's Escape shortcut to leave it. The desktop HUD stays compact as the game window grows, including on Retina displays.
+
 Menus support arrows, WASD, D-pad, mouse, and touch. Responsive title and pause screens use readable text and large buttons, with Controls & Help and Settings available in both. Extras & challenges contains reviews, patch notes, leaderboards, and unlockable trials. Review and leaderboard handles link to their X profiles, and recorded ghosts can be raced from the leaderboard. Restarting from the beginning requires confirmation.
 
 On phones, drag Move to aim, then tap Jump or Dash. Release Jump and tap again in the air to flutter in Adventure. A dedicated Slam button appears when the move is introduced; Burst shows its charge and lights up when ready. Controls support simultaneous fingers, and Settings can mirror the layout. Touch menus use direct buttons. Gameplay instructions, conversations, and status use text sized for the screen. Reduced motion and music settings are available from either menu.

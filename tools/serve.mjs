@@ -8,7 +8,7 @@ const port = Number.parseInt(process.env.PORT || "8765", 10);
 
 const server = createServer((req, res) => {
   const path = new URL(req.url || "/", "http://localhost").pathname;
-  if (["/ui/menus.js", "/ui/menus.css", "/ui/play-overlay.js", "/ui/play-overlay.css"].includes(path)) {
+  if (["/ui/display.js", "/ui/menus.js", "/ui/menus.css", "/ui/play-overlay.js", "/ui/play-overlay.css"].includes(path)) {
     res.writeHead(200, { "Content-Type": path.endsWith(".js") ? "text/javascript; charset=utf-8" : "text/css; charset=utf-8", "Cache-Control": "no-store" });
     createReadStream(join(root, path.slice(1))).pipe(res);
     return;
