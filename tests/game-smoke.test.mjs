@@ -7,7 +7,7 @@ import { fileURLToPath } from "node:url";
 
 const root = join(dirname(fileURLToPath(import.meta.url)), "..");
 const html = readFileSync(join(root, "index.html"), "utf8");
-const scripts = [...html.matchAll(/<script(?:\s[^>]*)?>([\s\S]*?)<\/script>/g)].map(match => match[1]);
+const scripts = [...html.matchAll(/<script(?:\s[^>]*)?>([\s\S]*?)<\/script>/g)].map(match => match[1]).filter(source => source.trim());
 
 test("every inline script parses", () => {
   assert.ok(scripts.length >= 2);
@@ -449,7 +449,7 @@ test("focus loss pauses play, clears stale controls, and requires neutral re-ent
   assert.equal(api.TOUCH.jump, false);
   assert.equal(element("btnJump").classList.contains("pressed"), false);
   assert.deepEqual({ ...api.readInput() }, {
-    ax: 0, ay: 0, jumpDown: false, jumpEdge: false, dashEdge: false,
+    ax: 0, ay: 0, dashAimX: 0, dashAimY: 0, jumpDown: false, jumpEdge: false, dashEdge: false,
     pauseEdge: false, startEdge: false, talkEdge: false, burstEdge: false, dailyEdge: false, boardEdge: false,
   });
 
@@ -564,7 +564,7 @@ test("title controls keep keyboard, controller, and touch labels separate", () =
 
   const touch = bootGame();
   touch.api.TOUCH.active = true;
-  assert.deepEqual([...touch.api.titleControlLines()], ["Tap a mode, then tap PLAY."]);
+  assert.deepEqual([...touch.api.titleControlLines()], ["Choose your adventure. Tap Play to begin."]);
 });
 
 test("touch title uses a segmented mode control and a large Play target", () => {
@@ -595,13 +595,13 @@ test("touch title uses a segmented mode control and a large Play target", () => 
   assert.equal(vibrations, 2);
 });
 
-test("mobile title controls stay visible and auxiliary screens always have a Back tap", () => {
+test("gameplay controls hide in menus and auxiliary screens retain a Back tap", () => {
   const { api, context, element } = bootGame();
   api.TOUCH.active = true;
   api.S.mode = "title";
   api.syncTouchVisibility();
-  assert.equal(element("touch").hidden, false);
-  assert.equal(element("touch").classList.contains("menu-nav"), true);
+  assert.equal(element("touch").hidden, true);
+  assert.equal(element("touch").classList.contains("menu-nav"), false);
 
   api.TOUCH.jump = true;
   assert.equal(api.readInput().startEdge, true, "the mobile A button confirms a title choice");
@@ -2159,7 +2159,7 @@ test("the opening lesson names the active controls and precedes a safe mandatory
 
   const touch = bootGame();
   touch.api.TOUCH.active = true;
-  assert.equal(touch.api.openingLessonLines()[0], "A BUTTON: JUMP   X BUTTON: AIR DASH");
+  assert.equal(touch.api.openingLessonLines()[0], "JUMP: JUMP   DASH: AIR DASH");
 
   const opening = keyboard.api.LEVELS[0].map;
   for (let c = 22; c <= 24; c++) {
@@ -2427,7 +2427,7 @@ test("the visible patch history uses plain factual copy", () => {
   const { api } = bootGame();
   const retiredBossName = new RegExp(["niki", "ta", "bo", "ar"].join("\\s*"), "i");
   const reviewPlacementCopy = /(?:review|reviews).*(?:added|joined|linked|quote|order|top|opens?)/i;
-  assert.match(api.PATCH_NOTES[0].v, /^V5\.0/);
+  assert.match(api.PATCH_NOTES[0].v, /^V5\.1/);
   assert.doesNotMatch(html, retiredBossName, "the Boar Pit boss stays unnamed in player-facing copy");
   assert.match(html, /fillText\("THE BOAR PIT"/, "the boss entrance names the chamber instead");
   for (const block of api.PATCH_NOTES) {

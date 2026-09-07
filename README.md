@@ -80,9 +80,11 @@ Four keepsakes persist on the device that found them. They are placed on the Rot
 | Finish dialogue text | E / Enter   | Y             |
 | Pause      | Esc / P               | Start         |
 
-Menus support arrows, WASD, D-pad, mouse, and touch. The title has separate Reviews, Patch Notes, and Leaderboards screens; review handles link to their X profiles. On touch screens, a compact stick and A button remain visible on the title and those auxiliary screens, which also have a large Back button. The title uses an Adventure/Timed selector and a large Play button, while pause, completion-name, and win actions are direct tap targets. Tap actions use short haptic and pressed feedback. Full mobile controls appear automatically during play and can be mirrored for left-handed use. Reduced Motion is available from the pause menu.
+Menus support arrows, WASD, D-pad, mouse, and touch. Responsive title and pause screens use readable text and large buttons, with Controls & Help and Settings available in both. Extras & challenges contains reviews, patch notes, leaderboards, and unlockable trials. Review and leaderboard handles link to their X profiles, and recorded ghosts can be raced from the leaderboard. Restarting from the beginning requires confirmation.
 
-No dependencies or build step. Keep `assets/mycelium-cathedral.png` beside the game in its `assets` folder, then open `index.html` and play. The developer server and tests require Node.js 20 or newer.
+On phones, drag Move to aim, then tap Jump or Dash. Release Jump and tap again in the air to flutter in Adventure. A dedicated Slam button appears when the move is introduced; Burst shows its charge and lights up when ready. Controls support simultaneous fingers, and Settings can mirror the layout. Touch menus use direct buttons. Gameplay instructions, conversations, and status use text sized for the screen. Reduced motion and music settings are available from either menu.
+
+No dependencies or build step. Keep the `assets` and `ui` folders beside `index.html`, then open it and play. The developer server and tests require Node.js 20 or newer.
 
 ## Development
 
