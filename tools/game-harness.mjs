@@ -127,7 +127,7 @@ globalThis.__SD_TEST__ = {
   MAIN_LAST_INDEX, UNDRAWN_INDEX, PALE_ROOT_INDEX, BLOOMHEART_INDEX, PRESSED_GARDEN_INDEX, REACH_INDEX,
   REVIEWS,
   KEEPSAKE_IDS, TOTAL_KEEPSAKES,
-  FIXED_DT, MAX_FRAME_DT, MAX_SPORES, START_HEALTH, MAX_HEALTH,
+  FIXED_DT, MAX_FRAME_DT, MAX_SPORES, RESONANCE_MAX, START_HEALTH, MAX_HEALTH,
   ADVENTURE_DIFFICULTIES, ADVENTURE_RULES, TIMED_RUN_RULES, NOTICE_PRIORITY,
   keys, just, TOUCH, touchPrev, padPrev, SCREEN_BACK_HIT,
   canvas, handleFocusLoss, handleFocusReturn, loadLevel, pauseIds, titleIds, readInput,
@@ -137,7 +137,7 @@ globalThis.__SD_TEST__ = {
   advanceTalk, talkHitAt, talkLayout,
   chamberClear, submitScore, mainFullEligible, checkpointEligible, checkpointPathClear, activateCheckpoint, enterSecret, exitSecret,
   gainHealth, hurtPlayer, killPlayer,
-  bloomPlacement, spawnBloom, openingLessonLines,
+  bloomPlacement, spawnBloom, openingLessonLines, addResonance, sporeBurst, doFlutterJump,
   bossStartAttack, bossLanded, nextRootTier, cameraTargetX, rootCameraCenterY,
   draw, drawBossWarnings, frame, g, moveAxis, resize, respawn,
   restartCurrentChamber, solidBlocked, spawnShoggoth, startPracticeRun, tick, touchingWallDir,
@@ -147,6 +147,8 @@ globalThis.__SD_TEST__ = {
   prepareRouteProbe(index, includeEnemies = false) {
     loadLevel(index);
     S.mode = "play";
+    S.practice = false;
+    S.runMode = "speedrun";
     S.bannerT = 0;
     S.hint = null;
     S.talk = null;

@@ -121,7 +121,7 @@ globalThis.__SD_TEST__ = {
   MAIN_LAST_INDEX, UNDRAWN_INDEX, PALE_ROOT_INDEX, BLOOMHEART_INDEX, PRESSED_GARDEN_INDEX, REACH_INDEX,
   REVIEWS,
   KEEPSAKE_IDS, TOTAL_KEEPSAKES, MAIN_BOARD_DB,
-  FIXED_DT, MAX_FRAME_DT, MAX_SPORES, START_HEALTH, MAX_HEALTH, TILE,
+  FIXED_DT, MAX_FRAME_DT, MAX_SPORES, RESONANCE_MAX, START_HEALTH, MAX_HEALTH, TILE,
   ADVENTURE_DIFFICULTIES, ADVENTURE_RULES, TIMED_RUN_RULES, NOTICE_PRIORITY,
   keys, just, TOUCH, touchPrev, padPrev, SCREEN_BACK_HIT,
   canvas, handleFocusLoss, handleFocusReturn, loadLevel, pauseIds, titleIds, readInput, tileAt,
@@ -133,7 +133,7 @@ globalThis.__SD_TEST__ = {
   chamberClear, submitScore, mainFullEligible, checkpointEligible, checkpointPathClear, activateCheckpoint, enterSecret, exitSecret,
   mercyRetriesEnabled, updateDescentMercy,
   gainHealth, hurtPlayer, killPlayer,
-  bloomPlacement, spawnBloom, breakSlamTiles, doSlam, openingLessonLines,
+  bloomPlacement, spawnBloom, breakSlamTiles, doSlam, openingLessonLines, addResonance, sporeBurst, doFlutterJump,
   bossStartAttack, bossLanded, nextRootTier, cameraTargetX, rootCameraCenterY,
   draw, drawBossWarnings, frame, g, moveAxis, resize, respawn,
   restartCurrentChamber, solidBlocked, spawnShoggoth, startPracticeRun, tick, touchingWallDir,
@@ -450,7 +450,7 @@ test("focus loss pauses play, clears stale controls, and requires neutral re-ent
   assert.equal(element("btnJump").classList.contains("pressed"), false);
   assert.deepEqual({ ...api.readInput() }, {
     ax: 0, ay: 0, jumpDown: false, jumpEdge: false, dashEdge: false,
-    pauseEdge: false, startEdge: false, talkEdge: false, dailyEdge: false, boardEdge: false,
+    pauseEdge: false, startEdge: false, talkEdge: false, burstEdge: false, dailyEdge: false, boardEdge: false,
   });
 
   for (const handler of events.get("focus") || []) handler();
@@ -2427,7 +2427,7 @@ test("the visible patch history uses plain factual copy", () => {
   const { api } = bootGame();
   const retiredBossName = new RegExp(["niki", "ta", "bo", "ar"].join("\\s*"), "i");
   const reviewPlacementCopy = /(?:review|reviews).*(?:added|joined|linked|quote|order|top|opens?)/i;
-  assert.match(api.PATCH_NOTES[0].v, /^V4\.6/);
+  assert.match(api.PATCH_NOTES[0].v, /^V5\.0/);
   assert.doesNotMatch(html, retiredBossName, "the Boar Pit boss stays unnamed in player-facing copy");
   assert.match(html, /fillText\("THE BOAR PIT"/, "the boss entrance names the chamber instead");
   for (const block of api.PATCH_NOTES) {
@@ -2486,4 +2486,72 @@ test("touch-size canvas stays inside portrait and landscape viewports", () => {
     assert.ok(Number.parseFloat(api.canvas.style.height) <= height);
     assert.ok(Math.abs(api.canvas.width / api.canvas.height - 16 / 9) < 0.01);
   }
+});
+
+test("Adventure resonance gates burst, clears ordinary foes, and leaves bosses intact", () => {
+  const { api } = bootGame();
+  api.startPracticeRun(1);
+  api.S.bannerT = 0;
+  api.S.enemies = [{ t: "slug", x: api.S.player.x + 12, y: api.S.player.y, w: 12, h: 8, dead: false }];
+  api.S.boss = { kind: "barrow", pips: 3, state: "recover" };
+  assert.equal(api.sporeBurst(), false, "burst requires a full meter");
+  api.S.player.resonance = api.RESONANCE_MAX;
+  const bossPips = api.S.boss.pips;
+  assert.equal(api.sporeBurst(), true);
+  assert.equal(api.S.player.resonance, 0);
+  assert.equal(api.S.player.spores, api.MAX_SPORES);
+  assert.equal(api.S.player.canDash, true);
+  assert.equal(api.S.boss.pips, bossPips, "burst never damages a boss");
+  assert.equal(api.S.enemies.every(enemy => enemy.dead), true);
+});
+
+test("resonance and flutter reset at respawn, while Timed Run stays unchanged", () => {
+  const { api: adventure } = bootGame();
+  adventure.startPracticeRun(1);
+  adventure.S.player.resonance = 73;
+  adventure.S.player.resonanceChain = 4;
+  adventure.respawn();
+  assert.equal(adventure.S.player.resonance, 0);
+  assert.equal(adventure.S.player.resonanceChain, 0);
+  assert.equal(adventure.S.player.flutterReady, true);
+
+  const { api: timed } = bootGame({ initialStorage: { sd_run_mode: "speedrun" } });
+  timed.startTitleRun();
+  timed.S.player.resonance = 0;
+  assert.equal(timed.addResonance(100), 0);
+  timed.S.player.resonance = timed.RESONANCE_MAX;
+  assert.equal(timed.sporeBurst(), false);
+});
+
+test("flutter jump requires an airborne release and consumes its one charge", () => {
+  const { api } = bootGame();
+  api.startTitleRun();
+  const p = api.S.player;
+  p.grounded = false; p.vy = 80; p.flutterReady = true; p.flutterArmed = true; p.flutterUsed = false; p.resonanceChain = 3;
+  api.doFlutterJump(p);
+  assert.equal(p.flutterReady, false);
+  assert.equal(p.flutterUsed, true);
+  assert.equal(p.vy < 0, true);
+});
+
+test("tick input accepts one released flutter jump and burst prevents armed mine projectiles", () => {
+  const { api } = bootGame();
+  api.startPracticeRun(1);
+  const p = api.S.player;
+  p.grounded = false; p.vy = 80; p.flutterReady = true; p.flutterArmed = true; p.flutterUsed = false;
+  api.just.Space = true;
+  api.keys.Space = true;
+  api.tick(api.FIXED_DT);
+  assert.equal(p.flutterUsed, true);
+  const before = p.vy;
+  api.just.Space = true;
+  api.tick(api.FIXED_DT);
+  assert.equal(p.vy > before - 40, true, "a second press cannot flutter again");
+
+  api.S.player.resonance = api.RESONANCE_MAX;
+  api.S.enemies = [{ t: "mine", x: p.x, y: p.y, w: 10, h: 10, cx: p.x, cy: p.y, armT: api.FIXED_DT / 2, ph: 0, dead: false }];
+  api.sporeBurst();
+  api.tick(api.FIXED_DT);
+  assert.equal(api.S.eshots.length, 0);
+  assert.equal(api.S.score.freed, 1);
 });

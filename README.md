@@ -1,10 +1,14 @@
 # Sporeling Dash
 
-A fungal platformer built in a single HTML file.
+A fungal platformer with a single-file game engine and a painted environment asset.
+
+The V5 remake adds a bioluminescent cathedral backdrop, illustrated mushroom characters and blooms, smooth lighting, richer stone and moss, and a four-times-resolution drawing buffer. Gameplay stays strictly 2D. The procedural backdrop remains available if the image cannot load.
 
 The Mother Bloom has gone quiet. Dash in mid-air and a mushroom platform grows under your landing path. Jump from it and dash again before it wilts.
 
 The main Adventure crosses 15 chambers. It introduces wall-cling, spore-glide, cracked floors, and the straight-down slam before a four-boss route through Barrow, the Chorus, the Boar Pit, and the Unbloomed/Shoggoth finale. Two hidden rooms, four persistent keepsakes, the Pale Root, and The Reach sit outside that route.
+
+Adventure also has Resonance: bounce or dash through ordinary enemies and chain blooms to fill the meter. At full charge, press Q, gamepad Y, or the touch burst button for a radial burst that clears nearby ordinary enemies, restores dash and blooms, and lifts you upward. A released and re-pressed jump provides one midair flutter jump; solid landings refresh it.
 
 **Play:** https://thoughtcrimegpt.github.io/sporeling-dash/
 
@@ -71,13 +75,14 @@ Four keepsakes persist on the device that found them. They are placed on the Rot
 | Move       | A / D or Left / Right | Stick / D-pad |
 | Jump       | Space / Z / K         | A / B         |
 | Dash       | Shift / J             | X / RB / LB   |
+| Spore burst (Adventure, full Resonance) | Q | Y |
 | Down-slam  | Hold Down + Dash in air | Down + Dash |
 | Finish dialogue text | E / Enter   | Y             |
 | Pause      | Esc / P               | Start         |
 
 Menus support arrows, WASD, D-pad, mouse, and touch. The title has separate Reviews, Patch Notes, and Leaderboards screens; review handles link to their X profiles. On touch screens, a compact stick and A button remain visible on the title and those auxiliary screens, which also have a large Back button. The title uses an Adventure/Timed selector and a large Play button, while pause, completion-name, and win actions are direct tap targets. Tap actions use short haptic and pressed feedback. Full mobile controls appear automatically during play and can be mirrored for left-handed use. Reduced Motion is available from the pause menu.
 
-No dependencies, no build step — open `index.html` and play.
+No dependencies or build step. Keep `assets/mycelium-cathedral.png` beside the game in its `assets` folder, then open `index.html` and play. The developer server and tests require Node.js 20 or newer.
 
 ## Development
 

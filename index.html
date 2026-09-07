@@ -16,16 +16,20 @@
   * { margin: 0; padding: 0; box-sizing: border-box; }
   html, body { width: 100%; height: 100%; background: #0a0c10; overflow: hidden; }
   body { display: flex; align-items: center; justify-content: center; touch-action: none; overscroll-behavior: none; }
+  @media (max-width: 360px) {
+    #touch:not(.menu-nav) #stick { width: 96px; height: 96px; }
+    #touch:not(.menu-nav) #nub { left: 24px; top: 24px; }
+  }
   canvas {
     display: block;
-    image-rendering: crisp-edges; image-rendering: pixelated;
+    image-rendering: auto;
     background: #0a0c10;
   }
   /* Touch controls — shown only on touch devices */
   #touch { position: fixed; inset: 0; z-index: 4; pointer-events: none;
     font-family: monospace; -webkit-user-select: none; user-select: none; }
   #touch[hidden] { display: none; }
-  #stick, #btnJump, #btnDash, #btnPause { pointer-events: auto; touch-action: none; }
+  #stick, #btnJump, #btnDash, #btnBurst, #btnPause { pointer-events: auto; touch-action: none; }
   #stick { position: fixed; left: calc(14px + env(safe-area-inset-left, 0px)); bottom: calc(16px + env(safe-area-inset-bottom, 0px)); width: 128px; height: 128px;
     border-radius: 50%; background: rgba(232,224,208,0.07); border: 2px solid rgba(232,224,208,0.22); }
   #nub { position: absolute; left: 42px; top: 42px; width: 44px; height: 44px; border-radius: 50%;
@@ -39,8 +43,12 @@
     background: rgba(144,232,176,0.12); border: 2px solid rgba(144,232,176,0.45); }
   #btnDash { right: calc(108px + env(safe-area-inset-right, 0px)); bottom: calc(16px + env(safe-area-inset-bottom, 0px)); color: rgba(240,168,136,0.85);
     background: rgba(240,168,136,0.12); border: 2px solid rgba(240,168,136,0.45); }
+  #btnBurst { position: fixed; right: calc(108px + env(safe-area-inset-right, 0px)); bottom: calc(106px + env(safe-area-inset-bottom, 0px)); width: 58px; height: 58px; border-radius: 50%;
+    display: flex; align-items: center; justify-content: center; font-size: 12px; font-weight: bold; color: rgba(240,200,120,0.9);
+    background: rgba(240,200,120,0.12); border: 2px solid rgba(240,200,120,0.45); }
   #btnJump.pressed { background: rgba(144,232,176,0.4); transform: scale(0.92); }
   #btnDash.pressed { background: rgba(240,168,136,0.4); transform: scale(0.92); }
+  #btnBurst.pressed { background: rgba(240,200,120,0.4); transform: scale(0.92); }
   #btnPause { position: fixed; top: calc(10px + env(safe-area-inset-top, 0px)); right: calc(10px + env(safe-area-inset-right, 0px)); width: 36px; height: 28px;
     border-radius: 6px; display: flex; align-items: center; justify-content: center;
     color: rgba(232,224,208,0.6); font-size: 11px;
@@ -48,10 +56,11 @@
   #touch.left-handed #stick { left: auto; right: calc(14px + env(safe-area-inset-right, 0px)); }
   #touch.left-handed #btnJump { right: auto; left: calc(18px + env(safe-area-inset-left, 0px)); }
   #touch.left-handed #btnDash { right: auto; left: calc(108px + env(safe-area-inset-left, 0px)); }
+  #touch.left-handed #btnBurst { right: auto; left: calc(108px + env(safe-area-inset-left, 0px)); }
   #touch.left-handed #btnPause { right: auto; left: calc(10px + env(safe-area-inset-left, 0px)); }
   /* Menus keep a compact stick + confirm button visible without covering the
      canvas menu. Patch Notes and Leaderboards also have their own Back tap. */
-  #touch.menu-nav #btnDash, #touch.menu-nav #btnPause { display: none; }
+  #touch.menu-nav #btnDash, #touch.menu-nav #btnBurst, #touch.menu-nav #btnPause { display: none; }
   #touch.menu-nav #stick { width: 104px; height: 104px; }
   #touch.menu-nav #nub { left: 30px; top: 30px; }
   #touch.menu-nav #btnJump, #touch.left-handed.menu-nav #btnJump {
@@ -61,6 +70,10 @@
   #rotateHint { display: none; position: fixed; top: 8px; left: 50%; transform: translateX(-50%);
     color: #e8e0d0; font: 10px monospace; background: rgba(8,12,18,0.75);
     padding: 6px 10px; border-radius: 6px; z-index: 5; pointer-events: none; }
+  @media (max-width: 480px) {
+    #btnBurst { bottom: calc(184px + env(safe-area-inset-bottom, 0px)); }
+    #touch.left-handed #btnBurst { bottom: calc(184px + env(safe-area-inset-bottom, 0px)); }
+  }
   /* Share-your-run popup */
   #share { position: fixed; inset: 0; z-index: 10; background: rgba(4,6,10,0.8);
     display: flex; align-items: center; justify-content: center; }
@@ -83,6 +96,7 @@
   <div id="stick"><div id="nub"></div></div>
   <div id="btnJump">A</div>
   <div id="btnDash">X</div>
+  <div id="btnBurst">BURST</div>
   <div id="btnPause">&#10074;&#10074;</div>
 </div>
 <div id="rotateHint">Rotate your phone for a bigger view</div>
@@ -125,6 +139,7 @@ const JUMP_CUT = 0.4;
 const COYOTE = 0.12;
 const JUMP_BUF = 0.12;
 const DASH_BUF = 0.1;      // press dash a hair early and it fires when re-armed
+const RESONANCE_MAX = 100;
 
 // Camera feel — show where you're going, don't chase where you've been
 const CAM_LOOK = 32;        // px ahead of facing (was 14 — under one tile)
@@ -828,6 +843,7 @@ function startTitleRun() {
   const startLevel = DEV ? S.devLevel : S.runMode === "adventure" ? clamp(S.advStart, 0, reachGet()) : 0;
   loadLevel(startLevel);
   S.mode = "play";
+  if (S.runMode === "adventure") S.resonanceNoticePending = true;
   if (runNotice) queueNotice(runNotice, 3.5, NOTICE_PRIORITY.RUN);
 }
 
@@ -968,6 +984,13 @@ function prefetchLeader(slot, list) {
 }
 // ── Patch notes — the cave remembers its own growth. Newest first. ─────────
 const PATCH_NOTES = [
+  { v: "V5.0  The luminous wilds", d: "2026-09-07", lines: [
+    "· Painted fungal caverns, an illustrated sporeling, luminous blooms, and richer terrain.",
+    "· Adventure adds a flutter jump: release Jump, then press it again in the air.",
+    "· Chain bloom landings and defeat enemies to charge Resonance.",
+    "· At full charge, Q, controller Y, or the touch Burst button clears nearby enemies and restores dash fuel.",
+    "· Timed Run, Pale Root, and Reach retain their original movement rules.",
+  ] },
   { v: "V4.6.7  Housekeeping", d: "2026-07-26 04:37 UTC", lines: [
     "· Every patch entry now shows its real ship time in UTC.",
     "· The credits name list stops paging once it runs out of names.",
@@ -1525,9 +1548,9 @@ function activateWinItem(id) {
 // ── Input ──────────────────────────────────────────────────────────────────
 const keys = Object.create(null);
 const just = Object.create(null);
-const padPrev = { jump: false, dash: false, pause: false };
-const TOUCH = { active: false, ax: 0, ay: 0, jump: false, dash: false, pause: false };
-const touchPrev = { jump: false, dash: false, pause: false };
+const padPrev = { jump: false, dash: false, pause: false, y: false, burst: false };
+const TOUCH = { active: false, ax: 0, ay: 0, jump: false, dash: false, burst: false, pause: false };
+const touchPrev = { jump: false, dash: false, burst: false, pause: false };
 let focusInputLock = false;
 let focusReady = true;
 let leftHanded = false;
@@ -1648,6 +1671,7 @@ function readInput() {
   let pauseEdge = !!(just.Escape || just.KeyP);
   let startEdge = !!(just.Enter || just.Space);
   let talkEdge = !!(just.Enter || just.KeyE);
+  let burstEdge = !!just.KeyQ;
   let dailyEdge = !!just.KeyD;
   let boardEdge = !!just.KeyL;
 
@@ -1687,7 +1711,11 @@ function readInput() {
     }
     if ((x || rb || lb) && !padPrev.dash) dashEdge = true;
     if (st && !padPrev.pause) { pauseEdge = true; startEdge = true; }
-    if (y && !padPrev.y) { dailyEdge = true; talkEdge = true; }
+    if (y && !padPrev.y) {
+      dailyEdge = true;
+      if (S.mode === "play") { if (S.talk) talkEdge = true; else burstEdge = true; }
+      else talkEdge = true;
+    }
     if (sel && !padPrev.sel) boardEdge = true;
     padPrev.jump = a || b; padPrev.dash = x || rb || lb; padPrev.pause = st;
     padPrev.y = y; padPrev.sel = sel;
@@ -1703,8 +1731,9 @@ function readInput() {
     if (TOUCH.pause) pauseDown = true;
     if (TOUCH.jump && !touchPrev.jump) { jumpEdge = true; startEdge = true; }
     if (TOUCH.dash && !touchPrev.dash) dashEdge = true;
+    if (TOUCH.burst && !touchPrev.burst) burstEdge = true;
     if (TOUCH.pause && !touchPrev.pause) pauseEdge = true;
-    touchPrev.jump = TOUCH.jump; touchPrev.dash = TOUCH.dash; touchPrev.pause = TOUCH.pause;
+    touchPrev.jump = TOUCH.jump; touchPrev.dash = TOUCH.dash; touchPrev.burst = TOUCH.burst; touchPrev.pause = TOUCH.pause;
   }
 
   const len = Math.hypot(ax, ay);
@@ -1718,10 +1747,10 @@ function readInput() {
     if (focusReady && neutral) focusInputLock = false;
     return {
       ax: 0, ay: 0, jumpDown: false, jumpEdge: false, dashEdge: false,
-      pauseEdge: false, startEdge: false, talkEdge: false, dailyEdge: false, boardEdge: false,
+      pauseEdge: false, startEdge: false, talkEdge: false, burstEdge: false, dailyEdge: false, boardEdge: false,
     };
   }
-  return { ax, ay, jumpDown, jumpEdge, dashEdge, pauseEdge, startEdge, talkEdge, dailyEdge, boardEdge };
+  return { ax, ay, jumpDown, jumpEdge, dashEdge, pauseEdge, startEdge, talkEdge, burstEdge, dailyEdge, boardEdge };
 }
 
 function clearJust() { for (const k in just) delete just[k]; }
@@ -1730,13 +1759,13 @@ function releaseTransientInput() {
   for (const k in keys) delete keys[k];
   clearJust();
   TOUCH.ax = 0; TOUCH.ay = 0;
-  TOUCH.jump = false; TOUCH.dash = false; TOUCH.pause = false;
-  touchPrev.jump = false; touchPrev.dash = false; touchPrev.pause = false;
+  TOUCH.jump = false; TOUCH.dash = false; TOUCH.burst = false; TOUCH.pause = false;
+  touchPrev.jump = false; touchPrev.dash = false; touchPrev.burst = false; touchPrev.pause = false;
   padPrev.jump = false; padPrev.dash = false; padPrev.pause = false;
   padPrev.y = false; padPrev.sel = false;
   const nub = document.getElementById("nub");
   if (nub) nub.style.transform = "";
-  for (const id of ["btnJump", "btnDash", "btnPause"])
+  for (const id of ["btnJump", "btnDash", "btnBurst", "btnPause"])
     document.getElementById(id)?.classList.remove("pressed");
 }
 
@@ -1814,6 +1843,7 @@ function setupTouch() {
   }
   bindBtn("btnJump", "jump");
   bindBtn("btnDash", "dash");
+  bindBtn("btnBurst", "burst");
   bindBtn("btnPause", "pause");
 }
 
@@ -2660,7 +2690,8 @@ function makePlayer(x, y) {
   return {
     x, y, w: 10, h: 10,
     vx: 0, vy: 0, facing: 1,
-    grounded: false, coyote: 0, jumpBuf: 0, dashBuf: 0,
+    grounded: false, coyote: 0, jumpBuf: 0, dashBuf: 0, flutterUsed: false, flutterReady: true, flutterArmed: false,
+    resonance: 0, resonanceChain: 0,
     canDash: true, spores: MAX_SPORES, chainN: 0, dashing: false, dashT: 0, dashDX: 0, dashDY: 0, slamDash: false,
     grip: GRIP_TIME, wallDir: 0, wallCoyote: 0, wjLock: 0, gliding: false, sliding: false,
     anim: "idle", animT: 0, frame: 0,
@@ -2893,6 +2924,39 @@ function loadLevel(idx) {
   beginDevAttempt();
 }
 
+const adventureMechanics = () => S.runMode === "adventure";
+function addResonance(amount, chain = false) {
+  if (!adventureMechanics() || !S.player) return 0;
+  const p = S.player;
+  p.resonance = clamp((p.resonance || 0) + amount, 0, RESONANCE_MAX);
+  if (chain) p.resonanceChain = (p.resonanceChain || 0) + 1;
+  return p.resonance;
+}
+
+function sporeBurst(p = S.player) {
+  if (!p || !adventureMechanics() || (p.resonance || 0) < RESONANCE_MAX || p.dashing) return false;
+  p.resonance = 0;
+  p.resonanceChain = 0;
+  p.burstFlash = 0.35;
+  p.spores = MAX_SPORES;
+  p.canDash = true;
+  p.vy = -235;
+  p.grounded = false;
+  p.invuln = Math.max(p.invuln, 0.25);
+  SFX.bloom();
+  for (const e of S.enemies) {
+    if (!e.dead && Math.hypot(e.x + e.w / 2 - (p.x + p.w / 2), e.y + e.h / 2 - (p.y + p.h / 2)) < 62)
+      killEnemy(e, false);
+  }
+  p.resonance = 0;
+  for (let i = 0; i < 24; i++) {
+    const a = Math.PI * 2 * i / 24;
+    burst(p.x + p.w / 2, p.y + p.h / 2, Math.cos(a) * 110, Math.sin(a) * 110, 0.55, C.bloomHi, 2);
+  }
+  queueNotice("Spore burst! Full resonance restored your dash and blooms.", 2.2, NOTICE_PRIORITY.STATUS);
+  return true;
+}
+
 // ── Baking: sky (dithered gradient) ────────────────────────────────────────
 function bakeSky() {
   skyCv = mkCv(W, H);
@@ -2972,8 +3036,13 @@ function bakeTerrain() {
       const lfO = !isSolid(tileAt(tx - 1, ty));
       const rtO = !isSolid(tileAt(tx + 1, ty));
 
-      // Base with dithered 4x4 shade clusters
-      t.fillStyle = rock;
+      // Organic rock base. The baked surface stays at the existing 1x world
+      // resolution, keeping memory bounded for the longest chambers, while
+      // gradients and curved seams give the chunky collision mask a richer
+      // illustrated face.
+      const stone = t.createLinearGradient(px, py, px + TILE, py + TILE);
+      stone.addColorStop(0, rockHi); stone.addColorStop(0.22, rock); stone.addColorStop(1, rockLo);
+      t.fillStyle = stone;
       t.fillRect(px, py, TILE, TILE);
       for (let cy = 0; cy < 4; cy++) {
         for (let cx = 0; cx < 4; cx++) {
@@ -2989,10 +3058,31 @@ function bakeTerrain() {
         t.fillRect(px + ((r * 371) % 14 | 0) + 1, py + ((r * 733) % 14 | 0) + 1, 1, 1);
       }
 
+      // Fine mineral veins and lichen freckles are deterministic per tile,
+      // with sparse density so platforms remain visually legible.
+      const vein = rnd01(tx * 71 + ty * 113 + seed);
+      if (vein < 0.22) {
+        t.strokeStyle = "rgba(20,34,42,0.34)";
+        t.lineWidth = 1;
+        t.beginPath();
+        t.moveTo(px + 2 + vein * 7, py + 3);
+        t.quadraticCurveTo(px + 6, py + 7, px + 4 + vein * 8, py + 12);
+        t.stroke();
+        t.strokeStyle = "rgba(176,214,176,0.18)";
+        t.beginPath(); t.moveTo(px + 3, py + 4); t.lineTo(px + 5, py + 5); t.stroke();
+      } else if (vein > 0.78) {
+        t.fillStyle = "rgba(164,214,177,0.32)";
+        t.beginPath(); t.arc(px + 3 + (vein * 8 | 0), py + 4 + (vein * 7 | 0), 1, 0, Math.PI * 2); t.fill();
+      }
+
       // Edges
       if (upO) {
-        t.fillStyle = moss;
-        t.fillRect(px, py, TILE, 4);
+        const lip = t.createLinearGradient(px, py, px, py + 5);
+        lip.addColorStop(0, mossHi); lip.addColorStop(0.24, moss); lip.addColorStop(1, rock);
+        t.fillStyle = lip;
+        t.beginPath();
+        t.moveTo(px, py + 1); t.quadraticCurveTo(px + TILE / 2, py - 1, px + TILE, py + 1);
+        t.lineTo(px + TILE, py + 5); t.lineTo(px, py + 5); t.closePath(); t.fill();
         t.fillStyle = mossHi;
         t.fillRect(px, py, TILE, 1);
         for (let i = 0; i < 3; i++) {
@@ -3002,6 +3092,15 @@ function bakeTerrain() {
         // moss drip down left/right rims
         if (lfO) t.fillRect(px, py, 1, 6);
         if (rtO) t.fillRect(px + TILE - 1, py, 1, 6);
+        // Small hanging roots appear only on exposed lips and never enter the
+        // solid geometry below them.
+        const rootR = rnd01(tx * 43 + ty * 17 + seed);
+        if (rootR > 0.68) {
+          t.strokeStyle = moss;
+          t.lineWidth = 1;
+          t.beginPath(); t.moveTo(px + 3 + (rootR * 8 | 0), py + 2);
+          t.quadraticCurveTo(px + 4 + (rootR * 6 | 0), py + 5, px + 2 + (rootR * 11 | 0), py + 7 + (rootR * 3 | 0)); t.stroke();
+        }
       }
       if (dnO) {
         t.fillStyle = rockLo;
@@ -3198,7 +3297,7 @@ function moveAxis(p, dx, dy) {
       if (lift > 0 && lift <= LEDGE_ASSIST && p.vy >= -30 &&
           !solidBlocked(p.x, r.y - p.h, p.w, p.h)) {
         p.y = r.y - p.h;
-        p.grounded = true; p.canDash = true; p.spores = MAX_SPORES; p.chainN = 0; p.coyote = COYOTE;
+        p.grounded = true; p.canDash = true; p.spores = MAX_SPORES; p.chainN = 0; p.resonanceChain = 0; p.flutterUsed = false; p.flutterReady = true; p.flutterArmed = false; p.coyote = COYOTE;
         continue;
       }
       p.x = dx > 0 ? r.x - p.w : r.x + r.w;
@@ -3218,7 +3317,7 @@ function moveAxis(p, dx, dy) {
         p.grounded = true;
         // Only REAL ground (incl. moving shelves) refreshes the dash and
         // refills spores — landing on your own bloom does not
-        if (!r.oneWay || r.mover) { p.canDash = true; p.spores = MAX_SPORES; p.chainN = 0; }
+        if (!r.oneWay || r.mover) { p.canDash = true; p.spores = MAX_SPORES; p.chainN = 0; p.resonanceChain = 0; p.flutterUsed = false; p.flutterReady = true; p.flutterArmed = false; }
         p.coyote = COYOTE;
         if (p.dashing) endDash(p);
       } else {
@@ -3368,8 +3467,10 @@ function updateBloomheartSecretFuelReset(p) {
 }
 
 function killEnemy(e, byDash) {
+  if (!e || e.dead) return false;
   e.dead = true;
   S.score.freed++;
+  addResonance(byDash ? 18 : 14, true);
   // Enemies are fuel: every kill refunds a spore
   S.player.spores = Math.min(MAX_SPORES, S.player.spores + 1);
   SFX.pop();
@@ -3379,11 +3480,13 @@ function killEnemy(e, byDash) {
     burst(e.x + e.w / 2, e.y + e.h / 2, Math.cos(a) * 70, Math.sin(a) * 70 - 20, 0.45,
       i & 1 ? rgb(PAL.accent) : C.body, 2);
   }
+  return true;
 }
 
 function updateEnemies(dt) {
   const p = S.player;
   for (const e of S.enemies) {
+    if (e.dead) continue;
     if (e.t === "slug") {
       // They hesitate at the edge before turning back — the last place
       // they meant to keep going from
@@ -3604,6 +3707,7 @@ function spawnBloom(p) {
   const bx = place.x, by = place.y;
   const chain = CHAIN_WILT[Math.min(p.chainN || 0, CHAIN_WILT.length - 1)];
   p.chainN = (p.chainN || 0) + 1;
+  addResonance(10 + Math.min(p.chainN, 5) * 2, true);
   S.blooms.push({ x: bx, y: by, w: BLOOM_W, h: BLOOM_H, life: BLOOM_LIFE * chain * (dMod("brittle") ? 0.5 : 1), age: 0 });
   if (S.levelIdx === 0) S.bloomLessonDone = true;
   SFX.bloom();
@@ -3743,6 +3847,9 @@ function doWallJump(p) {
 function doJump(p) {
   p.vy = JUMP_V;
   p.grounded = false;
+  p.flutterUsed = false;
+  p.flutterArmed = false;
+  p.flutterReady = true;
   p.coyote = 0;
   p.canDash = true;   // jumping (incl. off a bloom) is what re-arms the dash
   p.jumpBuf = 0;
@@ -3753,6 +3860,20 @@ function doJump(p) {
   for (let i = 0; i < 4; i++) {
     burst(p.x + p.w / 2, p.y + p.h, (Math.random() - 0.5) * 50, -15 - Math.random() * 25, 0.22, rgb(PAL.mossHi), 1);
   }
+}
+
+function doFlutterJump(p) {
+  p.vy = JUMP_V * 0.88;
+  p.grounded = false;
+  p.flutterUsed = true;
+  p.flutterReady = false;
+  p.flutterArmed = false;
+  p.jumpBuf = 0;
+  p.squish = 1.16; p.squishT = 0.08;
+  S.jumpHeldForCut = true;
+  SFX.jump();
+  for (let i = 0; i < 5; i++)
+    burst(p.x + p.w / 2, p.y + p.h, (Math.random() - 0.5) * 60, 12 + Math.random() * 18, 0.28, rgb(PAL.accent), 1);
 }
 
 // ── Secret rooms ────────────────────────────────────────────────────────────
@@ -4896,7 +5017,7 @@ function respawn() {
   p.x = S.checkPt.x; p.y = S.checkPt.y;
   p.vx = 0; p.vy = 0;
   p.dashing = false; p.dashT = 0;
-  p.canDash = true; p.spores = MAX_SPORES; p.chainN = 0; p.grounded = false;
+  p.canDash = true; p.spores = MAX_SPORES; p.chainN = 0; p.resonance = 0; p.resonanceChain = 0; p.burstFlash = 0; p.flutterUsed = false; p.flutterReady = true; p.flutterArmed = false; p.grounded = false;
   p.grip = GRIP_TIME; p.wallCoyote = 0; p.wjLock = 0; p.gliding = false; p.sliding = false;
   p.coyote = 0; p.jumpBuf = 0; p.dashBuf = 0;
   S.health = S.maxHealth;
@@ -5335,13 +5456,14 @@ function tick(dt) {
   updateMovers(dt);
 
   const p = S.player;
+  if (inp.burstEdge) sporeBurst(p);
   const wasGrounded = p.grounded;
   p.grounded = onGround(p);
 
   if (p.grounded) {
     p.coyote = COYOTE;
     p.grip = GRIP_TIME;
-    if (!p.dashing && onRealGround(p)) { p.canDash = true; p.spores = MAX_SPORES; p.chainN = 0; }
+    if (!p.dashing && onRealGround(p)) { p.canDash = true; p.spores = MAX_SPORES; p.chainN = 0; p.resonanceChain = 0; p.flutterReady = true; p.flutterArmed = false; }
     if (!wasGrounded) {
       p.squish = 0.72; p.squishT = 0.12;
       SFX.land();
@@ -5353,7 +5475,14 @@ function tick(dt) {
     p.coyote = Math.max(0, p.coyote - dt);
   }
 
-  if (inp.jumpEdge) p.jumpBuf = JUMP_BUF;
+  if (!p.grounded && !p.dashing && !inp.jumpDown) p.flutterArmed = true;
+  if (inp.jumpEdge) {
+    p.jumpBuf = JUMP_BUF;
+    if (S.resonanceNoticePending) {
+      S.resonanceNoticePending = false;
+      queueNotice("Resonance fills from bounces, dash kills, and bloom chains. Q bursts at full charge.", 4.2, NOTICE_PRIORITY.TUTORIAL);
+    }
+  }
   else p.jumpBuf = Math.max(0, p.jumpBuf - dt);
 
   if (inp.dashEdge) p.dashBuf = DASH_BUF;
@@ -5404,6 +5533,7 @@ function tick(dt) {
     if (p.jumpBuf > 0) {
       if (p.coyote > 0) doJump(p);
       else if (wallsUnlocked() && p.wallCoyote > 0) doWallJump(p);
+      else if (adventureMechanics() && p.flutterReady && p.flutterArmed && !p.flutterUsed) doFlutterJump(p);
     }
 
     if (S.jumpHeldForCut && !inp.jumpDown && p.vy < 0) {
@@ -5448,6 +5578,7 @@ function tick(dt) {
   if (p.animT > 0.1) { p.animT = 0; p.frame = (p.frame + 1) & 3; }
 
   if (p.invuln > 0) p.invuln -= dt;
+  if (p.burstFlash > 0) p.burstFlash = Math.max(0, p.burstFlash - dt);
 
   updateReachFinalFuelReset(p);
   updateBloomheartSecretFuelReset(p);
@@ -5604,13 +5735,15 @@ function tick(dt) {
 // ── Draw ───────────────────────────────────────────────────────────────────
 const canvas = document.getElementById("game");
 const ctx = canvas.getContext("2d");
-// The buffer renders at 2x: every art pixel is still a perfect uniform
-// block (drawn as exact 2x2 cells), but text rasterizes at double
-// resolution — the same chunky world, far crisper lettering.
-const SS = 2;
+// Supersample the illustrated characters, atmosphere, and text while keeping
+// the original world coordinates and collision geometry.
+const SS = 4;
 const buf = mkCv(W * SS, H * SS);
 const g = buf.getContext("2d");
 g.scale(SS, SS);
+// Local asset with an immediate procedural fallback, including offline play.
+const cathedralArt = document.createElement("img");
+cathedralArt.src = "assets/mycelium-cathedral.png";
 let scale = 1;
 const dprWatch = { dpr: 0, mql: null };
 
@@ -5800,7 +5933,7 @@ canvas.addEventListener("mousemove", e => {
 canvas.addEventListener("mouseleave", () => { NOTES_HOVER = false; });
 
 function blit() {
-  ctx.imageSmoothingEnabled = false;
+  ctx.imageSmoothingEnabled = true;
   ctx.clearRect(0, 0, canvas.width, canvas.height);
   ctx.drawImage(buf, 0, 0, buf.width, buf.height, 0, 0, canvas.width, canvas.height);
 }
@@ -6039,6 +6172,57 @@ function draw() {
 
 function drawBackdrop() {
   g.drawImage(skyCv, 0, 0);
+  const hasPainting = cathedralArt.complete && cathedralArt.naturalWidth > 0;
+  if (hasPainting) {
+    g.save();
+    g.imageSmoothingEnabled = true;
+    const px = WORLD_W > W ? clamp(S.camX / (WORLD_W - W), 0, 1) : 0.5;
+    const py = WORLD_H > H ? clamp(S.camY / (WORLD_H - H), 0, 1) : 0.5;
+    g.drawImage(cathedralArt, -12 * px, -7 * py, W + 12, H + 7);
+    g.fillStyle = "rgba(3,12,24,0.24)";
+    g.fillRect(0, 0, W, H);
+    g.globalCompositeOperation = "soft-light";
+    g.globalAlpha = 0.4;
+    g.fillStyle = rgb(PAL.fog);
+    g.fillRect(0, 0, W, H);
+    g.restore();
+  }
+
+  // A second, painterly atmosphere pass gives the chambers depth even when a
+  // level's baked background is deliberately spare. These forms are screen
+  // space only, so they never interfere with collision readability.
+  const cave = g.createLinearGradient(0, 0, 0, H);
+  cave.addColorStop(0, "rgba(5,10,24,0.48)");
+  cave.addColorStop(0.45, "rgba(9,20,36,0.08)");
+  cave.addColorStop(1, "rgba(2,6,14,0.34)");
+  g.fillStyle = cave;
+  g.fillRect(0, 0, W, H);
+  const drift = reducedMotion ? 0 : S.time;
+  // Distant root curtains, built from smooth quadratic silhouettes.
+  g.globalAlpha = 0.24;
+  g.fillStyle = rgb(mix(PAL.mid, [8, 20, 32], 0.62));
+  for (let i = -1; i < 8; i++) {
+    const x = i * 74 - wrap(S.camX * 0.08, 74);
+    const sway = Math.sin(drift * 0.28 + i * 1.9) * 5;
+    g.beginPath();
+    g.moveTo(x, 0); g.lineTo(x + 21, 0);
+    g.quadraticCurveTo(x + 12 + sway, 30, x + 27, 67 + (i & 1) * 18);
+    g.quadraticCurveTo(x + 16, 84, x + 10, 106);
+    g.quadraticCurveTo(x + 1, 77, x + 7, 48);
+    g.closePath(); g.fill();
+  }
+  g.globalAlpha = 1;
+  // A few soft bioluminescent motes break up large dark areas.
+  if (!reducedMotion) {
+    g.globalAlpha = 0.18;
+    for (let i = 0; i < 9; i++) {
+      const x = wrap(i * 83 + S.time * (4 + i % 3) - S.camX * 0.16, W + 26) - 13;
+      const y = 34 + wrap(i * 47 + Math.sin(S.time * 0.4 + i) * 18, H - 52);
+      g.fillStyle = i & 1 ? "#9cebd0" : "#d8a8e8";
+      g.beginPath(); g.arc(x, y, 1.5 + (i % 3) * 0.5, 0, Math.PI * 2); g.fill();
+    }
+    g.globalAlpha = 1;
+  }
 
   // God rays
   g.globalAlpha = 0.05;
@@ -6057,6 +6241,7 @@ function drawBackdrop() {
   // Far layer
   const fOff = wrap(S.camX * 0.22, 480);
   const fY = Math.min(40, lag * 0.12);
+  g.globalAlpha = hasPainting ? 0.12 : 1;
   g.drawImage(farCv, -fOff, fY); g.drawImage(farCv, 480 - fOff, fY);
 
   // Fog band
@@ -6068,7 +6253,9 @@ function drawBackdrop() {
   // Mid layer
   const mOff = wrap(S.camX * 0.5, 480);
   const mY = Math.min(70, lag * 0.25);
+  g.globalAlpha = hasPainting ? 0.2 : 1;
   g.drawImage(midCv, -mOff, -mY * 0.3); g.drawImage(midCv, 480 - mOff, -mY * 0.3);
+  g.globalAlpha = 1;
 
   drawSpores("far");
 }
@@ -6081,7 +6268,9 @@ function drawSpores(layer) {
     const sy = wrap(sp.y + Math.sin(S.time * 0.6 + sp.ph) * 8 - S.camY * sp.depth, H + 24) - 12;
     g.globalAlpha = nearSp ? 0.5 : 0.28;
     g.fillStyle = nearSp ? rgb(PAL.accent) : rgb(mix(PAL.accent, PAL.mid, 0.5));
-    g.fillRect(Math.round(sx), Math.round(sy), nearSp ? 2 : 1, nearSp ? 2 : 1);
+    if (nearSp && !reducedMotion) {
+      g.beginPath(); g.arc(sx + 1, sy + 1, 1.5, 0, Math.PI * 2); g.fill();
+    } else g.fillRect(Math.round(sx), Math.round(sy), nearSp ? 2 : 1, nearSp ? 2 : 1);
   }
   g.globalAlpha = 1;
 }
@@ -6161,7 +6350,10 @@ function drawBlooms() {
     g.fillStyle = wilt ? C.wilt : C.bloomStem;
     g.fillRect(Math.round(cx - 1), Math.round(b.y + 2), 3, bh);
     g.fillStyle = wilt ? C.wilt : C.bloom;
-    g.fillRect(Math.round(cx - bw / 2), Math.round(b.y), bw, Math.max(1, bh - 1));
+    g.beginPath();
+    g.moveTo(cx - bw / 2, b.y + 2); g.quadraticCurveTo(cx - bw * 0.28, b.y - 3, cx, b.y);
+    g.quadraticCurveTo(cx + bw * 0.28, b.y - 3, cx + bw / 2, b.y + 2);
+    g.quadraticCurveTo(cx, b.y + bh + 2, cx - bw / 2, b.y + 2); g.fill();
     g.fillStyle = wilt ? "#5a4038" : C.bloomHi;
     g.fillRect(Math.round(cx - bw / 2 + 2), Math.round(b.y + 1), Math.max(1, bw - 4), 2);
     if (!wilt) {
@@ -6181,11 +6373,15 @@ function drawBlooms() {
 function drawCheckpoints() {
   for (const cp of S.checkpoints) {
     const pulse = 0.55 + Math.sin(S.time * 5) * 0.45;
+    const glow = g.createRadialGradient(cp.x + 8, cp.y + 4, 0, cp.x + 8, cp.y + 4, cp.active ? 22 : 12);
+    glow.addColorStop(0, cp.active ? "rgba(180,250,218,0.42)" : "rgba(130,170,170,0.16)");
+    glow.addColorStop(1, "rgba(130,170,170,0)"); g.fillStyle = glow;
+    g.beginPath(); g.arc(cp.x + 8, cp.y + 4, cp.active ? 22 : 12, 0, Math.PI * 2); g.fill();
     g.fillStyle = C.bloomStem;
-    g.fillRect(cp.x + 6, cp.y + 4, 4, 12);
+    g.beginPath(); g.moveTo(cp.x + 7, cp.y + 16); g.quadraticCurveTo(cp.x + 5, cp.y + 9, cp.x + 8, cp.y + 4); g.quadraticCurveTo(cp.x + 11, cp.y + 9, cp.x + 9, cp.y + 16); g.fill();
     g.fillStyle = cp.active ? rgb(PAL.accent) : rgb(mix(PAL.accent, PAL.rockLo, 0.55));
     g.globalAlpha = cp.active ? pulse : 0.75;
-    g.fillRect(cp.x + 2, cp.y, 12, 8);
+    g.beginPath(); g.ellipse(cp.x + 8, cp.y + 3, 7, 4.5, 0, 0, Math.PI * 2); g.fill();
     g.fillStyle = cp.active ? "#ffffff" : rgb(mix(PAL.accent, [255,255,255], 0.3));
     g.globalAlpha = cp.active ? pulse : 0.4;
     g.fillRect(cp.x + 4, cp.y + 1, 3, 2);
@@ -6198,9 +6394,11 @@ function drawBerries() {
   for (const ber of S.berryList) {
     if (ber.taken) continue;
     const x = ber.x, y = Math.round(ber.y + bob);
+    const glow = g.createRadialGradient(x + 4, y + 4, 0, x + 4, y + 4, 8);
+    glow.addColorStop(0, "rgba(240,128,152,0.42)"); glow.addColorStop(1, "rgba(240,128,152,0)");
+    g.fillStyle = glow; g.beginPath(); g.arc(x + 4, y + 4, 8, 0, Math.PI * 2); g.fill();
     g.fillStyle = C.berry;
-    g.fillRect(x + 1, y + 2, 6, 6);
-    g.fillRect(x + 2, y + 1, 4, 8);
+    g.beginPath(); g.arc(x + 4, y + 5, 4, 0, Math.PI * 2); g.fill();
     g.fillStyle = C.berryHi;
     g.fillRect(x + 2, y + 3, 2, 2);
     g.fillStyle = C.leaf;
@@ -6227,9 +6425,9 @@ function drawGoal() {
   if (open < 0.15) {
     const sway = Math.sin(S.time * 1.5) * 1;
     g.fillStyle = C.goalClosed;
-    g.fillRect(Math.round(go.x + 4 + sway), go.y + 4, 8, 12);
+    g.beginPath(); g.ellipse(Math.round(go.x + 8 + sway), go.y + 10, 5, 7, 0, 0, Math.PI * 2); g.fill();
     g.fillStyle = "#503040";
-    g.fillRect(Math.round(go.x + 6 + sway), go.y + 6, 4, 8);
+    g.beginPath(); g.ellipse(Math.round(go.x + 8 + sway), go.y + 10, 2, 4, 0, 0, Math.PI * 2); g.fill();
     g.fillStyle = C.goalOpen;
     g.fillRect(Math.round(go.x + 6 + sway), go.y + 4, 4, 2);
   } else {
@@ -7403,73 +7601,120 @@ function drawBoss() {
 
 function drawTrail() {
   for (const t of S.trail) {
-    g.globalAlpha = (t.life / t.max) * 0.4;
-    g.fillStyle = C.bloomHi;
-    g.fillRect(Math.round(t.x) - 1, Math.round(t.y) - 2, 12, 5);
-    g.fillRect(Math.round(t.x), Math.round(t.y) + 1, 10, 9);
+    const a = (t.life / t.max) * 0.4;
+    g.globalAlpha = a;
+    const grad = g.createRadialGradient(t.x + 5, t.y + 4, 0, t.x + 5, t.y + 4, 9);
+    grad.addColorStop(0, C.bloomHi);
+    grad.addColorStop(1, "rgba(240,168,136,0)");
+    g.fillStyle = grad;
+    g.beginPath(); g.ellipse(t.x + 5, t.y + 4, 9, 5, 0, 0, Math.PI * 2); g.fill();
   }
   g.globalAlpha = 1;
 }
 
 function drawPlayer() {
   const p = S.player;
-  let map;
-  if (p.anim === "run") map = SPRITES["run" + ((p.frame & 3) + 1)];
-  else if (p.anim === "jump" || p.anim === "dash") map = SPRITES.jump;
-  else if (p.anim === "fall" || p.anim === "glide" || p.anim === "slide") map = SPRITES.fall;
-  else map = (p.frame === 3) ? SPRITES.idle2 : SPRITES.idle1;
-
+  const moving = p.anim === "run" || p.anim === "jump" || p.anim === "dash";
+  const blink = p.frame === 3;
+  const bob = reducedMotion ? 0 : Math.sin(S.time * (moving ? 11 : 3.2)) * (moving ? 0.55 : 0.3);
   g.save();
-  g.translate(Math.round(p.x + 5), Math.round(p.y + 5));
-  const sx = (p.anim === "dash" ? 1.25 : 1) * (2 - p.squish);
+  g.translate(p.x + p.w / 2, p.y + p.h - Math.abs(bob));
+  const sx = (p.anim === "dash" ? 1.24 : 1) * (2 - p.squish);
   const sy = (p.anim === "dash" ? 0.8 : 1) * p.squish;
   g.scale(sx, sy);
-  if (p.dashing || p.anim === "dash") {
-    g.fillStyle = C.bloomHi;
-    g.globalAlpha = 0.35;
-    g.fillRect(-8, -7, 16, 14);
+  // Scale from the feet so squash, stretch, and idle breathing cannot draw
+  // the character through the collision surface.
+  g.translate(0, -8.7);
+
+  // Luminous silhouette: a warm core, a translucent halo, then a hand-drawn
+  // cap and stem. The canvas paths make the hero read as an illustration at
+  // any display scale while its footprint stays the original 10x14 sprite.
+  const halo = g.createRadialGradient(0, 0, 1, 0, 0, p.anim === "dash" ? 15 : 10);
+  halo.addColorStop(0, "rgba(255,236,188,0.62)");
+  halo.addColorStop(0.45, "rgba(240,168,136,0.22)");
+  halo.addColorStop(1, "rgba(240,168,136,0)");
+  g.fillStyle = halo;
+  g.beginPath(); g.arc(0, 0, p.anim === "dash" ? 15 : 10, 0, Math.PI * 2); g.fill();
+  // Optional movement abilities can add their own readable signature without
+  // coupling this renderer to the physics implementation.
+  const burst = Math.max(0, Number(p.burstFlash) || 0);
+  const resonance = clamp((Number(p.resonance) || 0) / 100, 0, 1);
+  if ((burst > 0 || resonance > 0) && !reducedMotion) {
+    g.globalAlpha = Math.min(0.75, burst * 2 + resonance * 0.35);
+    g.strokeStyle = burst > 0 ? "#fff0b5" : "#9cebd0";
+    g.lineWidth = 1;
+    g.beginPath(); g.arc(0, 0, burst > 0 ? 14 + (1 - Math.min(1, burst / 0.5)) * 38 : 11 + resonance * 2, 0, Math.PI * 2); g.stroke();
     g.globalAlpha = 1;
   }
-  drawMap(g, map, -6, -7, p.facing < 0);
+  if (p.dashing || p.anim === "dash") {
+    g.globalAlpha = 0.55;
+    g.fillStyle = "#f8b8a0";
+    g.beginPath(); g.ellipse(-p.facing * 9, 1, 10, 3, 0, 0, Math.PI * 2); g.fill();
+    g.globalAlpha = 1;
+  }
+
+  const stem = g.createLinearGradient(-4, -1, 4, 8);
+  stem.addColorStop(0, "#fff1ca"); stem.addColorStop(0.55, "#d9b67c"); stem.addColorStop(1, "#a66d5d");
+  g.fillStyle = stem;
+  g.beginPath();
+  g.moveTo(-3.8, -1); g.quadraticCurveTo(-4.5, 3, -3, 7.2);
+  g.quadraticCurveTo(0, 9.3, 3.5, 7.1); g.quadraticCurveTo(4.4, 3, 3, -1); g.closePath(); g.fill();
+  g.fillStyle = "rgba(255,250,215,0.65)";
+  g.beginPath(); g.ellipse(-1.5, 2.5, 1.2, 3.4, -0.2, 0, Math.PI * 2); g.fill();
+
+  const cap = g.createLinearGradient(0, -9, 0, -2);
+  cap.addColorStop(0, "#f7b1a1"); cap.addColorStop(0.5, "#c56f86"); cap.addColorStop(1, "#723f62");
+  g.fillStyle = cap;
+  g.beginPath();
+  g.moveTo(-8, -2); g.quadraticCurveTo(-7, -8, 0, -9.5);
+  g.quadraticCurveTo(7, -8, 8, -2); g.quadraticCurveTo(3, -0.3, 0, -1.4);
+  g.quadraticCurveTo(-4, -0.3, -8, -2); g.closePath(); g.fill();
+  g.fillStyle = "rgba(255,219,194,0.9)";
+  g.beginPath(); g.ellipse(-2.3, -6.1, 1.6, 2.1, -0.35, 0, Math.PI * 2); g.fill();
+  g.beginPath(); g.ellipse(3.1, -4.3, 0.9, 1.2, 0.2, 0, Math.PI * 2); g.fill();
+  g.fillStyle = "rgba(255,238,207,0.72)";
+  g.fillRect(-5.2, -2.3, 10.4, 1);
+
+  // Face and feet remain high contrast for platforming readability.
+  g.fillStyle = "#30253a";
+  const faceX = p.facing < 0 ? -2.7 : 0.6;
+  g.fillRect(faceX, 0.4, 1.25, blink ? 0.5 : 1.8);
+  g.fillRect(faceX + 3.3, 0.4, 1.25, blink ? 0.5 : 1.8);
+  g.fillStyle = "#fff8d8"; g.fillRect(faceX + 0.2, 0.5, 0.45, 0.55);
+  g.fillStyle = "#825064";
+  g.beginPath(); g.ellipse(-2.5, 7.6, 2.2, 1.1, 0, 0, Math.PI * 2); g.fill();
+  g.beginPath(); g.ellipse(2.4, 7.6, 2.2, 1.1, 0, 0, Math.PI * 2); g.fill();
   if (p.anim === "glide") {
-    // The cap inflates into a parasol
-    g.fillStyle = C.capLo;
-    g.fillRect(-8, -7, 16, 2);
-    g.fillStyle = C.cap;
-    g.fillRect(-8, -9, 16, 2);
-    g.fillRect(-7, -11, 14, 2);
-    g.fillRect(-5, -12, 10, 1);
-    g.fillStyle = C.capHi;
-    g.fillRect(-4, -11, 5, 2);
-    g.fillRect(-7, -9, 2, 1);
-    g.fillStyle = C.capSpot;
-    g.fillRect(3, -10, 2, 2);
+    g.strokeStyle = "rgba(255,238,207,0.8)"; g.lineWidth = 0.8;
+    g.beginPath(); g.arc(0, -3, 10, Math.PI, 0); g.stroke();
+    g.fillStyle = "rgba(255,255,220,0.65)"; g.fillRect(-0.5, -1, 1, 3);
   }
   if (p.anim === "slide") {
-    // Mycelial threads gripping the wall
-    g.fillStyle = rgb(PAL.mossHi);
+    g.strokeStyle = rgb(PAL.mossHi); g.lineWidth = 0.7;
     const wx = p.wallDir > 0 ? 5 : -7;
-    g.fillRect(wx, -3, 2, 1);
-    g.fillRect(wx, 1, 2, 1);
-    g.fillRect(wx, 5, 2, 1);
-  }
-  if (p.anim === "idle" && (p.frame & 1) === 0) {
-    g.fillStyle = "#c4a878";
-    g.fillRect(6, -9, 1, 1);
+    for (let i = -3; i <= 5; i += 4) { g.beginPath(); g.moveTo(wx, i); g.lineTo(wx + (p.wallDir > 0 ? 3 : -3), i + 1); g.stroke(); }
   }
   g.restore();
 }
 
 function drawParticles() {
   for (const pt of S.particles) {
-    g.globalAlpha = Math.max(0, pt.life / pt.max);
+    const life = Math.max(0, pt.life / pt.max);
+    g.globalAlpha = life;
     g.fillStyle = pt.col;
-    g.fillRect(pt.x | 0, pt.y | 0, pt.s, pt.s);
+    if (pt.s >= 2 && !reducedMotion) {
+      const r = Math.max(2, pt.s * 2.2);
+      const glow = g.createRadialGradient(pt.x, pt.y, 0, pt.x, pt.y, r);
+      glow.addColorStop(0, pt.col);
+      glow.addColorStop(1, "rgba(255,255,255,0)");
+      g.fillStyle = glow;
+      g.beginPath(); g.arc(pt.x, pt.y, r, 0, Math.PI * 2); g.fill();
+    } else g.fillRect(pt.x | 0, pt.y | 0, pt.s, pt.s);
   }
   g.globalAlpha = 1;
 }
 
-// ── Lighting (posterized, half-res for pixel chunk) ────────────────────────
+// ── Lighting (smooth falloff in a small compositing buffer) ────────────────
 const LSC = 2;
 const darkCv = mkCv(W / LSC, H / LSC);
 const dctx = darkCv.getContext("2d");
@@ -7539,13 +7784,15 @@ function collectLights() {
 }
 
 function ringCircle(cc, sx, sy, r, alphaBase, colPrefix) {
-  const steps = [1, 0.62, 0.34];
-  for (const st of steps) {
-    cc.fillStyle = colPrefix + (alphaBase * 0.4) + ")";
-    cc.beginPath();
-    cc.arc(sx, sy, r * st, 0, Math.PI * 2);
-    cc.fill();
-  }
+  if (!(r > 0)) return;
+  const falloff = cc.createRadialGradient(sx, sy, 0, sx, sy, r);
+  falloff.addColorStop(0, colPrefix + Math.min(1, alphaBase) + ")");
+  falloff.addColorStop(0.38, colPrefix + Math.min(1, alphaBase * 0.5) + ")");
+  falloff.addColorStop(1, colPrefix + "0)");
+  cc.fillStyle = falloff;
+  cc.beginPath();
+  cc.arc(sx, sy, r, 0, Math.PI * 2);
+  cc.fill();
 }
 
 function drawLighting(ox, oy) {
@@ -7571,7 +7818,7 @@ function drawLighting(ox, oy) {
     if (L.ga) ringCircle(gctx, sx, sy, r, L.ga * 2.2, "rgba(" + L.col + ",");
   }
 
-  g.imageSmoothingEnabled = false;
+  g.imageSmoothingEnabled = true;
   g.drawImage(darkCv, 0, 0, lw, lh, 0, 0, W, H);
   g.globalCompositeOperation = "lighter";
   g.drawImage(glowCv, 0, 0, lw, lh, 0, 0, W, H);
@@ -7591,11 +7838,11 @@ function drawForeground() {
     for (let j = 0; j < n; j++) {
       const bx = x + rnd01(i * 31 + j) * 30;
       const hgt = 5 + rnd01(i * 13 + j * 5) * 9;
-      const sway = Math.sin(S.time * 1.6 + i + j) * 1.2;
+      const sway = reducedMotion ? 0 : Math.sin(S.time * 1.6 + i + j) * 1.2;
       g.beginPath();
       g.moveTo(bx - 2, H + 1);
-      g.lineTo(bx + sway, H - hgt);
-      g.lineTo(bx + 2, H + 1);
+      g.quadraticCurveTo(bx - 5, H - hgt, bx + sway + 1, H - hgt);
+      g.quadraticCurveTo(bx + 4, H - hgt + 3, bx + 2, H + 1);
       g.closePath(); g.fill();
     }
   }
@@ -7606,7 +7853,7 @@ function drawForeground() {
     const x = k * per2 - off2, i = base2 + k;
     if (rnd01(i * 5) > 0.6) continue;
     const len = 8 + rnd01(i * 3) * 14;
-    const sway = Math.sin(S.time * 1.3 + i) * 1.5;
+    const sway = reducedMotion ? 0 : Math.sin(S.time * 1.3 + i) * 1.5;
     g.fillRect(Math.round(x + sway), -1, 2, Math.round(len));
     g.fillRect(Math.round(x + sway * 1.4), Math.round(len - 3), 2, 3);
   }
@@ -7667,8 +7914,10 @@ function drawOke() {
 function drawHUD() {
   const p = S.player;
   if (!p) return;
-  g.fillStyle = "rgba(8,12,18,0.68)";
-  g.fillRect(4, 4, 116, 29);
+  g.fillStyle = "rgba(5,16,24,0.88)";
+  g.fillRect(4, 4, 132, 29);
+  g.fillStyle = "rgba(142,243,211,0.45)";
+  g.fillRect(4, 4, 1, 29);
   g.fillStyle = C.ui;
   g.font = "bold 7px monospace";
   g.textAlign = "left";
@@ -7688,6 +7937,31 @@ function drawHUD() {
   }
   g.fillStyle = p.canDash || p.dashing || p.grounded ? C.bloomHi : C.uiDim;
   g.fillText(p.canDash || p.dashing || p.grounded ? "DASH READY" : "DASH SPENT", 77, 27);
+  if (!competitiveRun()) {
+    const charge = clamp(p.resonance || 0, 0, 100);
+    const ready = charge >= 100;
+    g.fillStyle = "rgba(5,16,24,0.88)";
+    g.fillRect(4, 35, 132, 22);
+    g.fillStyle = ready ? "#dcffae" : "#a1e5d8";
+    g.font = "bold 6px monospace";
+    const burstKey = gp() ? "Y" : TOUCH.active ? "BURST" : "Q";
+    g.fillText(ready ? burstKey + ": SPORE BURST READY" : "RESONANCE " + Math.floor(charge) + "%", 8, 43);
+    g.fillStyle = "#18373e";
+    g.fillRect(8, 47, 82, 3);
+    const energy = g.createLinearGradient(8, 0, 90, 0);
+    energy.addColorStop(0, "#49beb9");
+    energy.addColorStop(1, "#d9ff9f");
+    g.fillStyle = energy;
+    g.fillRect(8, 47, 82 * charge / 100, 3);
+    g.fillStyle = p.flutterReady ? "#c9f6e9" : "#687e88";
+    g.font = "5px monospace";
+    g.fillText(p.flutterReady ? "FLUTTER +" : "FLUTTER -", 96, 50);
+    if ((p.resonanceChain || 0) > 1) {
+      g.fillStyle = "#d9ff9f";
+      g.font = "bold 6px monospace";
+      g.fillText(p.resonanceChain + "x", 118, 43);
+    }
+  }
   // The Reach has no collectible track. Its HUD is only movement and survival.
   if (!S.reachTrial) {
     // Berries are a collectible, not survival state, so they remain separate.
@@ -7964,18 +8238,27 @@ function drawLevelLesson() {
 }
 
 function decorMush(x, y, s) {
-  g.fillStyle = C.bloomStem;
-  g.fillRect(x - s, y - 8 * s, 3 * s, 10 * s);
-  g.fillStyle = C.cap;
-  g.fillRect(x - 6 * s, y - 14 * s, 12 * s, 7 * s);
-  g.fillStyle = C.capHi;
-  g.fillRect(x - 4 * s, y - 13 * s, 3 * s, 2 * s);
+  const pulse = reducedMotion ? 0 : Math.sin(S.time * 2 + x * 0.03) * 0.5;
+  const halo = g.createRadialGradient(x, y - 9 * s, 0, x, y - 9 * s, 17 * s);
+  halo.addColorStop(0, "rgba(240,168,136,0.34)"); halo.addColorStop(1, "rgba(240,168,136,0)");
+  g.fillStyle = halo; g.beginPath(); g.arc(x, y - 9 * s, 17 * s, 0, Math.PI * 2); g.fill();
+  g.fillStyle = "#d8b982";
+  g.beginPath(); g.ellipse(x, y - 4 * s, 2.2 * s, 7 * s, 0, 0, Math.PI * 2); g.fill();
+  const cap = g.createLinearGradient(x, y - 15 * s, x, y - 7 * s);
+  cap.addColorStop(0, "#f4b29e"); cap.addColorStop(1, "#834b68"); g.fillStyle = cap;
+  g.beginPath(); g.ellipse(x, y - 10 * s + pulse, 7 * s, 4 * s, 0, Math.PI, Math.PI * 2); g.fill();
+  g.fillStyle = "rgba(255,236,207,0.9)";
+  g.beginPath(); g.ellipse(x - 2.5 * s, y - 12 * s + pulse, 1.2 * s, 1.6 * s, -0.3, 0, Math.PI * 2); g.fill();
 }
 
 function drawTitle() {
-  g.drawImage(skyCv, 0, 0);
-  g.drawImage(farCv, 0, 0);
-  g.drawImage(midCv, 0, 0);
+  drawBackdrop();
+  const titleShade = g.createLinearGradient(0, 0, W, 0);
+  titleShade.addColorStop(0, "rgba(3,11,23,0.85)");
+  titleShade.addColorStop(0.57, "rgba(3,11,23,0.62)");
+  titleShade.addColorStop(1, "rgba(3,11,23,0.76)");
+  g.fillStyle = titleShade;
+  g.fillRect(0, 0, W, H);
   drawSpores("far");
   drawSpores("near");
 
@@ -8595,6 +8878,17 @@ function applyDevFixture() {
     S.mode = "play";
     S.bannerT = 0;
     updateNoticeQueue(0);
+    return true;
+  }
+
+  if (fixture === "resonance") {
+    S.runMode = "adventure";
+    configureRunRules("adventure");
+    openLevel(0);
+    placePlayer(22 * TILE, 8 * TILE);
+    S.player.resonance = RESONANCE_MAX;
+    S.player.resonanceChain = 5;
+    S.enemies = [{ t: "slug", x: S.player.x + 20, y: S.player.y, w: 12, h: 8, dir: 1, speed: 0, dead: false }];
     return true;
   }
 
