@@ -139,6 +139,7 @@
     </div>
   </div>
 </div>
+<script src="ui/display.js"></script>
 <script src="ui/menus.js"></script>
 <script src="ui/play-overlay.js"></script>
 <script>
@@ -1030,6 +1031,10 @@ function prefetchLeader(slot, list) {
 }
 // ── Patch notes — the cave remembers its own growth. Newest first. ─────────
 const PATCH_NOTES = [
+  { v: "V5.1.2  More cave, less HUD", d: "2026-09-07 23:58 UTC", lines: [
+    "· Full screen is available from the title and pause menus, or with F on a keyboard.",
+    "· The HUD stays compact when the game window grows, including in fullscreen and on Retina displays.",
+  ] },
   { v: "V5.1.1  A quieter HUD", d: "2026-09-07 23:50 UTC", lines: [
     "· A compact glass HUD with health and bloom icons, a thin Resonance meter, and subtle ability indicators.",
     "· The Burst button prompt appears only when the ability is ready.",
@@ -8031,9 +8036,20 @@ function drawHUD() {
   const charge = clamp(p.resonance || 0, 0, RESONANCE_MAX);
   const burstReady = charge >= RESONANCE_MAX;
   const dashReady = p.canDash || p.dashing || p.grounded;
+  // The world grows to fit the window; the HUD stays about 164 CSS pixels
+  // wide, including on Retina screens and in fullscreen.
+  const screenScale = scale / (window.devicePixelRatio || 1);
+  const hudScale = Math.min(1, 1.55 / screenScale);
+  const inset = 12 / screenScale;
+  const anchor = (x, y, edgeX, edgeY) => {
+    g.save();
+    g.translate(edgeX, edgeY);
+    g.scale(hudScale, hudScale);
+    g.translate(-x, -y);
+  };
   // One quiet glass strip. Icons carry the persistent state; only a charged
   // ability gets a call to action. Keep the level visible through the backing.
-  g.save();
+  anchor(6, 6, inset, inset);
   g.beginPath();
   g.roundRect(6, 6, 106, adventure ? 30 : 18, 5);
   g.fillStyle = "rgba(5,17,24,0.46)";
@@ -8089,6 +8105,7 @@ function drawHUD() {
   // The Reach has no collectible track. Its HUD is only movement and survival.
   g.textAlign = "left";
   if (!S.reachTrial) {
+    anchor(W - 4, 4, W - inset, inset);
     // Berries are a collectible, not survival state, so they remain separate.
     g.fillStyle = "rgba(8,12,18,0.55)";
     g.fillRect(W - 50, 4, 46, 12);
@@ -8104,9 +8121,11 @@ function drawHUD() {
     g.fillStyle = C.goalOpen;
     g.font = "bold 6px monospace";
     g.fillText("KEEPSAKES " + S.keepsakes.length + "/" + TOTAL_KEEPSAKES, W - 67, 26);
+    g.restore();
   }
 
   // Boss thorn pips
+  anchor(W / 2, 4, W / 2, inset);
   if (S.boss && S.boss.state !== "defeated") {
     g.fillStyle = "rgba(8,12,18,0.55)";
     g.fillRect(W / 2 - 22, 4, 44, 12);
@@ -8129,6 +8148,7 @@ function drawHUD() {
     g.fillText(fmtMs(S.score.time * 1000), W / 2, ty + 8);
     g.textAlign = "left";
   }
+  g.restore();
 }
 
 function openingLessonLines() {
@@ -9248,7 +9268,9 @@ function nativeMenuAction(id, value) {
   releaseTransientInput();
   focusInputLock = true; focusReady = true;
   audioInit();
-  if (id === "back") {
+  if (id === "fullscreen") {
+    window.SporelingDisplay?.toggle();
+  } else if (id === "back") {
     S.mode = S.mode === "pause" ? "play" : S.mode === "board" ? (S.boardFrom || "title") : "title";
   } else if (id === "board-tab" && ["any", "full", "daily", "reach"].includes(value)) {
     S.boardTab = value;
@@ -9281,6 +9303,9 @@ function syncNativeUI() {
     const list = LB_CACHE[S.boardTab];
     nativeMenus.sync({
       mode: S.mode, touch: TOUCH.active, gamepad: !!gp(),
+      fullscreenAvailable: !!window.SporelingDisplay?.supported,
+      fullscreen: !!window.SporelingDisplay?.active,
+      fullscreenMessage: window.SporelingDisplay?.message || "",
       titleIds: titleIds(), pauseIds: pauseIds(), titleSelected: titleCurrentId(), pauseSelected: pauseIds()[S.pauseSel],
       runMode: S.mode === "title" ? runModePref : S.runMode,
       difficulty: adventureDifficultyPref[0].toUpperCase() + adventureDifficultyPref.slice(1), ghost: ghostPref === "personal" ? "Personal best" : ghostPref === "leader" ? "Leaderboard leader" : "Off",
