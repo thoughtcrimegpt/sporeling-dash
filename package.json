@@ -1,6 +1,7 @@
 {
   "name": "sporeling-dash",
   "private": true,
+  "engines": { "node": ">=20" },
   "scripts": {
     "audit:route": "node tools/route-probe.mjs",
     "dev": "node tools/serve.mjs",
