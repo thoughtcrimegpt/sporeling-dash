@@ -12,6 +12,8 @@
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <meta name="apple-mobile-web-app-title" content="Sporeling">
+<link rel="stylesheet" href="ui/menus.css">
+<link rel="stylesheet" href="ui/play-overlay.css">
 <style>
   * { margin: 0; padding: 0; box-sizing: border-box; }
   html, body { width: 100%; height: 100%; background: #0a0c10; overflow: hidden; }
@@ -29,21 +31,29 @@
   #touch { position: fixed; inset: 0; z-index: 4; pointer-events: none;
     font-family: monospace; -webkit-user-select: none; user-select: none; }
   #touch[hidden] { display: none; }
-  #stick, #btnJump, #btnDash, #btnBurst, #btnPause { pointer-events: auto; touch-action: none; }
-  #stick { position: fixed; left: calc(14px + env(safe-area-inset-left, 0px)); bottom: calc(16px + env(safe-area-inset-bottom, 0px)); width: 128px; height: 128px;
+  #touch [hidden] { display: none !important; }
+  #stick, #btnJump, #btnDash, #btnBurst, #btnSlam, #btnPause { pointer-events: auto; touch-action: none; }
+  #stick { position: fixed; left: max(14px, calc(14px + env(safe-area-inset-left, 0px))); bottom: max(16px, calc(16px + env(safe-area-inset-bottom, 0px))); width: clamp(104px, 25vw, 136px); height: clamp(104px, 25vw, 136px);
     border-radius: 50%; background: rgba(232,224,208,0.07); border: 2px solid rgba(232,224,208,0.22); }
-  #nub { position: absolute; left: 42px; top: 42px; width: 44px; height: 44px; border-radius: 50%;
+  #stick::after { content: "MOVE"; position:absolute; left:0; right:0; top:-23px; color:#dce6dc; font:700 11px system-ui; letter-spacing:.08em; pointer-events:none; }
+  #stick .stick-arrow { position:absolute; color:#abc5b8; font:14px system-ui; pointer-events:none; }
+  #stick .stick-up { top:5px; left:calc(50% - 5px); }
+  #stick .stick-down { bottom:5px; left:calc(50% - 5px); }
+  #stick .stick-left { left:6px; top:calc(50% - 10px); }
+  #stick .stick-right { right:6px; top:calc(50% - 10px); }
+  #nub { position: absolute; left: calc(50% - 22px); top: calc(50% - 22px); width: 44px; height: 44px; border-radius: 50%; z-index: 1;
     background: rgba(240,200,120,0.4); border: 2px solid rgba(240,200,120,0.65);
     transition: transform 0.03s linear; }
-  #btnJump, #btnDash { position: fixed; width: 78px; height: 78px; border-radius: 50%;
+  #btnJump, #btnDash, #btnSlam { position: fixed; width: clamp(70px, 18vw, 92px); height: clamp(70px, 18vw, 92px); border-radius: 50%;
     display: flex; align-items: center; justify-content: center;
     font-size: 19px; font-weight: bold;
     transition: transform 0.05s ease, background 0.05s ease; }
-  #btnJump { right: calc(18px + env(safe-area-inset-right, 0px)); bottom: calc(88px + env(safe-area-inset-bottom, 0px)); color: rgba(144,232,176,0.85);
+  #btnJump { right: max(18px, calc(18px + env(safe-area-inset-right, 0px))); bottom: max(88px, calc(88px + env(safe-area-inset-bottom, 0px))); width: clamp(86px, 21vw, 108px); height: clamp(86px, 21vw, 108px); color: rgba(144,232,176,0.85);
     background: rgba(144,232,176,0.12); border: 2px solid rgba(144,232,176,0.45); }
-  #btnDash { right: calc(108px + env(safe-area-inset-right, 0px)); bottom: calc(16px + env(safe-area-inset-bottom, 0px)); color: rgba(240,168,136,0.85);
+  #btnDash { right: max(108px, calc(108px + env(safe-area-inset-right, 0px))); bottom: max(16px, calc(16px + env(safe-area-inset-bottom, 0px))); color: rgba(240,168,136,0.85);
     background: rgba(240,168,136,0.12); border: 2px solid rgba(240,168,136,0.45); }
-  #btnBurst { position: fixed; right: calc(108px + env(safe-area-inset-right, 0px)); bottom: calc(106px + env(safe-area-inset-bottom, 0px)); width: 58px; height: 58px; border-radius: 50%;
+  #btnSlam { right: max(18px, calc(18px + env(safe-area-inset-right, 0px))); bottom: max(196px, calc(196px + env(safe-area-inset-bottom, 0px))); width: 62px; height: 52px; border-radius: 14px; color: rgba(240,200,120,0.95); background: rgba(240,200,120,0.12); border: 2px solid rgba(240,200,120,0.5); }
+  #btnBurst { position: fixed; right: max(108px, calc(108px + env(safe-area-inset-right, 0px))); bottom: max(106px, calc(106px + env(safe-area-inset-bottom, 0px))); width: 58px; height: 58px; border-radius: 50%;
     display: flex; align-items: center; justify-content: center; font-size: 12px; font-weight: bold; color: rgba(240,200,120,0.9);
     background: rgba(240,200,120,0.12); border: 2px solid rgba(240,200,120,0.45); }
   #btnJump.pressed { background: rgba(144,232,176,0.4); transform: scale(0.92); }
@@ -53,14 +63,15 @@
     border-radius: 6px; display: flex; align-items: center; justify-content: center;
     color: rgba(232,224,208,0.6); font-size: 11px;
     background: rgba(8,12,18,0.5); border: 1px solid rgba(232,224,208,0.25); }
-  #touch.left-handed #stick { left: auto; right: calc(14px + env(safe-area-inset-right, 0px)); }
+  #touch.left-handed #stick { left: auto; right: max(14px, calc(14px + env(safe-area-inset-right, 0px))); }
   #touch.left-handed #btnJump { right: auto; left: calc(18px + env(safe-area-inset-left, 0px)); }
   #touch.left-handed #btnDash { right: auto; left: calc(108px + env(safe-area-inset-left, 0px)); }
-  #touch.left-handed #btnBurst { right: auto; left: calc(108px + env(safe-area-inset-left, 0px)); }
+  #touch.left-handed #btnBurst { right: auto; left: max(108px, calc(108px + env(safe-area-inset-left, 0px))); }
+  #touch.left-handed #btnSlam { right: auto; left: max(18px, calc(18px + env(safe-area-inset-left, 0px))); }
   #touch.left-handed #btnPause { right: auto; left: calc(10px + env(safe-area-inset-left, 0px)); }
   /* Menus keep a compact stick + confirm button visible without covering the
      canvas menu. Patch Notes and Leaderboards also have their own Back tap. */
-  #touch.menu-nav #btnDash, #touch.menu-nav #btnBurst, #touch.menu-nav #btnPause { display: none; }
+  #touch.menu-nav { display: none !important; }
   #touch.menu-nav #stick { width: 104px; height: 104px; }
   #touch.menu-nav #nub { left: 30px; top: 30px; }
   #touch.menu-nav #btnJump, #touch.left-handed.menu-nav #btnJump {
@@ -70,9 +81,27 @@
   #rotateHint { display: none; position: fixed; top: 8px; left: 50%; transform: translateX(-50%);
     color: #e8e0d0; font: 10px monospace; background: rgba(8,12,18,0.75);
     padding: 6px 10px; border-radius: 6px; z-index: 5; pointer-events: none; }
-  @media (max-width: 480px) {
-    #btnBurst { bottom: calc(184px + env(safe-area-inset-bottom, 0px)); }
-    #touch.left-handed #btnBurst { bottom: calc(184px + env(safe-area-inset-bottom, 0px)); }
+  #btnBurst[disabled] { opacity: .35; filter: saturate(.45); }
+  #btnJump.ready, #btnDash.ready, #btnBurst.ready, #btnSlam.ready { box-shadow: 0 0 0 3px rgba(220,255,174,.35), 0 0 18px rgba(220,255,174,.3); }
+  #btnJump { bottom:calc(20px + env(safe-area-inset-bottom,0px)); }
+  #btnDash { right:calc(122px + env(safe-area-inset-right,0px)); bottom:calc(20px + env(safe-area-inset-bottom,0px)); }
+  #btnBurst { right:calc(128px + env(safe-area-inset-right,0px)); bottom:calc(120px + env(safe-area-inset-bottom,0px)); flex-direction:column; }
+  #btnBurst::after { content:attr(data-charge); display:block; font:700 10px system-ui; margin-top:3px; }
+  #btnSlam { right:calc(34px + env(safe-area-inset-right,0px)); bottom:calc(142px + env(safe-area-inset-bottom,0px)); }
+  #btnPause { width:64px; height:44px; font:650 12px system-ui; color:#e8f6eb; }
+  #btnPause.pressed, #btnSlam.pressed { background:rgba(240,200,120,.4); transform:scale(.95); }
+  #touch.left-handed #btnDash { left:calc(122px + env(safe-area-inset-left,0px)); }
+  #touch.left-handed #btnBurst { left:calc(128px + env(safe-area-inset-left,0px)); }
+  #touch.left-handed #btnSlam { left:calc(34px + env(safe-area-inset-left,0px)); }
+  @media (orientation:landscape) and (max-height:480px) {
+    #stick { width:104px; height:104px; }
+    #btnJump { width:80px; height:80px; }
+    #btnDash { width:66px; height:66px; right:calc(114px + env(safe-area-inset-right,0px)); }
+    #btnBurst { width:50px; height:50px; right:calc(122px + env(safe-area-inset-right,0px)); bottom:calc(102px + env(safe-area-inset-bottom,0px)); }
+    #btnSlam { width:58px; height:44px; right:calc(28px + env(safe-area-inset-right,0px)); bottom:calc(120px + env(safe-area-inset-bottom,0px)); font-size:14px; }
+    #touch.left-handed #btnDash { left:calc(114px + env(safe-area-inset-left,0px)); }
+    #touch.left-handed #btnBurst { left:calc(122px + env(safe-area-inset-left,0px)); }
+    #touch.left-handed #btnSlam { left:calc(28px + env(safe-area-inset-left,0px)); }
   }
   /* Share-your-run popup */
   #share { position: fixed; inset: 0; z-index: 10; background: rgba(4,6,10,0.8);
@@ -87,17 +116,17 @@
     text-decoration: none; display: inline-block; }
   #shareBtns #shareClose { background: #3a4250; color: #e8e0d0; }
   #shareBtns #shareDl { background: #f0c878; }
-  @media (pointer: coarse) and (orientation: portrait) { #rotateHint { display: block; } }
 </style>
 </head>
 <body>
 <canvas id="game"></canvas>
-<div id="touch" hidden>
-  <div id="stick"><div id="nub"></div></div>
-  <div id="btnJump">A</div>
-  <div id="btnDash">X</div>
-  <div id="btnBurst">BURST</div>
-  <div id="btnPause">&#10074;&#10074;</div>
+<div id="touch" hidden aria-label="Touch controls">
+  <button id="stick" type="button" aria-label="Move, 8 directions"><span class="stick-arrow stick-up" aria-hidden="true">↑</span><span class="stick-arrow stick-down" aria-hidden="true">↓</span><span class="stick-arrow stick-left" aria-hidden="true">←</span><span class="stick-arrow stick-right" aria-hidden="true">→</span><span id="nub"></span></button>
+  <button id="btnJump" type="button" aria-label="Jump">JUMP</button>
+  <button id="btnDash" type="button" aria-label="Dash">DASH</button>
+  <button id="btnSlam" type="button" aria-label="Slam" hidden>SLAM</button>
+  <button id="btnBurst" type="button" aria-label="Burst">BURST</button>
+  <button id="btnPause" type="button" aria-label="Pause">Pause</button>
 </div>
 <div id="rotateHint">Rotate your phone for a bigger view</div>
 <div id="share" hidden>
@@ -110,6 +139,8 @@
     </div>
   </div>
 </div>
+<script src="ui/menus.js"></script>
+<script src="ui/play-overlay.js"></script>
 <script>
 (() => {
 "use strict";
@@ -122,6 +153,7 @@
 
 // Dev tools appear only when running locally (file:// or localhost) — never on the live site
 const DEV = location.protocol === "file:" || location.hostname === "localhost" || location.hostname === "127.0.0.1";
+let nativeMenus = null, playOverlay = null;
 
 const W = 320, H = 180, TILE = 16;
 const FIXED_DT = 1 / 60;
@@ -772,6 +804,11 @@ const devLevelLabel = () => (S.devLevel + 1) + "/" + LEVELS.length + " " + LEVEL
 const pauseIds = () => {
   const ids = ["resume", "restart"];
   if (!DEV && S.runMode === "adventure" && (reachGet() > 0 || shogSeen())) ids.push("practice");
+  if (nativeMenus) {
+    ids.push("controls", "settings", "titlescr", "newgame");
+    if (DEV) ids.push("devrow");
+    return ids;
+  }
   ids.push("motion");
   if (TOUCH.active) ids.push("touchhand");
   ids.push("newgame", "titlescr");
@@ -788,6 +825,7 @@ const titleIds = () => {
     ids.push("ghost");
   }
   ids.push("start");
+  if (nativeMenus) ids.push("controls", "settings");
   if (DEV) ids.push("devlevel");
   if (DEV) ids.push("devhealth");
   if (lbOn()) ids.push("board");
@@ -848,6 +886,10 @@ function startTitleRun() {
 }
 
 function activateTitleItem(id) {
+  if (nativeMenus && (id === "controls" || id === "settings")) {
+    releaseTransientInput(); focusInputLock = true; focusReady = true;
+    nativeMenus.openPanel(id === "controls" ? "help" : "settings"); return;
+  }
   if (id === "start") startTitleRun();
   else if (id === "mode") { setRunModePref(runModePref === "adventure" ? "speedrun" : "adventure"); SFX.talk(); }
   else if (id === "mode-adventure") { setRunModePref("adventure"); SFX.talk(); }
@@ -896,6 +938,10 @@ function restartCurrentChamber() {
 }
 
 function activatePauseItem(id, dir = 0) {
+  if (nativeMenus && ["controls", "settings", "newgame"].includes(id)) {
+    releaseTransientInput(); focusInputLock = true; focusReady = true;
+    nativeMenus.openPanel(id === "controls" ? "help" : id); return;
+  }
   if (id === "practice" && dir) {
     stepPrac(dir, false); SFX.talk(); return;
   }
@@ -909,7 +955,7 @@ function activatePauseItem(id, dir = 0) {
   else if (id === "practice") startPracticeRun(S.pracSel === 0 ? 1 : S.pracSel);
   else if (id === "motion") toggleReducedMotion();
   else if (id === "touchhand") toggleTouchHand();
-  else if (id === "newgame") {
+  else if (id === "newgame" || id === "newgame-confirmed") {
     if (S.daily) { startDaily(); return; }
     if (S.reachTrial) { startReach(); return; }
     S.score = freshScore();
@@ -984,6 +1030,13 @@ function prefetchLeader(slot, list) {
 }
 // ── Patch notes — the cave remembers its own growth. Newest first. ─────────
 const PATCH_NOTES = [
+  { v: "V5.1  Clear paths", d: "2026-09-07 23:39 UTC", lines: [
+    "· Readable title and pause menus, with dedicated Controls & Help and Settings.",
+    "· Phone instructions and conversations now use text sized for the screen.",
+    "· Labeled Move, Jump, and Dash controls, plus a dedicated Slam button.",
+    "· Burst shows its charge and lights up when ready. Touch controls can be mirrored.",
+    "· Restart confirmation and improved keyboard and controller menu navigation.",
+  ] },
   { v: "V5.0  The luminous wilds", d: "2026-09-07", lines: [
     "· Painted fungal caverns, an illustrated sporeling, luminous blooms, and richer terrain.",
     "· Adventure adds a flutter jump: release Jump, then press it again in the air.",
@@ -1435,10 +1488,10 @@ function showShare(dataUrl, tweetText) {
 }
 
 // Name the real button for whatever the player is holding
-const dashBtnName = () => gp() ? "X" : TOUCH.active ? "the X button" : "SHIFT";
-const jumpBtnName = () => gp() ? "A" : TOUCH.active ? "the A button" : "SPACE";
+const dashBtnName = () => gp() ? "X" : TOUCH.active ? "DASH" : "SHIFT";
+const jumpBtnName = () => gp() ? "A" : TOUCH.active ? "JUMP" : "SPACE";
 function titleControlLines() {
-  if (TOUCH.active) return ["Tap a mode, then tap PLAY."];
+  if (TOUCH.active) return ["Choose your adventure. Tap Play to begin."];
   if (gp()) return ["Move: LEFT STICK or D-PAD", "Jump: A   Dash: X or RB"];
   return ["Move: A / D or LEFT / RIGHT", "Jump: SPACE   Dash: SHIFT or J   M: MUSIC"];
 }
@@ -1549,11 +1602,13 @@ function activateWinItem(id) {
 const keys = Object.create(null);
 const just = Object.create(null);
 const padPrev = { jump: false, dash: false, pause: false, y: false, burst: false };
-const TOUCH = { active: false, ax: 0, ay: 0, jump: false, dash: false, burst: false, pause: false };
-const touchPrev = { jump: false, dash: false, burst: false, pause: false };
+const TOUCH = { active: false, ax: 0, ay: 0, jump: false, dash: false, burst: false, pause: false, slam: false,
+  dashX: 0, dashY: 0, dashIntent: false, edges: Object.create(null), pointers: Object.create(null) };
+const touchPrev = { jump: false, dash: false, burst: false, pause: false, slam: false };
 let focusInputLock = false;
 let focusReady = true;
 let leftHanded = false;
+let resetTouchControls = null;
 try { leftHanded = localStorage.getItem("sd_touch_left") === "1"; } catch (e) {}
 
 const RUN_MODES = ["adventure", "speedrun"];
@@ -1612,13 +1667,26 @@ function applyTouchLayout() {
 function syncTouchVisibility() {
   const root = document.getElementById("touch");
   if (!root) return;
-  const gameplayVisible = TOUCH.active && S.mode === "play";
-  const menuVisible = TOUCH.active && (S.mode === "title" || S.mode === "notes" || S.mode === "reviews" || S.mode === "board" || S.mode === "creditjoin");
-  const controlsVisible = gameplayVisible || menuVisible;
-  if (menuVisible) root.classList.add("menu-nav");
-  else root.classList.remove("menu-nav");
-  root.hidden = !controlsVisible;
-  root.style.pointerEvents = controlsVisible ? "" : "none";
+  const gameplayVisible = TOUCH.active && S.mode === "play" && !S.lesson;
+  root.hidden = !gameplayVisible;
+  root.style.pointerEvents = gameplayVisible ? "" : "none";
+  root.classList.remove("menu-nav");
+  const p = S.player;
+  const underfieldIndex = LEVELS.findIndex(level => level.name === "THE UNDERFIELD");
+  const slamReady = gameplayVisible && (S.levelIdx >= underfieldIndex || S.lesson?.kind === "slam" || p?.slamReady);
+  const slam = document.getElementById("btnSlam");
+  if (slam) slam.hidden = !slamReady;
+  const burst = document.getElementById("btnBurst");
+  const burstReady = !competitiveRun() && !!p && (p.resonance || 0) >= RESONANCE_MAX;
+  if (burst) {
+    burst.hidden = !gameplayVisible || competitiveRun(); burst.disabled = !burstReady;
+    burst.dataset.charge = burstReady ? "READY" : Math.floor(p?.resonance || 0) + "%";
+    if (burstReady) burst.classList.add("ready"); else burst.classList.remove("ready");
+  }
+  const dash = document.getElementById("btnDash");
+  if (dash) { if (p?.canDash || p?.dashing) dash.classList.add("ready"); else dash.classList.remove("ready"); }
+  const jump = document.getElementById("btnJump");
+  if (jump) { if (p && (p.grounded || p.coyote > 0 || p.wallDir || (adventureMechanics() && p.flutterReady))) jump.classList.add("ready"); else jump.classList.remove("ready"); }
 }
 
 function touchPulse(kind, id) {
@@ -1652,6 +1720,8 @@ function gp() {
 
 function readInput() {
   let ax = 0, ay = 0;
+  let dashAimX = ax, dashAimY = ay;
+  let dashAimCaptured = false;
   if (keys.KeyA || keys.ArrowLeft)  ax -= 1;
   if (keys.KeyD || keys.ArrowRight) ax += 1;
   if (keys.KeyW || keys.ArrowUp)    ay -= 1;
@@ -1727,17 +1797,28 @@ function readInput() {
   if (TOUCH.active) {
     if (TOUCH.ax || TOUCH.ay) { ax = TOUCH.ax; ay = TOUCH.ay; }
     if (TOUCH.jump) jumpDown = true;
-    if (TOUCH.dash) dashDown = true;
+    if (TOUCH.dash || TOUCH.slam) dashDown = true;
     if (TOUCH.pause) pauseDown = true;
     if (TOUCH.jump && !touchPrev.jump) { jumpEdge = true; startEdge = true; }
-    if (TOUCH.dash && !touchPrev.dash) dashEdge = true;
+    if ((TOUCH.dash && !touchPrev.dash) || (TOUCH.slam && !touchPrev.slam)) dashEdge = true;
+    if (TOUCH.dashIntent) {
+      dashAimX = TOUCH.dashX; dashAimY = TOUCH.dashY;
+      dashAimCaptured = true;
+      TOUCH.dashIntent = false;
+    }
     if (TOUCH.burst && !touchPrev.burst) burstEdge = true;
     if (TOUCH.pause && !touchPrev.pause) pauseEdge = true;
-    touchPrev.jump = TOUCH.jump; touchPrev.dash = TOUCH.dash; touchPrev.burst = TOUCH.burst; touchPrev.pause = TOUCH.pause;
+    touchPrev.jump = TOUCH.jump; touchPrev.dash = TOUCH.dash; touchPrev.slam = TOUCH.slam; touchPrev.burst = TOUCH.burst; touchPrev.pause = TOUCH.pause;
+    if (TOUCH.edges.jump) { jumpEdge = true; jumpDown = true; }
+    if (TOUCH.edges.dash || TOUCH.edges.slam) { dashEdge = true; dashDown = true; }
+    if (TOUCH.edges.burst) burstEdge = true;
+    if (TOUCH.edges.pause) pauseEdge = true;
+    for (const key of Object.keys(TOUCH.edges)) delete TOUCH.edges[key];
   }
 
   const len = Math.hypot(ax, ay);
   if (len > 1) { ax /= len; ay /= len; }
+  if (!dashAimCaptured) { dashAimX = ax; dashAimY = ay; }
   // After focus returns, require every control to pass through neutral once.
   // Browsers can miss keyup/touchend while switching tabs or apps; accepting
   // those stale inputs is indistinguishable from the game moving by itself.
@@ -1746,11 +1827,11 @@ function readInput() {
       !jumpDown && !dashDown && !pauseDown;
     if (focusReady && neutral) focusInputLock = false;
     return {
-      ax: 0, ay: 0, jumpDown: false, jumpEdge: false, dashEdge: false,
+      ax: 0, ay: 0, dashAimX: 0, dashAimY: 0, jumpDown: false, jumpEdge: false, dashEdge: false,
       pauseEdge: false, startEdge: false, talkEdge: false, burstEdge: false, dailyEdge: false, boardEdge: false,
     };
   }
-  return { ax, ay, jumpDown, jumpEdge, dashEdge, pauseEdge, startEdge, talkEdge, burstEdge, dailyEdge, boardEdge };
+  return { ax, ay, dashAimX, dashAimY, jumpDown, jumpEdge, dashEdge, pauseEdge, startEdge, talkEdge, burstEdge, dailyEdge, boardEdge };
 }
 
 function clearJust() { for (const k in just) delete just[k]; }
@@ -1759,13 +1840,17 @@ function releaseTransientInput() {
   for (const k in keys) delete keys[k];
   clearJust();
   TOUCH.ax = 0; TOUCH.ay = 0;
-  TOUCH.jump = false; TOUCH.dash = false; TOUCH.burst = false; TOUCH.pause = false;
-  touchPrev.jump = false; touchPrev.dash = false; touchPrev.burst = false; touchPrev.pause = false;
+  TOUCH.jump = false; TOUCH.dash = false; TOUCH.burst = false; TOUCH.pause = false; TOUCH.slam = false;
+  TOUCH.dashX = 0; TOUCH.dashY = 0; TOUCH.dashIntent = false;
+  for (const key of Object.keys(TOUCH.edges)) delete TOUCH.edges[key];
+  resetTouchControls?.();
+  TOUCH.pointers = Object.create(null);
+  touchPrev.jump = false; touchPrev.dash = false; touchPrev.slam = false; touchPrev.burst = false; touchPrev.pause = false;
   padPrev.jump = false; padPrev.dash = false; padPrev.pause = false;
   padPrev.y = false; padPrev.sel = false;
   const nub = document.getElementById("nub");
   if (nub) nub.style.transform = "";
-  for (const id of ["btnJump", "btnDash", "btnBurst", "btnPause"])
+  for (const id of ["btnJump", "btnDash", "btnBurst", "btnSlam", "btnPause"])
     document.getElementById(id)?.classList.remove("pressed");
 }
 
@@ -1794,7 +1879,7 @@ function setupTouch() {
     if (len > 1) { dx /= len; dy /= len; }
     // Snap to 8-way intent past a small dead zone — full commitment, like keys.
     // Analog drift made movement mushy and dash aims unreliable on phones.
-    const dead = 0.16;
+    const dead = 0.13;
     if (len < dead) {
       TOUCH.ax = 0; TOUCH.ay = 0;
     } else {
@@ -1804,47 +1889,62 @@ function setupTouch() {
     }
     nub.style.transform = "translate(" + (dx * 34).toFixed(0) + "px," + (dy * 34).toFixed(0) + "px)";
   }
-  stick.addEventListener("touchstart", e => {
-    e.preventDefault();
-    stickId = e.changedTouches[0].identifier;
-    setStick(e.changedTouches[0]);
-  }, { passive: false });
-  stick.addEventListener("touchmove", e => {
-    e.preventDefault();
-    for (const t of e.changedTouches) if (t.identifier === stickId) setStick(t);
-  }, { passive: false });
-  const stickEnd = e => {
-    for (const t of e.changedTouches) {
-      if (t.identifier === stickId) {
-        stickId = null;
-        TOUCH.ax = 0; TOUCH.ay = 0;
-        nub.style.transform = "";
-      }
-    }
+  const stickEnd = id => {
+    if (id !== stickId) return;
+    stickId = null; TOUCH.ax = 0; TOUCH.ay = 0; nub.style.transform = "";
+    delete TOUCH.pointers[id];
   };
-  stick.addEventListener("touchend", stickEnd);
-  stick.addEventListener("touchcancel", stickEnd);
-
   function bindBtn(id, prop) {
     const el = document.getElementById(id);
-    el.addEventListener("touchstart", e => {
-      e.preventDefault();
+    const begin = (id, point) => {
+      if (prop === "burst" && el.disabled) return;
+      if (TOUCH[prop]) return;
+      if (TOUCH.pointers[id]) return;
+      TOUCH.pointers[id] = { el, prop };
       TOUCH[prop] = true;
-      el.classList.add("pressed");
-      if (navigator.vibrate) navigator.vibrate(10);
-    }, { passive: false });
-    const up = e => {
-      e.preventDefault();
-      TOUCH[prop] = false;
-      el.classList.remove("pressed");
+      TOUCH.edges[prop] = true;
+      if (prop === "dash") {
+        TOUCH.dashX = TOUCH.ax || (TOUCH.ay ? 0 : (S.player?.facing || 1));
+        TOUCH.dashY = TOUCH.ay;
+        TOUCH.dashIntent = true;
+      } else if (prop === "slam") {
+        TOUCH.dashX = 0; TOUCH.dashY = 1; TOUCH.dashIntent = true;
+      }
+      el.classList.add("pressed"); touchPulse(prop, id);
+      el.setPointerCapture?.(id);
     };
-    el.addEventListener("touchend", up, { passive: false });
-    el.addEventListener("touchcancel", up, { passive: false });
+    const end = id => {
+      const owned = TOUCH.pointers[id];
+      if (!owned || owned.el !== el) return;
+      delete TOUCH.pointers[id]; TOUCH[prop] = false; el.classList.remove("pressed");
+      el.releasePointerCapture?.(id);
+    };
+    el.addEventListener("pointerdown", e => { e.preventDefault(); begin(e.pointerId, e); }, { passive: false });
+    for (const type of ["pointerup", "pointercancel", "lostpointercapture"]) el.addEventListener(type, e => { e.preventDefault(); end(e.pointerId); }, { passive: false });
+    el.addEventListener("touchstart", e => { if ("PointerEvent" in window) return; e.preventDefault(); const t = e.changedTouches?.[0] || e; begin(t.identifier ?? ("legacy-" + id), t); }, { passive: false });
+    const touchEnd = e => { if ("PointerEvent" in window) return; e.preventDefault(); if (e.changedTouches) for (const t of e.changedTouches) end(t.identifier); else for (const [pointerId, owner] of Object.entries(TOUCH.pointers)) if (owner.el === el) end(pointerId); };
+    el.addEventListener("touchend", touchEnd, { passive: false }); el.addEventListener("touchcancel", touchEnd, { passive: false });
+    el.addEventListener("click", e => { if (e.detail === 0) { TOUCH.edges[prop] = true; TOUCH.active = true; syncTouchVisibility(); } });
   }
+  stick.addEventListener("pointerdown", e => { e.preventDefault(); if (stickId !== null) return; stickId = e.pointerId; TOUCH.pointers[e.pointerId] = { el: stick, prop: "stick" }; stick.setPointerCapture?.(e.pointerId); setStick(e); }, { passive: false });
+  stick.addEventListener("pointermove", e => { if (e.pointerId === stickId) { e.preventDefault(); setStick(e); } }, { passive: false });
+  for (const type of ["pointerup", "pointercancel", "lostpointercapture"]) stick.addEventListener(type, e => { e.preventDefault(); stickEnd(e.pointerId); }, { passive: false });
+  stick.addEventListener("touchstart", e => { if ("PointerEvent" in window || !e.changedTouches?.[0]) return; e.preventDefault(); const t = e.changedTouches[0]; if (stickId === null) { stickId = t.identifier; TOUCH.pointers[t.identifier] = { el: stick, prop: "stick" }; setStick(t); } }, { passive: false });
+  stick.addEventListener("touchmove", e => { if ("PointerEvent" in window) return; e.preventDefault(); for (const t of e.changedTouches) if (t.identifier === stickId) setStick(t); }, { passive: false });
+  const touchStickEnd = e => { if ("PointerEvent" in window) return; for (const t of e.changedTouches) stickEnd(t.identifier); };
+  stick.addEventListener("touchend", touchStickEnd); stick.addEventListener("touchcancel", touchStickEnd);
   bindBtn("btnJump", "jump");
   bindBtn("btnDash", "dash");
+  bindBtn("btnSlam", "slam");
   bindBtn("btnBurst", "burst");
   bindBtn("btnPause", "pause");
+  resetTouchControls = () => {
+    stickId = null;
+    for (const [id, owner] of Object.entries(TOUCH.pointers)) owner.el?.releasePointerCapture?.(id);
+    nub.style.transform = "";
+  };
+  addEventListener("blur", releaseTransientInput);
+  document.addEventListener("visibilitychange", () => { if (document.hidden) releaseTransientInput(); });
 }
 
 // ── Levels ─────────────────────────────────────────────────────────────────
@@ -2626,7 +2726,7 @@ function beginLevelLesson(kind) {
   S.lesson = {
     kind: "slam",
     title: "DOWN-SLAM",
-    lines: ["Jump over a bright seal.", "Hold Down and press " + dashBtnName() + " to break through."],
+    lines: ["Jump over a cracked floor.", TOUCH.active ? "Tap SLAM to smash straight down through it." : "Hold Down and press " + dashBtnName() + " to break through."],
   };
   S.bannerT = 0;
   releaseTransientInput();
@@ -2930,6 +3030,10 @@ function addResonance(amount, chain = false) {
   const p = S.player;
   p.resonance = clamp((p.resonance || 0) + amount, 0, RESONANCE_MAX);
   if (chain) p.resonanceChain = (p.resonanceChain || 0) + 1;
+  if (p.resonance >= RESONANCE_MAX && !S.burstHinted) {
+    S.burstHinted = true;
+    queueNotice("Burst ready. " + (TOUCH.active ? "Tap BURST" : gp() ? "Press Y" : "Press Q") + " to clear nearby enemies and refill your dash and blooms.", 5, NOTICE_PRIORITY.TUTORIAL);
+  }
   return p.resonance;
 }
 
@@ -5131,6 +5235,7 @@ function advanceTalk() {
 function tick(dt) {
   const inp = readInput();
   S.time += dt;
+  if (nativeMenus && nativeMenus.handleInput(inp)) { clearJust(); return; }
   if (S.shogTitleT > 0) S.shogTitleT -= dt;
   if (S.nikitaTitleT > 0) S.nikitaTitleT -= dt;
   if (just.KeyM) {
@@ -5480,14 +5585,15 @@ function tick(dt) {
     p.jumpBuf = JUMP_BUF;
     if (S.resonanceNoticePending) {
       S.resonanceNoticePending = false;
-      queueNotice("Resonance fills from bounces, dash kills, and bloom chains. Q bursts at full charge.", 4.2, NOTICE_PRIORITY.TUTORIAL);
+      queueNotice("Release " + jumpBtnName() + ", then press it again in the air for a flutter jump.", 4.5, NOTICE_PRIORITY.TUTORIAL);
     }
   }
   else p.jumpBuf = Math.max(0, p.jumpBuf - dt);
 
-  if (inp.dashEdge) p.dashBuf = DASH_BUF;
+  if (inp.dashEdge) { p.dashBuf = DASH_BUF; p.dashAimX = inp.dashAimX; p.dashAimY = inp.dashAimY; }
   else p.dashBuf = Math.max(0, (p.dashBuf || 0) - dt);
-  if (!p.dashing && p.canDash && p.dashBuf > 0) { p.dashBuf = 0; doDash(p, inp.ax, inp.ay); }
+  if (p.dashBuf <= 0) { p.dashAimX = 0; p.dashAimY = 0; }
+  if (!p.dashing && p.canDash && p.dashBuf > 0) { p.dashBuf = 0; doDash(p, p.dashAimX, p.dashAimY); p.dashAimX = 0; p.dashAimY = 0; }
 
   if (p.dashing) {
     p.dashT -= dt;
@@ -5941,6 +6047,7 @@ function blit() {
 function draw() {
   g.imageSmoothingEnabled = false;
   syncTouchVisibility();
+  syncNativeUI();
 
   if (S.mode === "title") { drawTitle(); blit(); return; }
   if (S.mode === "board") { drawBoard(); blit(); return; }
@@ -6665,6 +6772,7 @@ function drawNPCs() {
 }
 
 function drawTalk() {
+  if (playOverlay && TOUCH.active) return;
   if (!S.talk || (S.mode !== "play" && S.mode !== "pause" && S.mode !== "reunion")) return;
   const npc = S.talk.npc;
   const full = npc.lines[S.talk.line];
@@ -7912,6 +8020,7 @@ function drawOke() {
 }
 
 function drawHUD() {
+  if (playOverlay && TOUCH.active) return;
   const p = S.player;
   if (!p) return;
   g.fillStyle = "rgba(5,16,24,0.88)";
@@ -8007,12 +8116,13 @@ function drawHUD() {
 }
 
 function openingLessonLines() {
-  const jump = gp() ? "A" : TOUCH.active ? "A BUTTON" : "SPACE";
-  const dash = gp() ? "X" : TOUCH.active ? "X BUTTON" : "SHIFT";
+  const jump = gp() ? "A" : TOUCH.active ? "JUMP" : "SPACE";
+  const dash = gp() ? "X" : TOUCH.active ? "DASH" : "SHIFT";
   return [jump + ": JUMP   " + dash + ": AIR DASH", "Air-dash now. The bloom will catch you."];
 }
 
 function drawOpeningLesson() {
+  if (playOverlay && TOUCH.active) return;
   if (!openingLessonNeeded() || S.bannerT > 0 || S.talk || rootWarningActive()) return;
   const lines = openingLessonLines();
   const x = W / 2 - 101, y = 43, w = 202, h = 31;
@@ -8176,6 +8286,7 @@ function drawEndOverlay() {
 }
 
 function drawBanner() {
+  if (playOverlay && TOUCH.active) return;
   if (S.bannerT > 0) {
     const L = LEVELS[S.levelIdx];
     const dur = 2.4;
@@ -8217,6 +8328,7 @@ function drawBanner() {
 }
 
 function drawLevelLesson() {
+  if (playOverlay && TOUCH.active) return;
   if (!S.lesson || S.mode !== "play") return;
   g.fillStyle = "rgba(2,4,8,0.68)";
   g.fillRect(0, 0, W, H);
@@ -8233,7 +8345,7 @@ function drawLevelLesson() {
   S.lesson.lines.forEach((line, i) => g.fillText(line, W / 2, by + 39 + i * 12));
   g.fillStyle = rgb(PAL.accent);
   g.font = "bold 7px monospace";
-  g.fillText(TOUCH.active ? "TAP A: GOT IT" : gp() ? "A: GOT IT" : "SPACE / ENTER: GOT IT", W / 2, by + 76);
+  g.fillText(TOUCH.active ? "TAP JUMP: GOT IT" : gp() ? "A: GOT IT" : "SPACE / ENTER: GOT IT", W / 2, by + 76);
   g.textAlign = "left";
 }
 
@@ -8253,6 +8365,7 @@ function decorMush(x, y, s) {
 
 function drawTitle() {
   drawBackdrop();
+  if (nativeMenus && nativeMenus.isVisible()) return;
   const titleShade = g.createLinearGradient(0, 0, W, 0);
   titleShade.addColorStop(0, "rgba(3,11,23,0.85)");
   titleShade.addColorStop(0.57, "rgba(3,11,23,0.62)");
@@ -9115,6 +9228,82 @@ function applyDevFixture() {
   return false;
 }
 
+function nativeMenuAction(id, value) {
+  releaseTransientInput();
+  focusInputLock = true; focusReady = true;
+  audioInit();
+  if (id === "back") {
+    S.mode = S.mode === "pause" ? "play" : S.mode === "board" ? (S.boardFrom || "title") : "title";
+  } else if (id === "board-tab" && ["any", "full", "daily", "reach"].includes(value)) {
+    S.boardTab = value;
+  } else if (id === "race" && S.mode === "board") {
+    const row = (LB_CACHE[S.boardTab] || []).find(entry => String(entry.id) === String(value) && entry.has_ghost);
+    if (!row) return;
+    fetchRace(row.id).then(race => {
+      if (!race || S.mode !== "board") return;
+      S.pendingGhost = { frames: race.frames, name: row.name, category: race.category };
+      setRunModePref("speedrun"); ghostPref = "leader";
+      try { localStorage.setItem("sd_ghost_pref", ghostPref); } catch (e) {}
+      if (race.category === "root") startDaily();
+      else if (race.category === "reach" && rootCleared()) startReach();
+      else S.mode = "title";
+    });
+  } else if (id === "reducedmotion") toggleReducedMotion();
+  else if (id === "leftHanded") toggleTouchHand();
+  else if (id === "music") {
+    musicOn = !musicOn;
+    try { localStorage.setItem("sd_music", musicOn ? "1" : "0"); } catch (e) {}
+  } else if (S.mode === "pause") activatePauseItem(id === "newgame" ? "newgame-confirmed" : id, Number(value) || 0);
+  else if (S.mode === "title") activateTitleItem(id);
+  syncTouchVisibility();
+}
+
+function syncNativeUI() {
+  if (nativeMenus) {
+    if (!["title", "pause", "notes", "reviews", "board"].includes(S.mode)) nativeMenus.sync({ mode: S.mode });
+    else {
+    const list = LB_CACHE[S.boardTab];
+    nativeMenus.sync({
+      mode: S.mode, touch: TOUCH.active, gamepad: !!gp(),
+      titleIds: titleIds(), pauseIds: pauseIds(), titleSelected: titleCurrentId(), pauseSelected: pauseIds()[S.pauseSel],
+      runMode: S.mode === "title" ? runModePref : S.runMode,
+      difficulty: adventureDifficultyPref[0].toUpperCase() + adventureDifficultyPref.slice(1), ghost: ghostPref === "personal" ? "Personal best" : ghostPref === "leader" ? "Leaderboard leader" : "Off",
+      levelName: adventureLevelName(), levelTitle: LEVELS[S.levelIdx].name,
+      practiceName: pracName(S.pracSel === 0 ? 1 : S.pracSel),
+      dev: DEV, devLevelLabel: devLevelLabel(), devDamage: !S.devInf,
+      health: S.health, maxHealth: S.maxHealth, reducedMotion, leftHanded, musicOn,
+      dailyUnlocked: dailyUnlocked(), reachUnlocked: rootCleared(),
+      notes: S.mode === "notes" ? PATCH_NOTES : [], reviews: S.mode === "reviews" ? REVIEWS : [],
+      boardTab: S.boardTab, boardLoading: !list,
+      boardTabs: [{ id: "any", label: "Any%" }, { id: "full", label: "100%" }, { id: "daily", label: "Pale Root" }, { id: "reach", label: "The Reach" }],
+      boardEntries: list ? list.map(row => ({ name: row.name, time: fmtMs(row.time_ms), id: row.id, hasGhost: row.has_ghost })) : [],
+    });
+    }
+  }
+  if (playOverlay && S.player) {
+    let message = null;
+    if (S.talk && (S.mode === "play" || S.mode === "reunion")) {
+      const talk = S.talk, full = talk.npc.lines[talk.line];
+      const complete = talk.t >= full.length * TALK_CHAR_TIME;
+      const lastLine = talk.line === talk.npc.lines.length - 1;
+      message = { title: talk.npc.speakers?.[talk.line] || talk.npc.name,
+        text: full.slice(0, Math.floor(talk.t / TALK_CHAR_TIME) + 1),
+        action: !complete ? "Show all" : !lastLine ? "Next" : null };
+    } else if (S.bannerT > 0) {
+      message = { title: "CHAMBER " + (S.levelIdx + 1), text: LEVELS[S.levelIdx].name };
+    } else if (openingLessonNeeded() && !rootWarningActive()) {
+      message = { title: "GROW YOUR NEXT STEP", text: "Jump, aim with Move, then tap Dash in the air. Land on the mushroom before it wilts." };
+    } else if (S.hint && !noticeBlocked()) {
+      message = { title: S.hint.priority >= NOTICE_PRIORITY.BOSS ? "Watch for the opening" : "Field notes", text: S.hint.text };
+    }
+    playOverlay.sync({ touch: TOUCH.active, leftHanded, mode: S.mode, health: S.health, maxHealth: S.maxHealth,
+      spores: S.player.spores, berries: S.berries, berriesTotal: S.berriesTotal, reach: S.reachTrial,
+      keepsakes: S.keepsakes.length, timed: competitiveRun(), time: fmtMs(S.score.time * 1000),
+      bossPips: S.boss && S.boss.state !== "defeated" ? S.boss.pips : null,
+      lesson: S.lesson, message });
+  }
+}
+
 let last = performance.now() / 1000;
 let acc = 0;
 
@@ -9152,6 +9341,17 @@ loadLevel(0);
 S.mode = "title";
 S.titleSel = titleIds().indexOf("start");
 applyDevFixture();
+if (typeof window.createSporelingMenus === "function") {
+  nativeMenus = window.createSporelingMenus({ action: nativeMenuAction });
+  S.titleSel = titleIds().indexOf("start");
+}
+if (typeof window.createSporelingPlayOverlay === "function") {
+  playOverlay = window.createSporelingPlayOverlay({ action: id => {
+    if (id === "lesson") dismissLevelLesson();
+    if (id === "talk") advanceTalk();
+  } });
+}
+syncNativeUI();
 // Narrow local-only bridge for repeatable browser playtests. It is never
 // attached on the deployed site, and exposes no credentials or network hooks.
 if (DEV) globalThis.__SPORELING_DEV__ = {

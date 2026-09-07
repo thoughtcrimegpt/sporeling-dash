@@ -1,0 +1,27 @@
+.play-overlay { position:fixed; inset:0; z-index:5; pointer-events:none; color:#f5f6eb; font-family:system-ui,-apple-system,sans-serif; }
+.play-overlay[hidden], .play-overlay [hidden] { display:none!important; }
+.play-vitals { display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:5px; position:absolute; left:max(10px,env(safe-area-inset-left)); right:82px; top:max(12px,env(safe-area-inset-top)); max-width:520px; font-size:11px; font-weight:650; }
+.play-vitals span { background:rgba(5,20,28,.92); border:1px solid #426361; border-radius:9px; padding:7px 5px; text-align:center; }
+.play-vitals span:first-child { color:#ffcab3; }
+.play-vitals span:nth-child(2) { color:#acf3cc; }
+.play-overlay.is-mirrored .play-vitals { left:82px; right:max(10px,env(safe-area-inset-right)); }
+.play-message { position:absolute; top:max(116px,calc(env(safe-area-inset-top) + 104px)); left:max(12px,env(safe-area-inset-left)); right:max(12px,env(safe-area-inset-right)); max-width:480px; border:1px solid #548776; border-radius:14px; background:rgba(5,20,28,.95); box-shadow:0 8px 30px #0005; padding:14px 16px; }
+.play-message-title { color:#aceccc; font-size:12px; font-weight:750; letter-spacing:.07em; text-transform:uppercase; margin:0 0 6px; }
+.play-message-copy { font-size:16px; line-height:1.45; margin:0; }
+.play-message-next { margin-top:10px; pointer-events:auto; min-height:44px; border:1px solid #8ad7b1; border-radius:9px; padding:8px 18px; color:#dbffe9; background:#193f35; font:700 14px system-ui; }
+.play-lesson { position:absolute; inset:0; background:rgba(2,10,17,.82); display:flex; align-items:center; justify-content:center; padding:20px; pointer-events:auto; backdrop-filter:blur(6px); }
+.play-lesson article { width:min(100%,420px); padding:28px; border:1px solid #64ae91; border-radius:22px; background:#0d252d; box-shadow:0 24px 90px #0008; }
+.play-eyebrow { color:#a6e5b7; font-size:12px; font-weight:750; letter-spacing:.15em; margin:0 0 12px; }
+.play-lesson h2 { font:700 30px/1.1 Georgia,serif; margin:0 0 16px; color:#ffe7bc; }
+.play-lesson-copy { font-size:17px; line-height:1.55; margin:0 0 24px; }
+.play-lesson button { width:100%; min-height:50px; border:0; border-radius:12px; font:750 17px system-ui; color:#072a26; background:#a5efc0; }
+.play-overlay button:focus-visible { outline:3px solid #f5c685; outline-offset:3px; }
+@media (orientation:landscape) {
+  .play-vitals { font-size:11px; grid-template-columns:repeat(6,max-content); top:max(8px,env(safe-area-inset-top)); }
+  .play-vitals span { padding:5px 8px; }
+  .play-message { top:48px; left:auto; right:max(82px,env(safe-area-inset-right)); width:min(42vw,390px); padding:10px 13px; }
+  .play-message-copy { font-size:14px; line-height:1.35; }
+  .play-message-title { font-size:11px; margin-bottom:4px; }
+  .play-message-next { min-height:40px; margin-top:6px; }
+  .play-lesson article { padding:20px 26px; }
+}
