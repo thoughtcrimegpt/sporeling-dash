@@ -32,26 +32,54 @@
     g.fillStyle = q; g.beginPath(); g.arc(x, y, r, 0, TAU); g.fill();
   }
 
-  /* Draws a hero around its feet anchor. options.x/y are world or screen
-   * coordinates of the 10x14 collision box's lower centre. */
+  /* The player is the original 12x12 pixel sprite. Keep this map local so
+   * title and gameplay use the same authored character and palette. */
+  var SPR_PAL = { O:"#8a4432", C:"#e8764e", H:"#f8b088", D:"#c05038", B:"#f4dcae", S:"#d0b088", E:"#241810", W:"#fff6e0", R:"#e89890" };
+  var F_HEAD = ["....CCCC....","..CCCCCCCC..",".CHHCCCCDCC.",".CHCCCCCDDC.","CCCCCCCCCCCC",".OOOOOOOOOO.","..BBBBBBBB.."];
+  var F_EYES_OPEN = [".BBEWBBEWBB.",".BBEEBBEEBB.",".BRBBBBBBRB."];
+  var F_EYES_SHUT = [".BBBBBBBBBB.",".BBEEBBEEBB.",".BRBBBBBBRB."];
+  function makeFrame(eyes, feet) { return F_HEAD.concat(eyes,["..BBBBBBBB.."],[feet]); }
+  var SPRITES = {
+    idle1:makeFrame(F_EYES_OPEN,"..SS....SS.."), idle2:makeFrame(F_EYES_SHUT,"..SS....SS.."),
+    run1:makeFrame(F_EYES_OPEN,".SS......SS."), run2:makeFrame(F_EYES_OPEN,"...SS..SS..."),
+    run3:makeFrame(F_EYES_OPEN,"..SS....SS.."), run4:makeFrame(F_EYES_OPEN,"....SSSS...."),
+    jump:makeFrame(F_EYES_OPEN,"...SS..SS..."), fall:makeFrame(F_EYES_OPEN,".S........S.")
+  };
   function drawHero(g, options) {
     options = options || {}; var p = options.player || options;
     var x = Number(options.x != null ? options.x : p.x) || 0, y = Number(options.y != null ? options.y : (p.y + (p.h || 14))) || 0;
-    var face = Number(p.facing || options.facing || 1) < 0 ? -1 : 1, anim = String(p.anim || options.anim || "idle").toLowerCase(), t = Number(options.time || p.time) || 0, reduced = !!(options.reducedMotion || p.reducedMotion);
-    var moving = anim === "run" || anim === "jump" || anim === "dash" || anim === "glide", run = reduced ? 0 : Math.sin(t * 11), dash = anim === "dash" || p.dashing, glide = anim === "glide";
-    var bob = reduced ? 0 : Math.sin(t * (moving ? 11 : 3.2)) * (moving ? .6 : .28);
-    var renderScale = Number(options.scale) || 1;
-    g.save(); g.translate(x, y - Math.abs(bob)); g.scale(renderScale * (dash ? 1.24 : (glide ? 1.1 : 1)), renderScale * (dash ? .8 : 1)); g.translate(0, -8.8);
-    glow(g, 0, -1, dash ? 16 : 10, [255,220,169], dash ? .34 : .14);
-    if (dash && !reduced) { g.fillStyle="rgba(248,143,120,.5)"; g.beginPath(); g.ellipse(-face*11,1,12,3,0,0,TAU); g.fill(); }
-    g.strokeStyle="#e9c99a"; g.lineWidth=2.1; g.lineCap="round"; var arm= moving && !reduced ? run*1.4 : 0;
-    g.beginPath();g.moveTo(-3.8,1);g.quadraticCurveTo(-6.3,2+arm,-6.5,4+arm);g.stroke(); g.beginPath();g.moveTo(3.8,1);g.quadraticCurveTo(6.3,2-arm,6.5,4-arm);g.stroke();
-    g.fillStyle="#f7e5bd"; g.beginPath(); g.moveTo(-4.5,-1);g.quadraticCurveTo(-5.2,3.5,-3.4,7);g.quadraticCurveTo(0,9.4,3.7,7);g.quadraticCurveTo(5.1,3.4,4.3,-1);g.quadraticCurveTo(0,-3,-4.5,-1);g.closePath();g.fill(); blob(g,-2.1,1.7,1.45,2.8,"rgba(255,251,223,.8)",-.2);
-    var wob = reduced ? 0 : Math.sin(t*(moving?8:2.4)+.8)*.08; g.save(); g.rotate(wob + (dash ? face*.07 : (glide ? face*-.12 : 0)));
-    g.fillStyle="#f6d8ac";g.beginPath();g.ellipse(0,-1.8,8.8,2.5,0,0,TAU);g.fill(); var capShade=g.createLinearGradient(0,-12,0,-1);capShade.addColorStop(0,"#f19280");capShade.addColorStop(.6,dash?"#d85d64":"#e76d73");capShade.addColorStop(1,"#cd666c");g.fillStyle=capShade;g.beginPath();g.moveTo(-9.3,-2);g.quadraticCurveTo(-8.8,-9.8,-2.2,-11.4);g.quadraticCurveTo(3.6,-13,8.7,-7.6);g.quadraticCurveTo(10.7,-5,9.2,-2.2);g.quadraticCurveTo(3.2,-.5,0,-1.5);g.quadraticCurveTo(-5,-.5,-9.3,-2);g.closePath();g.fill(); g.fillStyle="#f58b7e";blob(g,-3.1,-7.8,3.3,2.2,"#f58b7e",-.35);blob(g,3.9,-6.5,1.05,1.45,"rgba(255,213,170,.7)",.2); g.restore();
-    var blink=p.frame===3||p.blink; g.fillStyle="#36283a"; if(blink){g.fillRect(-2.8,.75,2,.45);g.fillRect(.8,.75,2,.45);}else{blob(g,-1.7,.1,.95,1.45,"#36283a");blob(g,1.7,.1,.95,1.45,"#36283a");} g.fillStyle="#fff9dd";blob(g,-1.95,-.45,.38,.52,"#fff9dd");blob(g,1.45,-.45,.38,.52,"#fff9dd");
-    g.fillStyle="rgba(231,113,113,.58)";blob(g,-3.5,2.5,1.15,.62,"rgba(231,113,113,.58)");blob(g,3.5,2.5,1.15,.62,"rgba(231,113,113,.58)"); g.strokeStyle="#774653";g.lineWidth=.65;g.beginPath();g.arc(0,2.2,1.45,.2,Math.PI-.2);g.stroke();
-    if(glide){g.strokeStyle="rgba(255,245,209,.82)";g.lineWidth=.9;g.beginPath();g.arc(0,-3,11,Math.PI,0);g.stroke();} g.fillStyle="#9e5b5e";var step=moving&&!reduced?run*1.1:0;blob(g,-2.5+step,7.7,2.35,1.12,"#9e5b5e");blob(g,2.4-step,7.7,2.35,1.12,"#9e5b5e");g.restore();
+    var anim = String(p.anim || options.anim || "idle").toLowerCase(), t = Number(options.time || p.time) || 0;
+    var reduced = !!(options.reducedMotion || p.reducedMotion), face = Number(p.facing || options.facing || 1) < 0 ? -1 : 1;
+    var frame = Number(p.frame); if (!isFinite(frame)) frame = Math.floor(t * 10) & 3;
+    var map;
+    if (anim === "run") map = SPRITES["run" + ((frame & 3) + 1)];
+    else if (anim === "jump" || anim === "dash") map = SPRITES.jump;
+    else if (anim === "fall" || anim === "glide" || anim === "slide") map = SPRITES.fall;
+    else map = (frame & 3) === 3 || p.blink ? SPRITES.idle2 : SPRITES.idle1;
+    var renderScale = Number(options.scale) || 1, squish = Number(p.squish); if (!isFinite(squish) || squish <= 0) squish = 1;
+    var sx = renderScale * (anim === "dash" ? 1.25 : 1) * (2 - squish), sy = renderScale * (anim === "dash" ? .8 : 1) * squish;
+    g.save(); g.translate(x, y); g.scale(sx, sy);
+    if (p.dashing || anim === "dash") {
+      g.fillStyle = "#f0a888"; g.globalAlpha = 0.35; g.fillRect(-8, -12, 16, 14); g.globalAlpha = 1;
+    }
+    for (var r = 0; r < map.length; r++) for (var c = 0; c < map[r].length; c++) {
+      var col = SPR_PAL[map[r][face < 0 ? map[r].length - 1 - c : c]]; if (col) { g.fillStyle = col; g.fillRect(c - 6, r - 12, 1, 1); }
+    }
+    if (anim === "glide") {
+      g.fillStyle = SPR_PAL.O; g.fillRect(-8, -12, 16, 2);
+      g.fillStyle = SPR_PAL.C; g.fillRect(-8, -14, 16, 2); g.fillRect(-7, -16, 14, 2); g.fillRect(-5, -17, 10, 1);
+      g.fillStyle = SPR_PAL.H; g.fillRect(-4, -16, 5, 2); g.fillRect(-7, -14, 2, 1);
+      g.fillStyle = SPR_PAL.D; g.fillRect(3, -15, 2, 2);
+    }
+    if (anim === "slide") {
+      g.fillStyle = "rgb(104,170,122)";
+      var wx = Number(p.wallDir) > 0 ? 5 : -7;
+      g.fillRect(wx, -8, 2, 1); g.fillRect(wx, -4, 2, 1); g.fillRect(wx, 0, 2, 1);
+    }
+    if (anim === "idle" && (frame & 1) === 0) {
+      g.fillStyle = "#c4a878"; g.fillRect(6, -14, 1, 1);
+    }
+    g.restore();
   }
 
   function makeLayer(w, h, act, reduced) {

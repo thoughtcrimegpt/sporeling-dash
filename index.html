@@ -57,7 +57,7 @@
     display: flex; align-items: center; justify-content: center; font-size: 12px; font-weight: bold; color: rgba(240,200,120,0.9);
     background: rgba(240,200,120,0.12); border: 2px solid rgba(240,200,120,0.45); }
   #btnJump.pressed { background: rgba(144,232,176,0.4); transform: scale(0.92); }
-  #btnDash.pressed { background: rgba(240,168,136,0.4); transform: scale(0.92); }
+  #btnDash.is-aiming, #btnDash.pressed { background: rgba(240,168,136,0.4); transform: scale(0.92); }
   #btnBurst.pressed { background: rgba(240,200,120,0.4); transform: scale(0.92); }
   #btnPause { position: fixed; top: calc(10px + env(safe-area-inset-top, 0px)); right: calc(10px + env(safe-area-inset-right, 0px)); width: 36px; height: 28px;
     border-radius: 6px; display: flex; align-items: center; justify-content: center;
@@ -141,6 +141,7 @@
 </div>
 <script src="ui/campaign.js"></script>
 <script src="ui/storybook.js"></script>
+<script src="ui/bloom-controls.js"></script>
 <script src="ui/guardians.js"></script>
 <script src="ui/terrain.js"></script>
 <script src="ui/inhabitants.js"></script>
@@ -172,11 +173,13 @@ const MAX_RUN = 110;
 const MOVE_ACCEL = 1500;
 const MOVE_FRICTION = 2600;
 const AIR_ACCEL = 950;
+const AIR_TURN_ACCEL = 1700;
+const AIR_BRAKE = 1500;
 const JUMP_V = -295;
-const JUMP_CUT = 0.4;
+const JUMP_CUT = 0.67;
 const COYOTE = 0.12;
 const JUMP_BUF = 0.12;
-const DASH_BUF = 0.1;      // press dash a hair early and it fires when re-armed
+const DASH_BUF = 0.15;     // press dash early and it fires when re-armed
 const RESONANCE_MAX = 100;
 
 // Camera feel — show where you're going, don't chase where you've been
@@ -201,7 +204,7 @@ const GLIDE_FALL = 60;
 
 const DASH_SPEED = 480;
 const DASH_TIME = 0.12;
-const DASH_FREEZE = 0.05;
+const DASH_FREEZE = 0;     // traversal stays responsive; impacts set their own hitstop
 const BLOOM_LIFE = 1.7;
 const BLOOM_WILT = 0.45;
 const BLOOM_W = 24;
@@ -1656,6 +1659,8 @@ const padPrev = { jump: false, dash: false, pause: false, y: false, burst: false
 const TOUCH = { active: false, ax: 0, ay: 0, jump: false, dash: false, burst: false, pause: false, slam: false,
   dashX: 0, dashY: 0, dashIntent: false, edges: Object.create(null), pointers: Object.create(null) };
 const touchPrev = { jump: false, dash: false, burst: false, pause: false, slam: false };
+const POINTER = { jump: false, jumpEdge: false, dashEdge: false, dx: 1, dy: 0, aimHeld: false, aimUntil: 0 };
+let bloomControls = null;
 let focusInputLock = false;
 let focusReady = true;
 let leftHanded = false;
@@ -1867,9 +1872,16 @@ function readInput() {
     for (const key of Object.keys(TOUCH.edges)) delete TOUCH.edges[key];
   }
 
-  const len = Math.hypot(ax, ay);
-  if (len > 1) { ax /= len; ay /= len; }
+  // Keep movement axes independent so diagonal keyboard/stick movement does
+  // not slow the run. dir8() still resolves dash aim to a unit 8-way vector.
   if (!dashAimCaptured) { dashAimX = ax; dashAimY = ay; }
+  let dashPrecise = false;
+  if (POINTER.jump) jumpDown = true;
+  if (POINTER.jumpEdge) jumpEdge = true;
+  if (POINTER.dashEdge) {
+    dashEdge = true; dashAimX = POINTER.dx; dashAimY = POINTER.dy; dashPrecise = true;
+  }
+  POINTER.jumpEdge = false; POINTER.dashEdge = false;
   // After focus returns, require every control to pass through neutral once.
   // Browsers can miss keyup/touchend while switching tabs or apps; accepting
   // those stale inputs is indistinguishable from the game moving by itself.
@@ -1882,12 +1894,14 @@ function readInput() {
       pauseEdge: false, startEdge: false, talkEdge: false, burstEdge: false, dailyEdge: false, boardEdge: false,
     };
   }
-  return { ax, ay, dashAimX, dashAimY, jumpDown, jumpEdge, dashEdge, pauseEdge, startEdge, talkEdge, burstEdge, dailyEdge, boardEdge };
+  return { ax, ay, dashAimX, dashAimY, dashPrecise, jumpDown, jumpEdge, dashEdge, pauseEdge, startEdge, talkEdge, burstEdge, dailyEdge, boardEdge };
 }
 
 function clearJust() { for (const k in just) delete just[k]; }
 
 function releaseTransientInput() {
+  if (typeof POINTER !== "undefined") { POINTER.jump = false; POINTER.jumpEdge = false; POINTER.dashEdge = false; POINTER.aimHeld = false; POINTER.aimUntil = 0; }
+  bloomControls?.cancel();
   for (const k in keys) delete keys[k];
   clearJust();
   TOUCH.ax = 0; TOUCH.ay = 0;
@@ -1985,7 +1999,7 @@ function setupTouch() {
   const touchStickEnd = e => { if ("PointerEvent" in window) return; for (const t of e.changedTouches) stickEnd(t.identifier); };
   stick.addEventListener("touchend", touchStickEnd); stick.addEventListener("touchcancel", touchStickEnd);
   bindBtn("btnJump", "jump");
-  bindBtn("btnDash", "dash");
+  if (!window.SporelingBloomControls) bindBtn("btnDash", "dash");
   bindBtn("btnSlam", "slam");
   bindBtn("btnBurst", "burst");
   bindBtn("btnPause", "pause");
@@ -4012,8 +4026,11 @@ function dir8(x, y, facing) {
   return { dx: dx / len, dy: dy / len };
 }
 
-function doDash(p, ax, ay) {
-  const d = dir8(ax, ay, p.facing);
+function doDash(p, ax, ay, precise = false) {
+  const length = Math.hypot(ax, ay);
+  let d = precise && length > 0.1 ? { dx: ax / length, dy: ay / length } : dir8(ax, ay, p.facing);
+  // Keep the slam easy to aim with a thumb or pointer near straight down.
+  if (precise && d.dy > 0.98) d = { dx: 0, dy: 1 };
   SFX.dash();
   p.dashing = true;
   // A pure-down dash becomes a slam: it rides until it finds the ground
@@ -5602,6 +5619,8 @@ function tick(dt) {
       if (S.pracSel === 0 && reachGet() > 0) S.pracSel = Math.max(1, Math.min(S.levelIdx, reachGet()));
     }
     else if (S.mode === "pause") S.mode = "play";
+    bloomControls?.cancel(); POINTER.jump=false; POINTER.jumpEdge=false; POINTER.dashEdge=false;
+    clearJust(); return;
   }
   if (S.mode === "pause") {
     const ids = pauseIds();
@@ -5655,6 +5674,12 @@ function tick(dt) {
   if (S.freezeT > 0) {
     S.freezeT -= dt;
     if (inp.jumpEdge) S.player.jumpBuf = JUMP_BUF;
+    if (inp.dashEdge) {
+      S.player.dashBuf = DASH_BUF;
+      S.player.dashAimX = inp.dashAimX;
+      S.player.dashAimY = inp.dashAimY;
+      S.player.dashPrecise = !!inp.dashPrecise;
+    }
     if (S.shakeT > 0) S.shakeT -= dt;
     clearJust();
     return;
@@ -5690,12 +5715,12 @@ function tick(dt) {
       queueNotice("Release " + jumpBtnName() + ", then press it again in the air for a flutter jump.", 4.5, NOTICE_PRIORITY.TUTORIAL);
     }
   }
-  else p.jumpBuf = Math.max(0, p.jumpBuf - dt);
+  else if (!p.dashing) p.jumpBuf = Math.max(0, p.jumpBuf - dt);
 
-  if (inp.dashEdge) { p.dashBuf = DASH_BUF; p.dashAimX = inp.dashAimX; p.dashAimY = inp.dashAimY; }
+  if (inp.dashEdge) { p.dashBuf = DASH_BUF; p.dashAimX = inp.dashAimX; p.dashAimY = inp.dashAimY; p.dashPrecise = !!inp.dashPrecise; }
   else p.dashBuf = Math.max(0, (p.dashBuf || 0) - dt);
   if (p.dashBuf <= 0) { p.dashAimX = 0; p.dashAimY = 0; }
-  if (!p.dashing && p.canDash && p.dashBuf > 0) { p.dashBuf = 0; doDash(p, p.dashAimX, p.dashAimY); p.dashAimX = 0; p.dashAimY = 0; }
+  if (!p.dashing && p.canDash && p.dashBuf > 0) { p.dashBuf = 0; doDash(p, p.dashAimX, p.dashAimY, p.dashPrecise); p.dashAimX = 0; p.dashAimY = 0; }
 
   if (p.dashing) {
     p.dashT -= dt;
@@ -5715,13 +5740,17 @@ function tick(dt) {
     p.sliding = false;
     if (wallsUnlocked() && !p.grounded) {
       const wd = touchingWallDir(p);
-      if (wd !== 0 && Math.sign(inp.ax) === wd && p.vy > -40) {
-        p.sliding = true;
+      if (wd !== 0 && Math.sign(inp.ax) === wd) {
         p.wallDir = wd;
         p.wallCoyote = 0.1;
-        if (p.grip > 0) p.grip -= dt;
-        if (Math.random() < 0.25)
-          burst(wd > 0 ? p.x + p.w : p.x, p.y + 4 + Math.random() * 6, -wd * 12, 20 + Math.random() * 20, 0.25, rgb(PAL.rockHi), 1);
+        // Contact during the upward portion grants jump grace, while the
+        // actual slide/clamp still starts near the apex as before.
+        if (p.vy > -40) {
+          p.sliding = true;
+          if (p.grip > 0) p.grip -= dt;
+          if (Math.random() < 0.25)
+            burst(wd > 0 ? p.x + p.w : p.x, p.y + 4 + Math.random() * 6, -wd * 12, 20 + Math.random() * 20, 0.25, rgb(PAL.rockHi), 1);
+        }
       }
     }
     if (!p.sliding) p.wallCoyote = Math.max(0, p.wallCoyote - dt);
@@ -5733,6 +5762,8 @@ function tick(dt) {
       const target = inp.ax * MAX_RUN;
       let acc;
       if (p.grounded) acc = (target === 0 || Math.abs(target) < Math.abs(p.vx) || Math.sign(target) !== Math.sign(p.vx || target)) ? MOVE_FRICTION : MOVE_ACCEL;
+      else if (target === 0) acc = AIR_BRAKE;
+      else if (Math.sign(target) !== Math.sign(p.vx || target)) acc = AIR_TURN_ACCEL;
       else acc = AIR_ACCEL;
       p.vx = approach(p.vx, target, acc * dt);
       if (inp.ax !== 0) p.facing = Math.sign(inp.ax);
@@ -6136,7 +6167,7 @@ canvas.addEventListener("click", e => {
 canvas.addEventListener("mousemove", e => {
   const uiHit = lbUiHitAt(e);
   NOTES_HOVER = !!uiHit?.notes;
-  canvas.style.cursor = (talkHitAt(e) || reviewHitAt(e) || lbHitAt(e) || uiHit) ? "pointer" : "";
+  canvas.style.cursor = (talkHitAt(e) || reviewHitAt(e) || lbHitAt(e) || uiHit) ? "pointer" : S.mode === "play" ? "crosshair" : "";
 });
 canvas.addEventListener("mouseleave", () => { NOTES_HOVER = false; });
 
@@ -6188,6 +6219,7 @@ function draw() {
   drawStrikeMark();
   drawGoal();
   drawTrail();
+  drawPointerAim();
   // The Stopped — faded where real players fell, swaying faintly
   if (S.fallen) {
     for (const f of S.fallen) {
@@ -7763,6 +7795,29 @@ function drawTrail() {
   g.globalAlpha = 1;
 }
 
+function drawPointerAim() {
+  if (S.mode !== "play" || !(POINTER.aimHeld || POINTER.aimUntil > S.time) || !S.player) return;
+  const p = S.player, ready = p.canDash && !p.dashing;
+  let ax=POINTER.dx, ay=POINTER.dy;
+  if (Number.isFinite(POINTER.screenX) && Number.isFinite(POINTER.screenY)) {
+    const r=canvas.getBoundingClientRect();
+    ax=(POINTER.screenX-r.left)*W/r.width-(p.x+p.w/2-S.camX);
+    ay=(POINTER.screenY-r.top)*H/r.height-(p.y+p.h/2-S.camY);
+  }
+  const len = Math.hypot(ax, ay) || 1;
+  let dx = ax / len, dy = ay / len;
+  if (dy>.98) { dx=0; dy=1; }
+  const x = p.x + p.w / 2, y = p.y + p.h / 2;
+  let distance = 44;
+  for (let d = 4; d <= distance; d += 4) {
+    if (solidBlocked(p.x + dx*d, p.y + dy*d, p.w, p.h)) { distance = Math.max(6, d-4); break; }
+  }
+  const ex=x+dx*distance, ey=y+dy*distance;
+  g.save();g.strokeStyle=ready?"#f8dc99":"#b5b8a4";g.globalAlpha=ready?.75:.4;g.lineWidth=.75;
+  g.setLineDash([2,3]);g.beginPath();g.moveTo(x+dx*10,y+dy*10);g.lineTo(ex,ey);g.stroke();g.setLineDash([]);
+  g.beginPath();g.moveTo(ex-dx*4-dy*3,ey-dy*4+dx*3);g.lineTo(ex,ey);g.lineTo(ex-dx*4+dy*3,ey-dy*4-dx*3);g.stroke();g.restore();
+}
+
 function drawPlayer() {
   if (window.SporelingStorybook) {
     const p = S.player;
@@ -9328,6 +9383,11 @@ function nativeMenuAction(id, value) {
 }
 
 function syncNativeUI() {
+  if (S.mode !== "play" || S.lesson) {
+    bloomControls?.cancel();
+    POINTER.jump=false; POINTER.jumpEdge=false; POINTER.dashEdge=false;
+    POINTER.aimHeld=false; POINTER.aimUntil=0;
+  }
   if (nativeMenus) {
     if (!["title", "pause", "notes", "reviews", "board"].includes(S.mode)) nativeMenus.sync({ mode: S.mode });
     else {
@@ -9394,6 +9454,23 @@ function frame(nowMs) {
 }
 
 setupTouch();
+if (window.SporelingBloomControls) bloomControls = window.SporelingBloomControls.create({
+  canvas, button: document.getElementById("btnDash"),
+  getState(event) {
+    const p=S.player, r=canvas.getBoundingClientRect();
+    const uiHit=event && event.target===canvas && (talkHitAt(event)||reviewHitAt(event)||lbHitAt(event)||lbUiHitAt(event));
+    return { enabled:S.mode==="play" && !S.lesson && !focusInputLock && !uiHit,
+      touch:TOUCH.active, playerX:r.left+(p.x+p.w/2-S.camX)*r.width/W,
+      playerY:r.top+(p.y+p.h/2-S.camY)*r.height/H, scale:r.width/W,
+      aimX:TOUCH.ax || (TOUCH.ay?0:p.facing), aimY:TOUCH.ay };
+  },
+  onStart(aim) { POINTER.screenX=null; POINTER.screenY=null; POINTER.aimHeld=true; POINTER.dx=aim.dx; POINTER.dy=aim.dy; },
+  onAim(aim) { POINTER.screenX=aim.clientX; POINTER.screenY=aim.clientY; POINTER.dx=aim.dx; POINTER.dy=aim.dy; POINTER.aimUntil=S.time+1.3; },
+  onRelease(aim) { POINTER.dx=aim.dx; POINTER.dy=aim.dy; POINTER.dashEdge=true; POINTER.aimHeld=false; POINTER.aimUntil=S.time+.4; },
+  onJumpStart() { POINTER.jump=true; POINTER.jumpEdge=true; },
+  onJumpEnd() { POINTER.jump=false; },
+  onCancel() { POINTER.jump=false; POINTER.jumpEdge=false; POINTER.dashEdge=false; POINTER.aimHeld=false; POINTER.aimUntil=0; },
+});
 lbRefresh();
 // a challenge link arms the challenger's echo
 try {

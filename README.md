@@ -1,8 +1,8 @@
 # Sporeling Dash
 
-A woodland platformer with a dependency-free canvas engine, expressive illustrated characters, and four painted environments.
+A woodland platformer with a dependency-free canvas engine, the original pixel mushroom hero, and four painted environments.
 
-The storybook overhaul restores a small, round coral-capped hero and builds a warmer world around it: Hearthwood, Lantern Canopy, Rainbell Hollows, and Heartroot. Seven main-route chambers have new terrain and pacing. Wall-cling, spore-glide, temporary bloom platforms, and the down-slam remain the foundation of movement.
+The storybook overhaul restores the original pixel hero and builds a warmer world around it: Hearthwood, Lantern Canopy, Rainbell Hollows, and Heartroot. Seven main-route chambers have new terrain and pacing. Wall-cling, spore-glide, temporary bloom platforms, and the down-slam remain the foundation of movement.
 
 The Mother Bloom has gone quiet. Dash in mid-air and a mushroom platform grows under your landing path. Jump from it and dash again before it wilts.
 
@@ -73,8 +73,8 @@ Four keepsakes persist on the device that found them. They are placed on the Rot
 | Action     | Keyboard              | Gamepad       |
 |------------|-----------------------|---------------|
 | Move       | A / D or Left / Right | Stick / D-pad |
-| Jump       | Space / Z / K         | A / B         |
-| Dash       | Shift / J             | X / RB / LB   |
+| Jump       | Right mouse or Space / Z / K | A / B         |
+| Dash       | Aim pointer + left mouse, or Shift / J | X / RB / LB   |
 | Spore burst (Adventure, full Resonance) | Q | Y |
 | Down-slam  | Hold Down + Dash in air | Down + Dash |
 | Finish dialogue text | E / Enter   | Y             |
@@ -84,7 +84,7 @@ Press F or click Full screen in the title/pause menu. Fullscreen includes the me
 
 Menus support arrows, WASD, D-pad, mouse, and touch. Responsive title and pause screens use readable text and large buttons, with Controls & Help and Settings available in both. Extras & challenges contains reviews, patch notes, leaderboards, and unlockable trials. Review and leaderboard handles link to their X profiles, and recorded ghosts can be raced from the leaderboard. Restarting from the beginning requires confirmation.
 
-On phones, drag Move to aim, then tap Jump or Dash. Release Jump and tap again in the air to flutter in Adventure. A dedicated Slam button appears when the move is introduced; Burst shows its charge and lights up when ready. Controls support simultaneous fingers, and Settings can mirror the layout. Touch menus use direct buttons. Gameplay instructions, conversations, and status use text sized for the screen. Reduced motion and music settings are available from either menu.
+On phones, drag Move to move and tap Jump. Drag the Dash button in a direction and release to dash; a quick tap uses the movement direction. Release Jump and tap again in the air to flutter in Adventure. A dedicated Slam button appears when the move is introduced; Burst shows its charge and lights up when ready. Controls support simultaneous fingers, and Settings can mirror the layout. Touch menus use direct buttons. Gameplay instructions, conversations, and status use text sized for the screen. Reduced motion and music settings are available from either menu.
 
 No dependencies or build step. Keep the `assets` and `ui` folders beside `index.html`, then open it and play. The developer server and tests require Node.js 20 or newer.
 
