@@ -142,6 +142,7 @@
 <script src="ui/campaign.js"></script>
 <script src="ui/storybook.js"></script>
 <script src="ui/bloom-controls.js"></script>
+<script src="ui/transitions.js"></script>
 <script src="ui/guardians.js"></script>
 <script src="ui/terrain.js"></script>
 <script src="ui/inhabitants.js"></script>
@@ -1880,6 +1881,7 @@ function readInput() {
   if (POINTER.jumpEdge) jumpEdge = true;
   if (POINTER.dashEdge) {
     dashEdge = true; dashAimX = POINTER.dx; dashAimY = POINTER.dy; dashPrecise = true;
+    if (keys.KeyS || keys.ArrowDown) { dashAimX=0; dashAimY=1; dashPrecise=false; }
   }
   POINTER.jumpEdge = false; POINTER.dashEdge = false;
   // After focus returns, require every control to pass through neutral once.
@@ -2932,7 +2934,7 @@ function loadLevel(idx) {
   S.reachFinalFuelArmed = false;
   S.bloomheartSecretFuelArmed = false;
   S.shakeT = 0; S.freezeT = 0; S.jumpHeldForCut = false;
-  S.bannerT = 2.4;
+  S.bannerT = 2.4; S.arriveT = .55; S.arriveDuration = .55; S.guardianIntroT = L.boss ? 2.6 : 0;
   if (L.unlockText) queueNotice(L.unlockText, 7, NOTICE_PRIORITY.TUTORIAL);
   SPIKES = []; STATIC_LIGHTS = []; DECOR = []; SPORES = []; ENEMY_SPAWNS = [];
   S.memoryObj = null; S.boss = null; S.bossDoor = null; S.shogGates = false;
@@ -3531,6 +3533,8 @@ function moveAxis(p, dx, dy) {
     for (const r of solidsNear(p.x, p.y, p.w, p.h)) {
       if (!overlap(p, r)) continue;
       if (r.oneWay && (dy < 0 || prevBottom > r.y + 1)) continue;
+      if (r.oneWay && !r.mover && p.dashing && p.dashOriginBloom &&
+          r.x === p.dashOriginBloom.x && r.y === p.dashOriginBloom.y) continue;
       if (dy > 0) {
         p.y = r.y - p.h;
         p.vy = 0;
@@ -3919,16 +3923,19 @@ function bloomPlacement(p) {
 }
 
 function spawnBloom(p) {
+  const place = bloomPlacement(p);
+  const bx = place.x, by = place.y;
+  if (solidBlocked(bx, by, BLOOM_W, BLOOM_H)) return null;
   if (S.blooms.length >= MAX_BLOOMS) {
     const oldest = S.blooms.reduce((a, b) => a.age > b.age ? a : b);
     oldest.life = Math.min(oldest.life, BLOOM_WILT * 0.6);
   }
-  const place = bloomPlacement(p);
-  const bx = place.x, by = place.y;
   const chain = CHAIN_WILT[Math.min(p.chainN || 0, CHAIN_WILT.length - 1)];
   p.chainN = (p.chainN || 0) + 1;
   addResonance(10 + Math.min(p.chainN, 5) * 2, true);
-  S.blooms.push({ x: bx, y: by, w: BLOOM_W, h: BLOOM_H, life: BLOOM_LIFE * chain * (dMod("brittle") ? 0.5 : 1), age: 0 });
+  const bloom = { x: bx, y: by, w: BLOOM_W, h: BLOOM_H,
+    life: (adventureMechanics() ? 2.2 : BLOOM_LIFE) * chain * (dMod("brittle") ? 0.5 : 1), age: 0 };
+  S.blooms.push(bloom);
   if (S.levelIdx === 0) S.bloomLessonDone = true;
   SFX.bloom();
   for (let i = 0; i < 10; i++) {
@@ -3937,11 +3944,13 @@ function spawnBloom(p) {
     burst(bx + BLOOM_W / 2, by + 2, Math.cos(a) * sp, Math.sin(a) * sp - 20, 0.4,
       Math.random() > 0.5 ? C.bloomHi : C.cap, 1 + (Math.random() * 2 | 0));
   }
+  return bloom;
 }
 
 function endDash(p) {
   if (!p.dashing) return;
   p.dashing = false;
+  p.dashOriginBloom = null;
   p.dashT = 0;
   if (p.slamDash) {
     p.slamDash = false;
@@ -3951,7 +3960,20 @@ function endDash(p) {
   p.vy *= 0.3;
   // The bloom sprouts where the dash ENDS — if you have spores left
   if (!p.grounded && !onGround(p)) {
-    if (p.spores > 0) { p.spores--; spawnBloom(p); }
+    if (p.spores > 0) {
+      const bloom = spawnBloom(p);
+      if (bloom) {
+        p.spores--;
+        // The fresh step catches the dash at its endpoint. The next command
+        // starts here, without making the player brake and fall back onto it.
+        if (p.x + p.w > bloom.x + 2 && p.x < bloom.x + bloom.w - 2) {
+          p.y = bloom.y - p.h; p.vx = 0; p.vy = 0;
+          p.grounded = true; p.coyote = COYOTE; p.canDash = true;
+          p.flutterReady = true; p.flutterArmed = false;
+          p.squish = .82; p.squishT = .1;
+        }
+      } else failBloom(p);
+    }
     else failBloom(p);
   }
 }
@@ -4029,12 +4051,16 @@ function dir8(x, y, facing) {
 function doDash(p, ax, ay, precise = false) {
   const length = Math.hypot(ax, ay);
   let d = precise && length > 0.1 ? { dx: ax / length, dy: ay / length } : dir8(ax, ay, p.facing);
-  // Keep the slam easy to aim with a thumb or pointer near straight down.
-  if (precise && d.dy > 0.98) d = { dx: 0, dy: 1 };
+  // A downward departure must clear its own step instead of landing on it
+  // again in the first frame. Other platforms retain their normal collision.
+  const foot = p.y + p.h;
+  const origin = S.blooms.find(b => Math.abs(b.y - foot) <= 2 && p.x + p.w > b.x && p.x < b.x + b.w);
+  p.dashOriginBloom = origin ? { x: origin.x, y: origin.y } : null;
+  // Pointer aim is a normal dash. Slam is an explicit Down + Dash command.
   SFX.dash();
   p.dashing = true;
   // A pure-down dash becomes a slam: it rides until it finds the ground
-  p.slamDash = d.dy > 0.9 && d.dx === 0;
+  p.slamDash = !precise && d.dy > 0.9 && d.dx === 0;
   p.dashT = p.slamDash ? 0.7 : DASH_TIME;
   p.dashDX = d.dx; p.dashDY = d.dy;
   p.canDash = false;
@@ -4074,7 +4100,7 @@ function doJump(p) {
   p.flutterArmed = false;
   p.flutterReady = true;
   p.coyote = 0;
-  p.canDash = true;   // jumping (incl. off a bloom) is what re-arms the dash
+  p.canDash = true;   // both jumping and a fresh bloom catch rearm the dash
   p.jumpBuf = 0;
   p.squish = 1.28;
   p.squishT = 0.1;
@@ -4083,6 +4109,29 @@ function doJump(p) {
   for (let i = 0; i < 4; i++) {
     burst(p.x + p.w / 2, p.y + p.h, (Math.random() - 0.5) * 50, -15 - Math.random() * 25, 0.22, rgb(PAL.mossHi), 1);
   }
+}
+
+function landingImminent(p, inp) {
+  if (p.grounded || p.vy < 0) return false;
+  // Reserve the following tick for the buffered jump. Predict the same glide
+  // and wall speed limits as movement, so waiting never consumes the input.
+  const frames = Math.max(0, Math.ceil(p.jumpBuf / FIXED_DT) - 1);
+  let foot = p.y + p.h, x = p.x, vy = p.vy;
+  for (let frame = 0; frame < frames; frame++) {
+    const glide = glideUnlocked() && !p.sliding && vy > 20 && inp.jumpDown;
+    vy = Math.min(vy + GRAVITY * FIXED_DT, MAX_FALL);
+    if (p.sliding) vy = Math.min(vy, p.grip > 0 ? WALL_SLIDE_V : WALL_TIRED_V);
+    else if (glide) vy = Math.min(vy, GLIDE_FALL * (dMod("heavy") ? 1.9 : 1));
+    x += p.vx * FIXED_DT;
+    const nextFoot = foot + vy * FIXED_DT;
+    for (const platforms of [S.blooms, S.movers]) for (const platform of platforms) {
+      if (platform.life !== undefined && platform.life <= BLOOM_WILT * .3 + (frame + 1) * FIXED_DT) continue;
+      if (platform.y >= foot - 1 && platform.y <= nextFoot + 1 && x + p.w > platform.x && x < platform.x + platform.w) return true;
+    }
+    for (let y = foot; y <= nextFoot + 1; y += 1) if (solidBlocked(x, y, p.w, 1)) return true;
+    foot = nextFoot;
+  }
+  return false;
 }
 
 function doFlutterJump(p) {
@@ -5250,6 +5299,7 @@ function respawn() {
   resetBossAfterDeath();
   S.deathT = 0;
   S.mode = "play";
+  S.arriveT = .22; S.arriveDuration = .22;
   beginDevAttempt();
   S.jumpHeldForCut = false;
   for (let i = 0; i < 10; i++) {
@@ -5354,6 +5404,10 @@ function advanceTalk() {
 function tick(dt) {
   const inp = readInput();
   S.time += dt;
+  if (S.mode === "play") {
+    S.arriveT = Math.max(0, (S.arriveT || 0) - dt);
+    S.guardianIntroT = Math.max(0, (S.guardianIntroT || 0) - dt);
+  }
   if (nativeMenus && nativeMenus.handleInput(inp)) { clearJust(); return; }
   if (S.shogTitleT > 0) S.shogTitleT -= dt;
   if (S.nikitaTitleT > 0) S.nikitaTitleT -= dt;
@@ -5563,7 +5617,7 @@ function tick(dt) {
     S.winT += dt;
     S.goalOpen = Math.min(1, S.goalOpen + dt * 1.4);
     updateParticles(dt);
-    if (S.winT > 2.0) {
+    if (S.winT > 1.15) {
       if (S.daily || S.reachTrial) {
         try {
           if (S.daily) localStorage.setItem("sd_root_cleared", "1");
@@ -5720,7 +5774,12 @@ function tick(dt) {
   if (inp.dashEdge) { p.dashBuf = DASH_BUF; p.dashAimX = inp.dashAimX; p.dashAimY = inp.dashAimY; p.dashPrecise = !!inp.dashPrecise; }
   else p.dashBuf = Math.max(0, (p.dashBuf || 0) - dt);
   if (p.dashBuf <= 0) { p.dashAimX = 0; p.dashAimY = 0; }
-  if (!p.dashing && p.canDash && p.dashBuf > 0) { p.dashBuf = 0; doDash(p, p.dashAimX, p.dashAimY, p.dashPrecise); p.dashAimX = 0; p.dashAimY = 0; }
+  let jumpBeforeDash = false;
+  if (!p.dashing && p.jumpBuf > 0 && p.dashBuf > 0) {
+    if (p.coyote > 0) { doJump(p); jumpBeforeDash = true; }
+    else if (wallsUnlocked() && p.wallCoyote > 0) { doWallJump(p); jumpBeforeDash = true; }
+  }
+  if (!jumpBeforeDash && !p.dashing && p.canDash && p.dashBuf > 0) { p.dashBuf = 0; doDash(p, p.dashAimX, p.dashAimY, p.dashPrecise); p.dashAimX = 0; p.dashAimY = 0; }
 
   if (p.dashing) {
     p.dashT -= dt;
@@ -5772,7 +5831,7 @@ function tick(dt) {
     if (p.jumpBuf > 0) {
       if (p.coyote > 0) doJump(p);
       else if (wallsUnlocked() && p.wallCoyote > 0) doWallJump(p);
-      else if (adventureMechanics() && p.flutterReady && p.flutterArmed && !p.flutterUsed) doFlutterJump(p);
+      else if (adventureMechanics() && p.flutterReady && p.flutterArmed && !p.flutterUsed && !landingImminent(p, inp)) doFlutterJump(p);
     }
 
     if (S.jumpHeldForCut && !inp.jumpDown && p.vy < 0) {
@@ -6253,7 +6312,7 @@ function draw() {
   drawBossWarnings();
   if (S.mode !== "creditjoin" && S.mode !== "credits") drawHUD();
   // Guardian introductions use the same quiet woodland typography.
-  if ((S.shogTitleT > 0 || S.nikitaTitleT > 0) && S.mode === "play") {
+  if (!window.SporelingTransitions && (S.shogTitleT > 0 || S.nikitaTitleT > 0) && S.mode === "play") {
     const remaining = Math.max(S.shogTitleT || 0, S.nikitaTitleT || 0);
     g.save();g.globalAlpha=Math.min(1,remaining/.6);g.textAlign="center";
     g.fillStyle="rgba(25,37,29,.78)";g.fillRect(W/2-102,44,204,43);
@@ -6265,7 +6324,7 @@ function draw() {
   }
 
   // Keep the cause visible during the short retry pause.
-  if (S.mode === "dead" && S.deathCause) {
+  if (!window.SporelingTransitions && S.mode === "dead" && S.deathCause) {
     g.textAlign = "center";
     g.fillStyle = "rgba(4,6,10,0.82)";
     const cw = ("hit by " + S.deathCause).length * 5.2 + 14;
@@ -6342,7 +6401,7 @@ function draw() {
     g.fillText(touchMenu ? "Tap an option." : "Move to choose. Press Jump to select.", W / 2, touchMenu ? 177 : compactMenu ? 171 : 168);
   }
 
-  if (S.mode === "clear") {
+  if (S.mode === "clear" && !window.SporelingTransitions) {
     const a = Math.min(0.5, S.winT * 1.2);
     g.fillStyle = "rgba(6,10,16," + a + ")";
     g.fillRect(0, 0, W, H);
@@ -6369,6 +6428,24 @@ function draw() {
     }
   }
 
+  if (window.SporelingTransitions) {
+    const drawTransition = (phase, progress, extra={}) => window.SporelingTransitions.draw(g, {width:W,height:H,phase,progress,reducedMotion,...extra});
+    if (S.mode === "clear") {
+      drawTransition("boss", S.winT/1.15, {title:"A little farther into the woods",subtitle:`${S.berries} / ${S.berriesTotal} berries found`});
+      drawTransition("depart", S.winT/1.15);
+    } else if (S.mode === "dead") {
+      drawTransition("death",S.deathT/.55);
+      drawTransition("boss",Math.min(.7,S.deathT/.55+.2),{title:"Try that step again",subtitle:S.deathCause?`Caught by ${S.deathCause}`:"Your lantern is still waiting"});
+    } else if (S.mode === "play") {
+      const bossT=Math.max(S.shogTitleT||0,S.nikitaTitleT||0,S.guardianIntroT||0);
+      if(bossT>0){
+        const names={barrow:["Barrow","Gardener of the hidden hollow"],chorus:["The Lantern Chorus","Listen for the opening"],nikita:["Brambleback","Keeper of the truffle grove"],unbloomed:["The Heartwood Guardian","Help the old forest bloom again"],shoggoth:["The Heartwood Guardian","Help the old forest bloom again"]};
+        const card=names[S.boss?.kind]||names.unbloomed;
+        drawTransition("boss",1-bossT/(S.shogTitleT>0?3.4:S.nikitaTitleT>0?3.2:2.6),{title:card[0],subtitle:card[1]});
+      }
+      if(S.arriveT>0)drawTransition("arrive",1-S.arriveT/(S.arriveDuration||.55),S.arriveDuration<.3?{palette:{cream:"#303b2d",parchment:"#303b2d",ochre:"#303b2d"},reducedMotion:true}:{});
+    }
+  }
   blit();
 }
 
@@ -7806,7 +7883,7 @@ function drawPointerAim() {
   }
   const len = Math.hypot(ax, ay) || 1;
   let dx = ax / len, dy = ay / len;
-  if (dy>.98) { dx=0; dy=1; }
+  if (keys.KeyS || keys.ArrowDown) { dx=0; dy=1; }
   const x = p.x + p.w / 2, y = p.y + p.h / 2;
   let distance = 44;
   for (let d = 4; d <= distance; d += 4) {
@@ -8402,6 +8479,9 @@ function drawBanner() {
   if (S.bannerT > 0) {
     const L = LEVELS[S.levelIdx];
     const dur = 2.4;
+    if (window.SporelingTransitions) {
+      if (!S.boss) window.SporelingTransitions.draw(g,{width:W,height:H,phase:"boss",placement:"top",progress:1-S.bannerT/dur,reducedMotion,title:L.displayName||L.name,subtitle:L.actTitle||"A path beneath the roots"});
+    } else {
     const a = clamp(Math.min(S.bannerT, dur - S.bannerT) * 2, 0, 1);
     g.globalAlpha = a;
     g.fillStyle = "rgba(8,12,18,0.6)";
@@ -8411,6 +8491,7 @@ function drawBanner() {
     g.textAlign = "center";
     g.fillText(L.displayName || L.name, W / 2, 50);
     g.globalAlpha = 1;
+    }
   }
   if (S.hint && S.mode === "play" && !S.talk && !rootWarningActive() && !openingLessonNeeded()) {
     const age = S.hint.duration - S.hint.t;
@@ -9424,7 +9505,7 @@ function syncNativeUI() {
     } else if (S.bannerT > 0) {
       message = { title: LEVELS[S.levelIdx].actTitle || "WOODLAND PATH", text: LEVELS[S.levelIdx].displayName || LEVELS[S.levelIdx].name };
     } else if (openingLessonNeeded() && !rootWarningActive()) {
-      message = { title: "GROW YOUR NEXT STEP", text: "Jump, aim with Move, then tap Dash in the air. Land on the mushroom before it wilts." };
+      message = { title: "GROW YOUR NEXT STEP", text: "Jump, then drag Dash and release. Your mushroom catches you. Jump or dash again before it wilts." };
     } else if (S.hint && !noticeBlocked()) {
       message = { title: S.hint.priority >= NOTICE_PRIORITY.BOSS ? "Watch for the opening" : "Field notes", text: S.hint.text };
     }

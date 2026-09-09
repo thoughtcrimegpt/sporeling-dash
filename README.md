@@ -4,11 +4,11 @@ A woodland platformer with a dependency-free canvas engine, the original pixel m
 
 The storybook overhaul restores the original pixel hero and builds a warmer world around it: Hearthwood, Lantern Canopy, Rainbell Hollows, and Heartroot. Seven main-route chambers have new terrain and pacing. Wall-cling, spore-glide, temporary bloom platforms, and the down-slam remain the foundation of movement.
 
-The Mother Bloom has gone quiet. Dash in mid-air and a mushroom platform grows under your landing path. Jump from it and dash again before it wilts.
+The Mother Bloom has gone quiet. Dash in mid-air and a mushroom catches you at the end of the dash. Jump or dash straight from that new step before it wilts. Each fresh mushroom spends one spore; solid ground and enemies restore your supply.
 
 The main Adventure crosses 15 chambers and four guardian encounters: Barrow, the Chorus, Brambleback, and the Heartwood Guardian. Two hidden rooms, four persistent keepsakes, the Pale Root, and The Reach sit outside that route.
 
-Adventure also has Resonance: bounce or dash through ordinary enemies and chain blooms to fill the meter. At full charge, press Q, gamepad Y, or the touch burst button for a radial burst that clears nearby ordinary enemies, restores dash and blooms, and lifts you upward. A released and re-pressed jump provides one midair flutter jump; solid landings refresh it.
+Adventure also has Resonance: bounce or dash through ordinary enemies and chain blooms to fill the meter. At full charge, press Q, gamepad Y, or the touch burst button for a radial burst that clears nearby ordinary enemies, restores dash and blooms, and lifts you upward. A released and re-pressed jump provides one midair flutter jump; an input just before landing waits for a normal jump. Adventure mushrooms last longer to give you time to choose your next step.
 
 **Play:** https://thoughtcrimegpt.github.io/sporeling-dash/
 
@@ -70,7 +70,7 @@ Four keepsakes persist on the device that found them. They are placed on the Rot
 
 ## Controls
 
-| Action     | Keyboard              | Gamepad       |
+| Action     | Mouse and keyboard    | Gamepad       |
 |------------|-----------------------|---------------|
 | Move       | A / D or Left / Right | Stick / D-pad |
 | Jump       | Right mouse or Space / Z / K | A / B         |
@@ -85,6 +85,8 @@ Press F or click Full screen in the title/pause menu. Fullscreen includes the me
 Menus support arrows, WASD, D-pad, mouse, and touch. Responsive title and pause screens use readable text and large buttons, with Controls & Help and Settings available in both. Extras & challenges contains reviews, patch notes, leaderboards, and unlockable trials. Review and leaderboard handles link to their X profiles, and recorded ghosts can be raced from the leaderboard. Restarting from the beginning requires confirmation.
 
 On phones, drag Move to move and tap Jump. Drag the Dash button in a direction and release to dash; a quick tap uses the movement direction. Release Jump and tap again in the air to flutter in Adventure. A dedicated Slam button appears when the move is introduced; Burst shows its charge and lights up when ready. Controls support simultaneous fingers, and Settings can mirror the layout. Touch menus use direct buttons. Gameplay instructions, conversations, and status use text sized for the screen. Reduced motion and music settings are available from either menu.
+
+Aiming the pointer or dragging Dash downward performs an ordinary dash. Slam is a deliberate Down + Dash command, or the dedicated touch button. Jump and Dash pressed together take off first, then launch the captured dash on the next simulation tick.
 
 No dependencies or build step. Keep the `assets` and `ui` folders beside `index.html`, then open it and play. The developer server and tests require Node.js 20 or newer.
 

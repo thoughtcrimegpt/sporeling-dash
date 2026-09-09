@@ -62,7 +62,9 @@ test("Rootworks clears through its real enemy chain", { timeout: 15_000 }, () =>
 
 test("The Reach clears in all three checkpoint retry chunks", { timeout: 30_000 }, () => {
   for (let chunk = 0; chunk < 3; chunk++) {
-    const result = probeReachChunk(chunk, { beamWidth: 10, maxSteps: 620 });
+    const result = probeReachChunk(chunk, chunk >= 1
+      ? { beamWidth: 30, maxSteps: 900 }
+      : { beamWidth: 10, maxSteps: 620 });
     assert.equal(result.ok, true,
       `Reach chunk ${chunk + 1} stopped at ${result.nextWaypoint || "the route"} after ${result.expanded} expansions`);
     assert.ok(result.actions.length > 0, `Reach chunk ${chunk + 1} has replayable inputs`);

@@ -2218,6 +2218,7 @@ test("the opening lesson names the active controls and precedes a safe mandatory
   keyboard.api.g.operations.length = 0;
   keyboard.api.draw();
   assert.ok(keyboard.api.g.operations.some(op => op.type === "fillText" && op.value === "Air-dash now. The bloom will catch you."));
+  keyboard.api.S.player.y = 70; // An aerial bloom needs clear space below its feet.
   keyboard.api.spawnBloom(keyboard.api.S.player);
   assert.equal(keyboard.api.S.bloomLessonDone, true, "the lesson retires after the player creates a bloom");
 });
@@ -2569,6 +2570,7 @@ test("flutter jump requires an airborne release and consumes its one charge", ()
   const { api } = bootGame();
   api.startTitleRun();
   const p = api.S.player;
+  p.y -= 64; // Test a deliberate flutter, away from an imminent landing.
   p.grounded = false; p.vy = 80; p.flutterReady = true; p.flutterArmed = true; p.flutterUsed = false; p.resonanceChain = 3;
   api.doFlutterJump(p);
   assert.equal(p.flutterReady, false);
@@ -2580,6 +2582,7 @@ test("tick input accepts one released flutter jump and burst prevents armed mine
   const { api } = bootGame();
   api.startPracticeRun(1);
   const p = api.S.player;
+  p.y -= 64; // Test a deliberate flutter, away from an imminent landing.
   p.grounded = false; p.vy = 80; p.flutterReady = true; p.flutterArmed = true; p.flutterUsed = false;
   api.just.Space = true;
   api.keys.Space = true;
