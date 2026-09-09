@@ -364,6 +364,7 @@ test("checkpoint spacing keeps each retry stretch meaningful", () => {
 test("mercy retry anchors sit in safe, intentional parts of the route", () => {
   const { api } = bootGame();
   const expected = new Map([
+    ["MYCEL GARDENS", [{ c: 22, r: 22 }]],
     ["THE SKITTERWAY", [{ c: 45, r: 7 }]],
     ["THE MARROW", [{ c: 72, r: 16 }]],
   ]);
@@ -1081,7 +1082,7 @@ test("The Reach marks shortcut stone while keeping active walls climbable", () =
   p.x = api.TILE;
   assert.equal(api.touchingWallDir(p), 0, "the striped left shortcut barrier cannot be clung to");
   p.x = 63 * api.TILE - p.w;
-  assert.notEqual(api.touchingWallDir(p), 0, "the active Spire wall remains climbable");
+  assert.equal(api.touchingWallDir(p), 0, "the outer Spire boundary requires returning to the inner grip wall");
   p.y = 70 * api.TILE;
   assert.equal(api.touchingWallDir(p), 0, "the striped right shortcut barrier cannot be clung to");
   p.y = 120 * api.TILE;
@@ -1090,7 +1091,7 @@ test("The Reach marks shortcut stone while keeping active walls climbable", () =
 
   const reach = api.LEVELS[api.REACH_INDEX];
   assert.equal(reach.map[120][0], "X");
-  assert.equal(reach.map[120][63], "#");
+  assert.equal(reach.map[120][63], "X");
   assert.equal(reach.map[70][63], "X");
 });
 
@@ -1193,7 +1194,7 @@ test("The Reach has five fuel-led segments and exactly two earned checkpoints", 
   assert.equal((cells.match(/K/g) || []).length, 0, "The Reach has no collectible");
   assert.equal((cells.match(/G/g) || []).length, 1);
   assert.ok((cells.match(/X/g) || []).length > 100, "striped shortcut stone has its own map tile");
-  assert.equal(reach.map[144].slice(30, 35), "#####", "the first long span has one recovery island");
+  assert.equal(reach.map[144].slice(30, 35), ".###.", "the first long span keeps a deliberate three-tile recovery island");
   const checkpoints = [];
   reach.map.forEach((row, r) => { for (let c = 0; c < row.length; c++) if (row[c] === "C") checkpoints.push([c, r]); });
   assert.deepEqual(checkpoints, [[59, 56], [59, 141]], "checkpoints end the First Span and the Gale");

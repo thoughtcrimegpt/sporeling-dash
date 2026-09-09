@@ -2,7 +2,7 @@ import { bootGame } from "./game-harness.mjs";
 import { resolve } from "node:path";
 import { pathToFileURL } from "node:url";
 
-const ACTIONS = [
+export const ACTIONS = [
   { name: "coast", x: 0, y: 0, frames: 6 },
   { name: "left", x: -1, y: 0, frames: 6 },
   { name: "right", x: 1, y: 0, frames: 6 },
@@ -28,7 +28,7 @@ const ACTIONS = [
 ];
 const BASE_ACTION_COUNT = 17;
 
-const ROUTE_WAYPOINTS = {
+export const ROUTE_WAYPOINTS = {
   "THE HOLLOW": [
     { name: "porch gap", x: 18 * 16, y: 9 * 16 - 10, rx: 72 },
     { name: "first thorns", x: 43 * 16, y: 8 * 16 - 10, rx: 80 },
@@ -178,6 +178,8 @@ function stateKey(s) {
 
 function reachedWaypoint(s, waypoint) {
   const p = s.player;
+  if (waypoint.grounded && !p.grounded) return false;
+  if (waypoint.ry !== undefined && Math.abs(p.y - waypoint.y) > waypoint.ry) return false;
   const verticalReached = waypoint.down ? p.y >= waypoint.y - 22 : p.y <= waypoint.y + 22;
   const horizontalReached = Math.abs(p.x + p.w / 2 - waypoint.x) <= waypoint.rx;
   if (!verticalReached || !horizontalReached) return false;
@@ -197,7 +199,7 @@ function rank(s, goal, waypoints, waypointIndex, goalDown, profile) {
   const target = waypoints[waypointIndex]
     || { x: goal.x + goal.w / 2, y: goal.y, rx: 0, down: goalDown };
   const delta = p.y - target.y;
-  const vertical = target.down
+  const vertical = target.down || target.ry !== undefined
     ? Math.abs(delta)
     : (delta >= 0 ? delta : -delta * profile.overshootWeight);
   const horizontal = Math.abs(p.x + p.w / 2 - target.x);
@@ -333,11 +335,11 @@ export function probeReachChunk(chunk, options = {}) {
       start: null,
       waypoints: [
         { name: "step-off fuel", x: 20 * T, y: 141 * T - 10, rx: 64 },
-        { name: "first span checkpoint", x: 59 * T, y: 142 * T - 10, rx: 74 },
+        { name: "first span checkpoint", x: 59 * T + 8, y: 142 * T - 10, rx: 20, ry: 10, grounded: true },
       ],
     },
     {
-      start: { x: 59 * T + 3, y: 141 * T + 4 },
+      start: { x: 59 * T + 3, y: 141 * T - 4 },
       waypoints: [
         { name: "spire base", x: 60 * T, y: 133 * T - 10, rx: 72 },
         { name: "spire lower", x: 59 * T, y: 127 * T - 10, rx: 72 },
@@ -352,11 +354,12 @@ export function probeReachChunk(chunk, options = {}) {
         { name: "return middle", x: 34 * T, y: 66 * T - 10, rx: 82 },
         { name: "second return island", x: 40 * T, y: 64 * T - 10, rx: 72 },
         { name: "return top", x: 47 * T, y: 61 * T - 10, rx: 82 },
-        { name: "gale checkpoint", x: 55 * T, y: 57 * T - 10, rx: 118 },
+        { name: "checkpoint lip", x: 51 * T - 6, y: 57 * T - 26, rx: 14, ry: 16 },
+        { name: "gale checkpoint", x: 59 * T + 8, y: 57 * T - 10, rx: 20, ry: 10, grounded: true },
       ],
     },
     {
-      start: { x: 59 * T + 3, y: 56 * T + 4 },
+      start: { x: 59 * T + 3, y: 56 * T - 4 },
       waypoints: [
         { name: "last reach entry", x: 53 * T, y: 52 * T - 10, rx: 68, clearRadius: 44 },
         { name: "last reach turn", x: 44 * T, y: 46 * T - 10, rx: 68, clearRadius: 44 },
@@ -379,7 +382,10 @@ export function probeReachChunk(chunk, options = {}) {
     beamWidth: options.beamWidth || 12,
     maxSteps: options.maxSteps || 700,
     ...chunks[chunk],
-    finishAtLastWaypoint: true,
+    // Retry chunks 1 and 2 end at real checkpoint locations. The final
+    // chunk must still touch the actual goal so a waypoint-only result cannot
+    // claim that the trial clears.
+    finishAtLastWaypoint: chunk < 2,
   });
 }
 

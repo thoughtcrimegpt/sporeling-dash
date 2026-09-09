@@ -20,11 +20,15 @@ Adventure has no clock or leaderboard submission. Level select becomes available
 
 | Difficulty | Health | Berry healing | Checkpoints |
 |------------|--------|---------------|-------------|
-| Easy       | 5      | Every 8       | Mercy retries in Skitterway, Marrow, and Swallow |
-| Normal     | 4      | Every 12      | Mercy retries in Skitterway, Marrow, and Swallow |
+| Easy       | 5      | Every 8       | Extra retries in Mycel Gardens, Canopy Run, Rainbell Crossing, and Falling Garden |
+| Normal     | 4      | Every 12      | Extra retries in Mycel Gardens, Canopy Run, Rainbell Crossing, and Falling Garden |
 | Hard       | 3      | Every 16      | Original sparse layout |
 
 Deaths return you to the latest checkpoint and restore the current difficulty's full health.
+
+The main route builds challenge in short sections. Mycel Gardens narrows its upper transfers, the Canopy Run alternates rising and falling landings, Truffle Runs offers high and low approaches around a moving shelf, and Rootworks combines overhead gates with smaller perches and isolated thorns. Beginner sections retain broad footing. Optional berries and keepsakes reward more ambitious routes.
+
+The camera keeps fast upward chains in view and immediately returns to the checkpoint with the character on a retry.
 
 ### Timed Run
 
@@ -35,6 +39,8 @@ Every completed run qualifies for the Any% board. Collecting every berry, meetin
 ### New Game+
 
 Finishing the main game unlocks The Pale Root: one long climb, two checkpoints, and its own leaderboard. Clearing the Pale Root unlocks The Reach, a separate five-part trial built around long horizontal and vertical bloom chains, enemy refunds, wall transfers, and speed. It has exactly two checkpoints. Every wall used by the intended route is rough and climbable; clearly striped smooth stone marks the shortcut barriers. The Gale includes one small recovery island inside its full-width enemy chain, while the Spire and final ascent trade resting shelves for longer connector sequences. If the player falls back from the final climb and lands below it, that section's enemy connectors reset for another attempt.
+
+These trials demand longer sequences before a reset. Pale Root's smooth borders direct the climb through its narrow ladders and island weaves, while the first chimney retains its right grip wall. The Reach uses smooth outer borders and three-tile recovery islands, preserving its interior grip walls and enemy connectors. Controls, jump forgiveness, and dash behavior remain consistent with the main game.
 
 The leaderboard names each route directly: Any%, 100%, Pale Root, and The Reach. The Reach has no collectibles or completion variants: reaching its crown is the whole trial, with one champion ghost and one personal-best ghost.
 

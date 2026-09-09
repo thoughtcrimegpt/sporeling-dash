@@ -2449,7 +2449,7 @@ const LEVELS = [
   },
   {
     // The daily trial — a pale climb in the Mother's oldest root.
-    // White-Palace rules: pure platforming, brutal, fair, one mercy checkpoint.
+    // A precision climb with two earned checkpoints and visible grip surfaces.
     name: "THE PALE ROOT", pal: 6, gauntlet: true,
     movers: [
       { c0: 18, c1: 20, rA: 126, rB: 122, period: 1.9, phase: 0 },
@@ -2461,6 +2461,10 @@ const LEVELS = [
     map: buildLevel(26, 200, ({ set, rect }) => {
       rect(0, 0, 25, 1);                                      // ceiling
       rect(0, 0, 0, 199); rect(25, 0, 25, 199);               // walls
+      // Smooth borders make the open ladders and island weaves matter. The
+      // first chimney retains its right grip wall for alternating transfers.
+      for (let r = 2; r <= 195; r++) { set(0, r, "X"); set(25, r, "X"); }
+      for (let r = 156; r <= 176; r++) set(25, r, "#");
       rect(1, 196, 24, 199);                                  // base floor
       set(3, 195, "P");
       // SEG 1 — the steps: thin posts, long gaps, spiked floor
@@ -2513,7 +2517,7 @@ const LEVELS = [
       set(21, 6, "G");
     }),
     clearText: "The crown opens.",
-    unlockText: "Climb to the crown. Checkpoints are scarce.",
+    unlockText: "Three blooms, two checkpoints. Striped walls are smooth; rough stone holds your grip.",
   },
   {
     name: "THE PRESSED GARDEN", pal: 6, secret: true, keepsakeId: "bloomheart-margin",
@@ -2545,7 +2549,7 @@ const LEVELS = [
       // Striped smooth stone marks shortcut barriers. Every wall used by the
       // intended route remains ordinary rough stone and can be clung to.
       for (let r = 1; r <= 146; r++) set(0, r, "X");
-      for (let r = 12; r <= 95; r++) set(63, r, "X");
+      for (let r = 1; r <= 146; r++) set(63, r, "X");
       rect(1, 147, 62, 149);
       for (let c = 7; c <= 61; c++) set(c, 146, "S");
 
@@ -2554,7 +2558,7 @@ const LEVELS = [
       set(12, 142, "f"); set(20, 140, "f");
 
       // 2. First Span: one small island breaks a long enemy chain in half.
-      set(27, 142, "f"); rect(30, 144, 34, 144);
+      set(27, 142, "f"); rect(31, 144, 33, 144);
       set(40, 139, "f"); set(47, 142, "f"); set(54, 138, "f");
       rect(57, 142, 62, 146); set(59, 141, "C");
 
@@ -2570,7 +2574,7 @@ const LEVELS = [
 
       // 4. Gale: a full-width horizontal chain with one recovery island, then
       // a long rising chain back to the second checkpoint.
-      rect(52, 91, 62, 92); rect(29, 91, 33, 91); rect(1, 91, 7, 92);
+      rect(52, 91, 62, 92); rect(30, 91, 32, 91); rect(1, 91, 7, 92);
       set(49, 88, "w"); set(43, 86, "f"); set(37, 89, "w");
       set(25, 87, "w"); set(19, 89, "f"); set(13, 86, "w"); set(8, 89, "f");
       rect(1, 84, 6, 86);
@@ -2581,12 +2585,13 @@ const LEVELS = [
       set(59, 56, "C");
 
       // 5. Last Reach: wall work, moving footing, and an extended upper chain.
-      rect(54, 43, 55, 56); rect(46, 48, 50, 48); rect(34, 43, 39, 43);
+      // Leave a low passage into the checkpoint porch below the climb wall.
+      rect(54, 43, 55, 54); rect(46, 48, 50, 48); rect(34, 43, 39, 43);
       rect(17, 34, 18, 49); rect(19, 38, 23, 38); rect(8, 29, 13, 29);
       set(53, 52, "s"); set(44, 46, "w"); set(31, 41, "f"); set(22, 36, "w");
       set(20, 45, "S"); set(16, 40, "S"); set(20, 35, "S");
       set(14, 31, "w"); set(23, 26, "f"); set(33, 22, "w"); set(43, 18, "f");
-      rect(47, 15, 51, 15); set(54, 12, "w"); set(47, 9, "f"); set(56, 6, "w");
+      rect(48, 15, 50, 15); set(54, 12, "w"); set(47, 9, "f"); set(56, 6, "w");
       rect(58, 3, 62, 4); set(59, 1, "G");
     }),
     clearText: "You made the crown.",
@@ -5297,6 +5302,10 @@ function respawn() {
   S.blooms = [];
   spawnEnemies();
   resetBossAfterDeath();
+  // A retry starts at the checkpoint in both world and screen space.
+  S.camLook = 0; S.lookFace = p.facing; S.lookHoldT = 0;
+  S.camX = clamp(cameraTargetX(p), 0, Math.max(0, WORLD_W - W));
+  S.camY = clamp((rootCameraCenterY(p) ?? (p.y + p.h / 2)) - H / 2, 0, Math.max(0, WORLD_H - H));
   S.deathT = 0;
   S.mode = "play";
   S.arriveT = .22; S.arriveDuration = .22;
@@ -6023,6 +6032,13 @@ function tick(dt) {
   else if (rootFrameY === null && pcy > ccy + CAM_DEAD_Y) tyc = pcy - CAM_DEAD_Y;
   const vEase = p.vy > 60 ? CAM_DOWN_EASE : CAM_UP_EASE;
   S.camY += (tyc - H / 2 - S.camY) * Math.min(1, vEase * dt);
+  // Rapid bloom climbs must keep the next dash-length of headroom visible.
+  // Ordinary movement keeps its easing; this bound only catches a player
+  // who would otherwise outrun the camera. Boss compositions stay fixed.
+  if (rootFrameY === null) {
+    S.camY = Math.min(S.camY, p.y - 64);
+    S.camY = Math.max(S.camY, p.y + p.h - (H - 32));
+  }
   S.camX = clamp(S.camX, 0, Math.max(0, WORLD_W - W));
   S.camY = clamp(S.camY, 0, Math.max(0, WORLD_H - H));
 

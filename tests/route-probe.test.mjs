@@ -40,7 +40,7 @@ test("saved Pale Root route survives deterministic enemies", () => {
 test("authored campaign routes clear through real engine traversal", { timeout: 30_000 }, () => {
   const routes = ["THE HOLLOW", "ROTROOT CHASM", "THE SPIRE", "MYCEL GARDENS", "THE SKITTERWAY", "THE BLOOMHEART", "THE MARROW", "THE SWALLOW", "THE TRUFFLE RUNS", "THE ROOTWORKS"];
   for (const levelName of routes) {
-    const result = probeRoute(levelName, { beamWidth: levelName === "THE SKITTERWAY" ? 40 : levelName === "THE SWALLOW" ? 60 : 16, maxSteps: levelName === "THE SWALLOW" ? 900 : 500, includeEnemies: ["THE ROOTWORKS", "THE SWALLOW"].includes(levelName), ...(["THE SKITTERWAY"].includes(levelName) ? { waypoints: [] } : {}) });
+    const result = probeRoute(levelName, { beamWidth: levelName === "THE SKITTERWAY" ? 40 : levelName === "THE SWALLOW" ? 60 : 16, maxSteps: levelName === "THE SWALLOW" ? 900 : 500, includeEnemies: ["MYCEL GARDENS", "THE SKITTERWAY", "THE TRUFFLE RUNS", "THE ROOTWORKS", "THE SWALLOW"].includes(levelName), ...(["THE SKITTERWAY"].includes(levelName) ? { waypoints: [] } : {}) });
     assert.equal(result.ok, true, `${levelName} stopped at ${result.nextWaypoint || "the route"} near (${result.bestX}, ${result.bestY}) after ${result.expanded} expansions`);
     assert.ok(result.actions.length > 0, `${levelName} produced replayable inputs`);
   }
@@ -62,9 +62,7 @@ test("Rootworks clears through its real enemy chain", { timeout: 15_000 }, () =>
 
 test("The Reach clears in all three checkpoint retry chunks", { timeout: 30_000 }, () => {
   for (let chunk = 0; chunk < 3; chunk++) {
-    const result = probeReachChunk(chunk, chunk >= 1
-      ? { beamWidth: 30, maxSteps: 900 }
-      : { beamWidth: 10, maxSteps: 620 });
+    const result = probeReachChunk(chunk, { beamWidth: 30, maxSteps: chunk >= 1 ? 900 : 620 });
     assert.equal(result.ok, true,
       `Reach chunk ${chunk + 1} stopped at ${result.nextWaypoint || "the route"} after ${result.expanded} expansions`);
     assert.ok(result.actions.length > 0, `Reach chunk ${chunk + 1} has replayable inputs`);
