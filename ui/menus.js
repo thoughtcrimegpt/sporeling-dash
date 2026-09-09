@@ -10,7 +10,7 @@
     root.className = "sporeling-menus";
     root.hidden = true;
     document.body.appendChild(root);
-    var state = {}, lastSignature = "", panel = "", modal = null, modalIndex = 0, opener = null, modalAy = 0, modalAx = 0;
+    var state = {}, lastSignature = "", panel = "", modal = null, modalIndex = 0, opener = null, modalAy = 0, modalAx = 0, selectionMoved = false;
     var escape = function (value) { return String(value == null ? "" : value).replace(/[&<>\"']/g, function (c) { return ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;", "'":"&#39;"})[c]; }); };
     var text = function (value) { return escape(value); };
     var button = function (id, label, extra, description) {
@@ -84,7 +84,13 @@
       return '<section class="sd-card sd-reader"><div class="sd-topline"><span class="sd-kicker">SPORELING DASH</span>' + button("back", "Back", "sd-back") + '</div><h1>Leaderboards</h1><div class="sd-tabs" role="tablist">' + tabs.map(function (t) { var id = typeof t === "string" ? t : t.id, label = typeof t === "string" ? t : (t.label || t.id); return button("board-tab", label, "sd-tab" + (id === state.boardTab ? " is-selected" : ""), "Show " + label + " leaderboard").replace('data-action="board-tab"', 'data-action="board-tab" data-value="' + escape(id) + '"'); }).join("") + '</div><div class="sd-board-list">' + (state.boardLoading ? '<p class="sd-empty">Loading runs…</p>' : entries.length ? entries.map(function (e, i) { var name = String(e.name || e.player || "Anonymous"), profile = /^@[a-z0-9_]+$/i.test(name) ? '<a class="sd-profile" href="https://x.com/' + encodeURIComponent(name.slice(1)) + '" target="_blank" rel="noopener noreferrer">' + text(name) + '</a>' : text(name); return '<div class="sd-board-row"><b>' + (i + 1) + '</b><span>' + profile + (e.hasGhost ? ' ' + button("race", "Race", "sd-race").replace('data-action="race"', 'data-action="race" data-value="' + escape(e.id || name) + '"') : '') + '</span><strong>' + text(e.time || (e.time_ms != null ? (Math.round(e.time_ms / 100) / 10) + "s" : "—")) + '</strong></div>'; }).join("") : '<p class="sd-empty">No runs recorded yet.</p>') + '</div></section>';
     }
     function localPanel(kind) {
-      if (kind === "help") { var lines = state.touch ? [['Move','Drag Move left or right'],['Jump','Tap Jump, release and tap again to flutter (Adventure only)'],['Dash','Drag Dash toward your destination, then release. Tap to use your movement direction.'],['Slam','Tap Slam in air (unlocked in Underfield)'],['Burst','Burst lights up when charged (Adventure only)']] : state.gamepad ? [['Move','Left stick or D-pad'],['Jump','A, flutter in Adventure only'],['Dash','X or RB'],['Slam','Down + Dash'],['Burst','Y when fully charged (Adventure only)'],['Fullscreen','F']] : [['Move','A / D or Left / Right'],['Jump','Right mouse (hold for height or glide). Space / Z / K also work.'],['Dash','Aim the pointer and left-click. Keyboard: aim with WASD or arrows, then Shift / J.'],['Slam','Down + Dash'],['Burst','Q when fully charged (Adventure only)'],['Music','M'],['Fullscreen','F']]; return '<div class="sd-modal" role="dialog" aria-modal="true" aria-labelledby="sd-modal-title"><div class="sd-modal-card">' + heading("Controls", "HOW TO MOVE").replace('<h1>Controls</h1>','<h1 id="sd-modal-title">Controls</h1>') + '<div class="sd-help-grid">' + lines.map(function (p) { return '<p><b>' + text(p[0]) + '</b><span>' + text(p[1]) + '</span></p>'; }).join("") + '</div><p class="sd-hint">' + (state.touch ? "Touch controls stay visible while you play. Full screen is in the pause menu when supported." : "Fluttering and Burst are Adventure-only abilities. Press F for fullscreen." ) + '</p>' + button("close", "Got it", "sd-button-primary") + '</div></div>'; }
+      if (kind === "help") {
+        var lines = state.touch ? [['Move','Drag Move left or right'],['Jump','Tap or hold Jump for height'],['Dash','Drag Dash toward your destination, then release. Tap to use your movement direction.'],['Slam','Tap Slam in air (unlocked in Underfield)'],['Burst','Burst lights up when charged (Adventure only)']] : state.gamepad ? [['Move','Left stick or D-pad'],['Jump','A'],['Dash','X or RB'],['Slam','Down + Dash'],['Burst','Y when fully charged (Adventure only)'],['Fullscreen','F']] : [['Move','A / D or Left / Right'],['Jump','Right mouse (hold for height). Space / Z / K also work.'],['Dash','Aim with the pointer and left-click. Keyboard: aim with WASD or arrows, then Shift / J. A / D also move horizontally.'],['Slam','Down + Dash (when unlocked)'],['Burst','Q when fully charged (Adventure only)'],['Music','M'],['Fullscreen','F']];
+        var loop = '<div class="sd-help-section"><h2>Grow a way forward</h2><ol class="sd-help-steps"><li><b>Jump</b> to leave the ground.</li><li><b>Dash</b> toward a gap. Your air-dash blooms a temporary mushroom platform and carries your momentum.</li><li><b>Land, jump again, then dash</b> to grow the next platform. You can hold up to three spores; landing on solid ground refills them, and defeating some enemies refunds one.</li></ol></div>';
+        var beginner = '<div class="sd-help-section"><h2>Start here</h2><p class="sd-help-lead">Reach each chamber’s glowing exit and help Mother Bloom return to life.</p><div class="sd-help-grid">' + lines.slice(0, 3).map(function (p) { return '<p><b>' + text(p[0]) + '</b><span>' + text(p[1]) + '</span></p>'; }).join("") + '</div></div>';
+        var advanced = '<details class="sd-help-advanced"><summary>Advanced moves & extras</summary><div class="sd-help-grid">' + lines.slice(3).map(function (p) { return '<p><b>' + text(p[0]) + '</b><span>' + text(p[1]) + '</span></p>'; }).join("") + '</div><p class="sd-hint">' + (state.touch ? "After you learn it, release Jump in the air and tap again to flutter. Glide and slam appear as your Adventure abilities unlock." : "In Adventure, release Jump in the air and press it again to flutter. Glide follows a jump, slam appears when unlocked, and Burst is Adventure-only.") + '</p></details>';
+        return '<div class="sd-modal" role="dialog" aria-modal="true" aria-labelledby="sd-modal-title"><div class="sd-modal-card">' + heading("How to play", "A SMALL GUIDE").replace('<h1>How to play</h1>','<h1 id="sd-modal-title">How to play</h1>') + loop + beginner + advanced + button("close", "Got it", "sd-button-primary") + '</div></div>';
+      }
       if (kind === "settings") return '<div class="sd-modal" role="dialog" aria-modal="true" aria-labelledby="sd-modal-title"><div class="sd-modal-card">' + heading("Settings", "MAKE THE WOODLAND YOURS").replace('<h1>Settings</h1>','<h1 id="sd-modal-title">Settings</h1>') + '<div class="sd-stack">' + button("reducedmotion", "Reduced motion: " + (state.reducedMotion ? "On" : "Off"), "sd-button-secondary") + button("leftHanded", "Mirrored touch controls: " + (state.leftHanded ? "On" : "Off"), "sd-button-secondary") + button("music", "Music: " + (state.musicOn === false ? "Off" : "On"), "sd-button-secondary") + '</div>' + button("close", "Done", "sd-button-primary") + '</div></div>';
       if (kind === "newgame") return '<div class="sd-modal" role="dialog" aria-modal="true" aria-labelledby="sd-modal-title"><div class="sd-modal-card"><h1 id="sd-modal-title">Restart from beginning?</h1><p>This will leave the current run and return to the first chamber.</p><div class="sd-modal-actions">' + button("cancel", "Keep playing", "sd-button-secondary") + button("newgame-confirm", "Restart", "sd-button-danger") + '</div></div></div>';
       return "";
@@ -102,7 +108,7 @@
       var base = root.querySelector(".sd-card");
       if (base) base.inert = !!modal;
       if (modal) {
-        var choices = Array.prototype.slice.call(root.querySelectorAll(".sd-modal button"));
+        var choices = modalFocusables();
         var same = activeKey && root.querySelector('.sd-modal [data-action="' + activeKey + '"]');
         if (same) modalIndex = choices.indexOf(same);
         modalIndex = Math.max(0, Math.min(modalIndex, choices.length - 1));
@@ -113,10 +119,16 @@
       var selectedId = state.mode === "title" ? state.titleSelected : state.mode === "pause" ? state.pauseSelected : null;
       if (selectedId === "controls") selectedId = "help";
       if (selectedId === "mode") selectedId = state.runMode === "speedrun" ? "mode-speedrun" : "mode-adventure";
-      if (selectedId) { var selected = root.querySelector('[data-action="' + escape(selectedId) + '"],[data-local="' + escape(selectedId) + '"]'); if (selected) selected.classList.add("is-focused"); }
+      if (selectedId) {
+        var selected = root.querySelector('[data-action="' + escape(selectedId) + '"],[data-local="' + escape(selectedId) + '"]');
+        if (selected) {
+          selected.classList.add("is-focused");
+          if (selectionMoved && !modal) { selected.focus({ preventScroll: true }); selected.scrollIntoView({ block: "nearest" }); }
+        }
+      }
       var health = root.querySelector("[data-health]");
       if (health) health.textContent = (state.health == null ? "?" : state.health) + " / " + (state.maxHealth == null ? "?" : state.maxHealth);
-      if (activeKey && !modal) {
+      if (activeKey && !modal && !selectionMoved) {
         var restore = root.querySelector('[data-action="' + activeKey + '"],[data-local="' + activeKey + '"]');
         if (restore) restore.focus({ preventScroll: true });
       }
@@ -126,15 +138,52 @@
         if (openerButton) openerButton.focus({ preventScroll: true });
         opener = null;
       }
+      selectionMoved = false;
     }
     function dispatch(id, value) { action(id, value); }
     function bind() {
-      root.querySelectorAll("[data-action]").forEach(function (el) { el.addEventListener("click", function (ev) { ev.stopPropagation(); var id = el.getAttribute("data-action"), value = el.getAttribute("data-value"); if (id === "back") { if (modal) modal = null; else dispatch("back"); } else if (id === "close" || id === "cancel") modal = null; else if (id === "help" || id === "settings") { opener = document.activeElement; modal = id; modalIndex = 0; modalAy = 0; } else if (id === "newgame-confirm") { modal = null; dispatch("newgame"); } else if (id === "board-tab") dispatch("board-tab", value); else dispatch(id, value); render(); }); });
-      root.querySelectorAll("[data-local]").forEach(function (el) { el.addEventListener("click", function (ev) { ev.stopPropagation(); opener = el; modalIndex = 0; modalAy = 0; modal = el.getAttribute("data-local"); render(); }); });
-      root.querySelectorAll(".sd-modal button").forEach(function (el, index) { el.addEventListener("focus", function () { modalIndex = index; }); });
-      root.querySelectorAll("button").forEach(function (el) { el.addEventListener("keydown", function (ev) { if (ev.key === "Enter" || ev.key === " ") ev.stopPropagation(); if (ev.key === "Tab" && modal) { var bs = Array.prototype.slice.call(root.querySelectorAll(".sd-modal button")), i = bs.indexOf(document.activeElement); if (i >= 0) { ev.preventDefault(); bs[(i + (ev.shiftKey ? -1 : 1) + bs.length) % bs.length].focus(); } } }); });
+      if (root._sdBound) return;
+      root._sdBound = true;
+      root.addEventListener("click", function (ev) {
+        var el = ev.target && ev.target.closest ? ev.target.closest("[data-action],[data-local]") : null;
+        if (!el || !root.contains(el)) return;
+        ev.stopPropagation();
+        var actionId = el.getAttribute("data-action"), id = actionId || el.getAttribute("data-local"), value = el.getAttribute("data-value");
+        if (!actionId) { opener = el; modalIndex = 0; modalAy = 0; modal = id; }
+        else if (id === "back") { if (modal) modal = null; else dispatch("back"); }
+        else if (id === "close" || id === "cancel") modal = null;
+        else if (id === "help" || id === "settings") { opener = document.activeElement; modal = id; modalIndex = 0; modalAy = 0; }
+        else if (id === "newgame-confirm") { modal = null; dispatch("newgame"); }
+        else if (id === "board-tab") dispatch("board-tab", value);
+        else dispatch(id, value);
+        render();
+      });
+      root.addEventListener("focusin", function (ev) {
+        if (modal && ev.target && ev.target.closest && ev.target.closest(".sd-modal button")) {
+          modalIndex = modalFocusables().indexOf(ev.target);
+        } else if (modal && ev.target && ev.target.closest && ev.target.closest(".sd-modal summary")) {
+          modalIndex = modalFocusables().indexOf(ev.target);
+        }
+      });
+      root.addEventListener("keydown", function (ev) {
+        if (ev.key === "Escape") {
+          if (modal) { ev.preventDefault(); ev.stopPropagation(); modal = null; render(); }
+          else if (["notes", "reviews", "board"].indexOf(state.mode) >= 0) { ev.preventDefault(); ev.stopPropagation(); dispatch("back"); render(); }
+          return;
+        }
+        if (ev.key === "Enter" || ev.key === " ") ev.stopPropagation();
+        if (ev.key === "Tab" && modal) {
+          var bs = modalFocusables(), i = bs.indexOf(document.activeElement);
+          if (i >= 0) { ev.preventDefault(); bs[(i + (ev.shiftKey ? -1 : 1) + bs.length) % bs.length].focus(); }
+        }
+      });
+    }
+    function modalFocusables() {
+      return Array.prototype.slice.call(root.querySelectorAll(".sd-modal button, .sd-modal summary"));
     }
     function sync(next) { next = next || {}; var old = state; state = next;
+      selectionMoved = (next.mode === "title" || next.mode === "pause") &&
+        (old.mode !== next.mode || old.titleSelected !== next.titleSelected || old.pauseSelected !== next.pauseSelected);
       var structural = { mode: next.mode, titleSelected: next.titleSelected, pauseSelected: next.pauseSelected,
         runMode: next.runMode, difficulty: next.difficulty, levelName: next.levelName, ghost: next.ghost,
         levelTitle: next.levelTitle, reducedMotion: next.reducedMotion, leftHanded: next.leftHanded,
@@ -150,9 +199,15 @@
       return !root.hidden;
     }
     function handleInput(inp) {
-      if (!modal) return false;
+      if (!modal) {
+        if (inp && inp.ay && ["notes", "reviews"].indexOf(state.mode) >= 0) {
+          var reader = root.querySelector(".sd-scroll");
+          if (reader) reader.scrollTop += inp.ay * 7;
+        }
+        return false;
+      }
       if (inp && inp.domHandled) return true;
-      var buttons = Array.prototype.slice.call(root.querySelectorAll(".sd-modal button"));
+      var buttons = modalFocusables();
       if (inp && inp.pauseEdge) { modal = null; render(); return true; }
       var ay = Number(inp && inp.ay) || 0, ax = Number(inp && inp.ax) || 0;
       var ayEdge = inp && inp.ayEdge ? inp.ayEdge : (Math.abs(ay) > 0.55 && Math.abs(modalAy) <= 0.55 ? ay : 0);

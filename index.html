@@ -404,19 +404,27 @@ const approach = (v, t, step) => v < t ? Math.min(t, v + step) : Math.max(t, v -
 const mkCv = (w, h) => { const c = document.createElement("canvas"); c.width = w; c.height = h; return c; };
 
 // ── Audio ──────────────────────────────────────────────────────────────────
-let AC = null, masterGain = null;
+let AC = null, masterGain = null, audioResume = null;
 function audioInit() {
-  if (!AC) {
+  // Browsers may leave a newly-created context suspended until a real user
+  // gesture. Keep the context and the unlock attempt idempotent so a touch,
+  // click, or key press can all recover audio without building duplicate
+  // oscillators.
+  if (!AC || AC.state === "closed") {
+    // Scheduled music nodes belong to the old context. Discard that graph
+    // before creating a replacement, otherwise the next tick would try to
+    // connect new oscillators into nodes owned by a closed context.
+    if (AC && AC.state === "closed") MUS = null;
+    audioResume = null;
     try {
       AC = new (window.AudioContext || window.webkitAudioContext)();
       masterGain = AC.createGain();
       masterGain.gain.value = 0.32;
       masterGain.connect(AC.destination);
-      startDrone();
-    } catch (e) { AC = null; return; }
+    } catch (e) { AC = null; masterGain = null; return false; }
+    try { startDrone(); } catch (e) {}
   }
   if (AC.state !== "running") {
-    AC.resume();
     // iOS unlock: play a one-sample silent buffer inside the user gesture
     try {
       const b = AC.createBuffer(1, 1, 22050);
@@ -425,13 +433,19 @@ function audioInit() {
       src.connect(AC.destination);
       src.start(0);
     } catch (e) {}
+    if (typeof AC.resume === "function" && !audioResume) {
+      try {
+        audioResume = Promise.resolve(AC.resume()).catch(() => {}).finally(() => { audioResume = null; });
+      } catch (e) { audioResume = null; }
+    }
   }
+  return AC.state === "running";
 }
 // touchend is the gesture iOS reliably accepts for audio unlock
 ["keydown", "pointerdown", "touchstart", "touchend", "click"].forEach(ev =>
   addEventListener(ev, audioInit, { passive: true }));
 document.addEventListener("visibilitychange", () => {
-  if (!document.hidden && AC && AC.state === "suspended") AC.resume();
+  if (!document.hidden && AC && AC.state === "suspended") audioInit();
 });
 
 function startDrone() {
@@ -652,7 +666,7 @@ function mnote(t, freq, dur, wave, vol, att) {
 }
 
 function musicTick() {
-  if (!AC || AC.state !== "running") return;
+  if (!AC || AC.state !== "running" || !masterGain) return;
   if (!MUS) {
     const out = AC.createGain();
     out.gain.value = 0;
