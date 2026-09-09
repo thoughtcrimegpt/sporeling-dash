@@ -30,37 +30,38 @@ test("Pale Root upward chain keeps the player in the camera frame", () => {
   api.S.player.grounded = true;
   api.S.camY = api.S.player.y + 5 - 90;
 
-  clearInput(api);
-  api.keys.Space = true;
-  api.just.Space = true;
-  api.tick(DT);
-
   let dashCount = 0;
   const startingY = api.S.player.y;
   for (let dash = 0; dash < 3; dash++) {
+    clearInput(api);
+    api.keys.Space = true;
+    api.just.Space = true;
+    api.tick(DT);
     for (let frame = 0; frame < 8; frame++) {
       clearInput(api);
       api.keys.Space = true;
       api.tick(DT);
     }
-    api.S.player.canDash = true;
     clearInput(api);
     api.keys.KeyW = true;
     api.just.ShiftLeft = true;
     api.tick(DT);
     if (api.S.player.dashing) dashCount++;
-    for (let frame = 0; frame < 12; frame++) {
+    for (let frame = 0; frame < 60; frame++) {
       clearInput(api);
       api.keys.KeyW = true;
       api.tick(DT);
       const screenY = api.S.player.y - api.S.camY;
       assert.ok(screenY >= SCREEN_TOP_SAFE,
         `player outran top camera bound during dash ${dash + 1}: ${screenY}`);
+      if (!api.S.player.dashing && api.S.player.grounded) break;
     }
+    assert.equal(api.S.player.grounded, true, "each jump must start from an actual bloom landing");
   }
 
   assert.equal(api.S.mode, "play");
   assert.equal(dashCount, 3);
+  assert.equal(api.S.player.spores, 0, "the chain spends its three earned blooms");
   assert.ok(startingY - api.S.player.y > 150,
     `upward chain rose only ${startingY - api.S.player.y}px`);
 });

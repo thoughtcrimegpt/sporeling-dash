@@ -17,10 +17,10 @@ function jumpHeight(held) {
   for(let i=0;i<45;i++){api.tick(api.FIXED_DT);peak=Math.min(peak,p.y);}
   return start-peak;
 }
-test('a quick jump tap clears a tile while a held jump still rises higher',()=>{
+test('a quick jump tap preserves the original low hop and a held jump reaches full height',()=>{
   const tap=jumpHeight(false), held=jumpHeight(true);
-  assert.ok(tap>=16, `tap rose only ${tap}px`);
-  assert.ok(held>=35 && held>tap+10, `held ${held}px, tap ${tap}px`);
+  assert.ok(tap>=4 && tap<10, `short tap rose ${tap}px`);
+  assert.ok(held>=35 && held>tap+15, `held ${held}px, tap ${tap}px`);
 });
 test('keyboard and touch diagonal aiming retain full horizontal movement',()=>{
   for(const touch of [false,true]){
@@ -32,12 +32,14 @@ test('keyboard and touch diagonal aiming retain full horizontal movement',()=>{
     assert.equal(api.S.player.vx,110);
   }
 });
-test('normal traversal dashes advance continuously without hitstop',()=>{
+test('normal traversal dashes retain the original brief hitstop beat',()=>{
   const {api}=flatGame(),p=api.S.player;p.y=200;p.grounded=false;
   api.just.ShiftLeft=true;api.keys.KeyD=true;
   const positions=[];
-  for(let i=0;i<5;i++){api.tick(api.FIXED_DT);positions.push(p.x);}
-  for(let i=1;i<positions.length;i++)assert.ok(positions[i]>positions[i-1],JSON.stringify(positions));
+  for(let i=0;i<8;i++){api.tick(api.FIXED_DT);positions.push(p.x);}
+  assert.equal(positions[0], positions[1]);
+  assert.equal(positions[1], positions[2]);
+  assert.ok(positions[7]>positions[2],JSON.stringify(positions));
 });
 test('keyboard and touch dash intent survives impact hitstop',()=>{
   for(const touch of [false,true]){
@@ -60,10 +62,21 @@ test('jump pressed early in a dash survives until its bloom landing',()=>{
 test('airborne release and reversal respond within a short control window',()=>{
   const {api}=flatGame(),p=api.S.player;p.y=120;p.grounded=false;p.vx=110;
   for(let i=0;i<5;i++)api.tick(api.FIXED_DT);
-  assert.equal(p.vx,0);
+  assert.ok(p.vx>0 && p.vx<40,`air release changed too abruptly: ${p.vx}`);
   p.vx=110;api.keys.KeyA=true;
-  for(let i=0;i<5;i++)api.tick(api.FIXED_DT);
+  for(let i=0;i<15;i++)api.tick(api.FIXED_DT);
   assert.ok(p.vx<0,`still travelling right at ${p.vx}`);
+});
+
+test('a bloom endpoint keeps post-dash momentum for natural landing',()=>{
+  const {api}=flatGame(),p=api.S.player;
+  p.y=200;p.grounded=false;
+  api.just.ShiftLeft=true;api.keys.KeyD=true;
+  api.tick(api.FIXED_DT);api.keys.KeyD=false;
+  for(let i=0;i<20 && p.dashing;i++)api.tick(api.FIXED_DT);
+  assert.equal(p.dashing,false);
+  assert.equal(api.S.blooms.length,1);
+  assert.notEqual(p.vx,0);
 });
 test('pointer dash retains precise aim through an impact freeze',()=>{
   const {api}=flatGame(),p=api.S.player;p.y=200;p.grounded=false;api.S.freezeT=.05;

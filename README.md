@@ -4,7 +4,9 @@ A woodland platformer with a dependency-free canvas engine, the original pixel m
 
 The storybook overhaul restores the original pixel hero and builds a warmer world around it: Hearthwood, Lantern Canopy, Rainbell Hollows, and Heartroot. Seven main-route chambers have new terrain and pacing. Wall-cling, spore-glide, temporary bloom platforms, and the down-slam remain the foundation of movement.
 
-The Mother Bloom has gone quiet. Dash in mid-air and a mushroom catches you at the end of the dash. Jump or dash straight from that new step before it wilts. Each fresh mushroom spends one spore; solid ground and enemies restore your supply.
+The Mother Bloom has gone quiet. Dash in mid-air to grow a mushroom at the end of the dash. Your momentum carries through the exit. Land on the mushroom, jump to rearm, then dash toward the next ledge before it wilts. Each fresh mushroom spends one spore; solid ground and enemies restore your supply.
+
+Movement uses the original short-hop release, gentle airborne steering, and brief dash anticipation. A bloom does not snap the character into place or stop their horizontal motion. Reliable input buffering, collision forgiveness, and mouse and touch controls remain available.
 
 The main Adventure crosses 15 chambers and four guardian encounters: Barrow, the Chorus, Brambleback, and the Heartwood Guardian. Two hidden rooms, four persistent keepsakes, the Pale Root, and The Reach sit outside that route.
 
@@ -26,7 +28,7 @@ Adventure has no clock or leaderboard submission. Level select becomes available
 
 Deaths return you to the latest checkpoint and restore the current difficulty's full health.
 
-The main route builds challenge in short sections. Mycel Gardens narrows its upper transfers, the Canopy Run alternates rising and falling landings, Truffle Runs offers high and low approaches around a moving shelf, and Rootworks combines overhead gates with smaller perches and isolated thorns. Beginner sections retain broad footing. Optional berries and keepsakes reward more ambitious routes.
+The Hollow and Lantern Canopy use broad runways, short rises, and visible jump-and-dash crossings. The first teaching pit has a safe floor and recovery steps. Rainbell Crossing follows a lower ground route with short climbs and a supported checkpoint porch. Higher platforms and collectibles provide optional bloom routes. Later, Mycel Gardens narrows its upper transfers, Canopy Run alternates rising and falling landings, Truffle Runs offers high and low approaches around a moving shelf, and Rootworks combines overhead gates with isolated thorns. Wider helper shelves in the late chambers accommodate carried momentum.
 
 The camera keeps fast upward chains in view and immediately returns to the checkpoint with the character on a retry.
 

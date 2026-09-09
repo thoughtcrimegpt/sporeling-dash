@@ -174,13 +174,11 @@ const MAX_RUN = 110;
 const MOVE_ACCEL = 1500;
 const MOVE_FRICTION = 2600;
 const AIR_ACCEL = 950;
-const AIR_TURN_ACCEL = 1700;
-const AIR_BRAKE = 1500;
 const JUMP_V = -295;
-const JUMP_CUT = 0.67;
+const JUMP_CUT = 0.4;
 const COYOTE = 0.12;
 const JUMP_BUF = 0.12;
-const DASH_BUF = 0.15;     // press dash early and it fires when re-armed
+const DASH_BUF = 0.1;      // press dash a hair early and it fires when re-armed
 const RESONANCE_MAX = 100;
 
 // Camera feel — show where you're going, don't chase where you've been
@@ -205,7 +203,7 @@ const GLIDE_FALL = 60;
 
 const DASH_SPEED = 480;
 const DASH_TIME = 0.12;
-const DASH_FREEZE = 0;     // traversal stays responsive; impacts set their own hitstop
+const DASH_FREEZE = 0.05;
 const BLOOM_LIFE = 1.7;
 const BLOOM_WILT = 0.45;
 const BLOOM_W = 24;
@@ -3969,14 +3967,6 @@ function endDash(p) {
       const bloom = spawnBloom(p);
       if (bloom) {
         p.spores--;
-        // The fresh step catches the dash at its endpoint. The next command
-        // starts here, without making the player brake and fall back onto it.
-        if (p.x + p.w > bloom.x + 2 && p.x < bloom.x + bloom.w - 2) {
-          p.y = bloom.y - p.h; p.vx = 0; p.vy = 0;
-          p.grounded = true; p.coyote = COYOTE; p.canDash = true;
-          p.flutterReady = true; p.flutterArmed = false;
-          p.squish = .82; p.squishT = .1;
-        }
       } else failBloom(p);
     }
     else failBloom(p);
@@ -5830,8 +5820,6 @@ function tick(dt) {
       const target = inp.ax * MAX_RUN;
       let acc;
       if (p.grounded) acc = (target === 0 || Math.abs(target) < Math.abs(p.vx) || Math.sign(target) !== Math.sign(p.vx || target)) ? MOVE_FRICTION : MOVE_ACCEL;
-      else if (target === 0) acc = AIR_BRAKE;
-      else if (Math.sign(target) !== Math.sign(p.vx || target)) acc = AIR_TURN_ACCEL;
       else acc = AIR_ACCEL;
       p.vx = approach(p.vx, target, acc * dt);
       if (inp.ax !== 0) p.facing = Math.sign(inp.ax);
@@ -8321,16 +8309,16 @@ function drawHUD() {
 }
 
 function openingLessonLines() {
-  const jump = gp() ? "A" : TOUCH.active ? "JUMP" : "SPACE";
-  const dash = gp() ? "X" : TOUCH.active ? "DASH" : "SHIFT";
-  return [jump + ": JUMP   " + dash + ": AIR DASH", "Air-dash now. The bloom will catch you."];
+  const bindings = gp() ? "A: JUMP   X: AIR DASH" : TOUCH.active
+    ? "JUMP: JUMP   DASH: AIR DASH" : "RMB / SPACE: JUMP   LMB / SHIFT: DASH";
+  return [bindings, "Air-dash to grow a step.", "Land, jump, then dash again."];
 }
 
 function drawOpeningLesson() {
   if (playOverlay && TOUCH.active) return;
   if (!openingLessonNeeded() || S.bannerT > 0 || S.talk || rootWarningActive()) return;
   const lines = openingLessonLines();
-  const x = W / 2 - 101, y = 43, w = 202, h = 31;
+  const x = W / 2 - 114, y = 43, w = 228, h = 42;
   g.fillStyle = "rgba(8,12,18,0.88)";
   g.fillRect(x, y, w, h);
   g.fillStyle = rgb(PAL.accent);
@@ -8352,6 +8340,7 @@ function drawOpeningLesson() {
   g.fillStyle = C.goalOpen;
   g.font = "7px monospace";
   g.fillText(lines[1], x + 28, y + 24);
+  g.fillText(lines[2], x + 28, y + 35);
 }
 
 function creditLines() {
@@ -9521,7 +9510,7 @@ function syncNativeUI() {
     } else if (S.bannerT > 0) {
       message = { title: LEVELS[S.levelIdx].actTitle || "WOODLAND PATH", text: LEVELS[S.levelIdx].displayName || LEVELS[S.levelIdx].name };
     } else if (openingLessonNeeded() && !rootWarningActive()) {
-      message = { title: "GROW YOUR NEXT STEP", text: "Jump, then drag Dash and release. Your mushroom catches you. Jump or dash again before it wilts." };
+      message = { title: "GROW YOUR NEXT STEP", text: "Jump, then drag Dash and release to grow a step. Land on it, jump, then dash again before it wilts." };
     } else if (S.hint && !noticeBlocked()) {
       message = { title: S.hint.priority >= NOTICE_PRIORITY.BOSS ? "Watch for the opening" : "Field notes", text: S.hint.text };
     }

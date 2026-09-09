@@ -366,7 +366,7 @@ test("mercy retry anchors sit in safe, intentional parts of the route", () => {
   const expected = new Map([
     ["MYCEL GARDENS", [{ c: 22, r: 22 }]],
     ["THE SKITTERWAY", [{ c: 45, r: 7 }]],
-    ["THE MARROW", [{ c: 72, r: 16 }]],
+    ["THE MARROW", [{ c: 72, r: 15 }]],
   ]);
 
   for (const [name, anchors] of expected) {
@@ -1465,7 +1465,7 @@ test("required lessons and root warnings suppress the general notice lane", () =
   opening.api.g.operations.length = 0;
   opening.api.draw();
   const openingLabels = opening.api.g.operations.filter(op => op.type === "fillText").map(op => op.value);
-  assert.ok(openingLabels.some(label => /Air-dash now/.test(label)));
+  assert.ok(openingLabels.some(label => /Air-dash to grow a step/.test(label)));
   assert.equal(openingLabels.includes("Checkpoint saved."), false);
 
   const root = bootGame({ search: "?fixture=root-upper" });
@@ -2188,8 +2188,9 @@ test("bloom placement backs away from walls but ignores one-way shelves", () => 
 test("the opening lesson names the active controls and precedes a safe mandatory pit", () => {
   const keyboard = bootGame();
   assert.deepEqual([...keyboard.api.openingLessonLines()], [
-    "SPACE: JUMP   SHIFT: AIR DASH",
-    "Air-dash now. The bloom will catch you.",
+    "RMB / SPACE: JUMP   LMB / SHIFT: DASH",
+    "Air-dash to grow a step.",
+    "Land, jump, then dash again.",
   ]);
 
   const controller = bootGame();
@@ -2209,7 +2210,7 @@ test("the opening lesson names the active controls and precedes a safe mandatory
     assert.equal(opening[13][c], "#", "the first gap has a safe floor");
     assert.notEqual(opening[12][c], "S", "the teaching pit has no spikes");
   }
-  assert.ok(opening[12].slice(54, 63).includes("S"), "the dangerous bloom test comes later");
+  assert.ok(opening[9].slice(54, 63).includes("S"), "the dangerous bloom test comes later");
 
   keyboard.api.S.mode = "play";
   keyboard.api.S.levelIdx = 0;
@@ -2218,7 +2219,7 @@ test("the opening lesson names the active controls and precedes a safe mandatory
   keyboard.api.S.bannerT = 0;
   keyboard.api.g.operations.length = 0;
   keyboard.api.draw();
-  assert.ok(keyboard.api.g.operations.some(op => op.type === "fillText" && op.value === "Air-dash now. The bloom will catch you."));
+  assert.ok(keyboard.api.g.operations.some(op => op.type === "fillText" && op.value === "Land, jump, then dash again."));
   keyboard.api.S.player.y = 70; // An aerial bloom needs clear space below its feet.
   keyboard.api.spawnBloom(keyboard.api.S.player);
   assert.equal(keyboard.api.S.bloomLessonDone, true, "the lesson retires after the player creates a bloom");
@@ -2247,7 +2248,7 @@ test("dialogue stays readable and every resident has a concrete voice", () => {
 
   const marrow = api.LEVELS.find(level => level.name === "THE MARROW");
   const jb = marrow.npcs.find(npc => npc.name === "JB");
-  assert.deepEqual([jb.c, jb.r, jb.sprite], [58, 7, "jb"], "JB waits on The Marrow's safe high ledge");
+  assert.deepEqual([jb.c, jb.r, jb.sprite], [58, 11, "jb"], "JB waits on The Marrow's supported recovery ledge");
 
   const pressedGarden = api.LEVELS.find(level => level.name === "THE PRESSED GARDEN");
   const frog = pressedGarden.npcs.find(npc => npc.name === "FROG");

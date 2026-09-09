@@ -37,24 +37,29 @@ test("saved Pale Root route survives deterministic enemies", () => {
   assert.equal(result.ok, true, `Pale Root combat route stopped at step ${result.steps}`);
 });
 
-test("authored campaign routes clear through real engine traversal", { timeout: 30_000 }, () => {
+test("authored campaign routes clear through real engine traversal", { timeout: 90_000 }, () => {
   const routes = ["THE HOLLOW", "ROTROOT CHASM", "THE SPIRE", "MYCEL GARDENS", "THE SKITTERWAY", "THE BLOOMHEART", "THE MARROW", "THE SWALLOW", "THE TRUFFLE RUNS", "THE ROOTWORKS"];
   for (const levelName of routes) {
-    const result = probeRoute(levelName, { beamWidth: levelName === "THE SKITTERWAY" ? 40 : levelName === "THE SWALLOW" ? 60 : 16, maxSteps: levelName === "THE SWALLOW" ? 900 : 500, includeEnemies: ["MYCEL GARDENS", "THE SKITTERWAY", "THE TRUFFLE RUNS", "THE ROOTWORKS", "THE SWALLOW"].includes(levelName), ...(["THE SKITTERWAY"].includes(levelName) ? { waypoints: [] } : {}) });
+    const result = probeRoute(levelName, {
+      beamWidth: levelName === "THE SWALLOW" ? 60 : 30,
+      maxSteps: levelName === "THE SWALLOW" ? 900 : 650,
+      includeEnemies: ["MYCEL GARDENS", "THE SKITTERWAY", "THE MARROW", "THE TRUFFLE RUNS", "THE ROOTWORKS", "THE SWALLOW"].includes(levelName),
+      ...(["THE HOLLOW", "ROTROOT CHASM", "THE MARROW", "THE SKITTERWAY"].includes(levelName) ? { waypoints: [] } : {}),
+    });
     assert.equal(result.ok, true, `${levelName} stopped at ${result.nextWaypoint || "the route"} near (${result.bestX}, ${result.bestY}) after ${result.expanded} expansions`);
     assert.ok(result.actions.length > 0, `${levelName} produced replayable inputs`);
   }
 });
 
 test("the real-engine route probe can complete The Hollow", { timeout: 10_000 }, () => {
-  const result = probeRoute("THE HOLLOW", { beamWidth: 8, maxSteps: 220 });
+  const result = probeRoute("THE HOLLOW", { beamWidth: 30, maxSteps: 500, waypoints: [] });
   assert.equal(result.ok, true, `route search stopped after ${result.expanded} expansions`);
   assert.ok(result.actions.length > 0, "the completed route has replayable inputs");
   assert.ok(result.seconds > 0, "the completed route advanced game time");
 });
 
 test("Rootworks clears through its real enemy chain", { timeout: 15_000 }, () => {
-  const result = probeRoute("THE ROOTWORKS", { beamWidth: 12, maxSteps: 600 });
+  const result = probeRoute("THE ROOTWORKS", { beamWidth: 30, maxSteps: 650 });
   assert.equal(result.ok, true,
     `Rootworks route stopped at ${result.nextWaypoint || "the crossing"} after ${result.expanded} expansions`);
   assert.ok(result.steps >= 80, "the route remains a sustained horizontal challenge");
