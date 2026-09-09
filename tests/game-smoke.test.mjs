@@ -2203,7 +2203,7 @@ test("the opening lesson names the active controls and precedes a safe mandatory
 
   const touch = bootGame();
   touch.api.TOUCH.active = true;
-  assert.equal(touch.api.openingLessonLines()[0], "JUMP: JUMP   DASH: AIR DASH");
+  assert.equal(touch.api.openingLessonLines()[0], "HOLD JUMP, SWIPE + RELEASE: DASH");
 
   const opening = keyboard.api.LEVELS[0].map;
   for (let c = 22; c <= 24; c++) {

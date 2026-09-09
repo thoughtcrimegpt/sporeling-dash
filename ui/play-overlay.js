@@ -14,29 +14,39 @@
     const message = root.querySelector(".play-message"), title = root.querySelector(".play-message-title"), copy = root.querySelector(".play-message-copy"), next = root.querySelector(".play-message-next");
     const lesson = root.querySelector(".play-lesson"), lessonTitle = root.querySelector("h2"), lessonCopy = root.querySelector(".play-lesson-copy"), gotIt = lesson.querySelector("button");
     const put = (el, value) => { if (el.textContent !== value) el.textContent = value; };
+    const setHidden = (el, value) => { if (el.hidden !== value) el.hidden = value; };
     next.addEventListener("click", () => action("talk"));
     gotIt.addEventListener("click", () => action("lesson"));
     root.addEventListener("keydown", e => {
       if (e.target.tagName === "BUTTON") e.stopPropagation();
     });
     let lessonOpen = false;
+    let visible = false;
+    let mirrored = false;
+    let dialogue = false;
     return {
       sync(view) {
-        const visible = view.touch && (view.mode === "play" || view.mode === "reunion");
-        root.hidden = !visible;
+        const nextVisible = view.touch && (view.mode === "play" || view.mode === "reunion");
+        if (visible !== nextVisible) { visible = nextVisible; root.hidden = !visible; }
         if (!visible) { lessonOpen = false; return; }
-        root.classList.toggle("is-mirrored", !!view.leftHanded);
+        const nextMirrored = !!view.leftHanded;
+        if (mirrored !== nextMirrored) {
+          mirrored = nextMirrored;
+          root.classList.toggle("is-mirrored", mirrored);
+        }
         put(life, `Health ${view.health}/${view.maxHealth}`);
         put(blooms, `Blooms ${view.spores}/3`);
         put(berries, view.reach ? "" : `Berries ${view.berries}/${view.berriesTotal}`);
-        berries.hidden = !!view.reach;
-        keepsakes.hidden = !!view.reach;
+        setHidden(berries, !!view.reach);
+        setHidden(keepsakes, !!view.reach);
         put(keepsakes, `Keepsakes ${view.keepsakes}/4`);
-        timer.hidden = !view.timed;
+        setHidden(timer, !view.timed);
+        // The host formats tenths of a second; put() already limits mutations
+        // to those visible changes without delaying the clock after a restart.
         if (view.timed) put(timer, view.time);
-        boss.hidden = view.bossPips == null;
+        setHidden(boss, view.bossPips == null);
         if (view.bossPips != null) put(boss, `Boss ${view.bossPips}/3`);
-        lesson.hidden = !view.lesson;
+        setHidden(lesson, !view.lesson);
         if (view.lesson) {
           put(lessonTitle, view.lesson.title);
           put(lessonCopy, view.lesson.lines.join(" "));
@@ -44,13 +54,14 @@
           lessonOpen = true;
         } else lessonOpen = false;
         const content = view.lesson ? null : view.message;
-        message.hidden = !content;
+        setHidden(message, !content);
         if (content) {
           put(title, content.title);
           put(copy, content.text);
-          next.hidden = !content.action;
+          setHidden(next, !content.action);
           if (content.action) put(next, content.action);
-          message.classList.toggle("is-dialogue", !!content.action);
+          const nextDialogue = !!content.action;
+          if (dialogue !== nextDialogue) { dialogue = nextDialogue; message.classList.toggle("is-dialogue", dialogue); }
         }
       },
     };

@@ -13,7 +13,7 @@
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <meta name="apple-mobile-web-app-title" content="Sporeling">
 <link rel="stylesheet" href="ui/menus.css">
-<link rel="stylesheet" href="ui/play-overlay.css">
+<link rel="stylesheet" href="ui/play-overlay.css?v=touch-20260909">
 <style>
   * { margin: 0; padding: 0; box-sizing: border-box; }
   html, body { width: 100%; height: 100%; background: #0a0c10; overflow: hidden; }
@@ -56,7 +56,7 @@
   #btnBurst { position: fixed; right: max(108px, calc(108px + env(safe-area-inset-right, 0px))); bottom: max(106px, calc(106px + env(safe-area-inset-bottom, 0px))); width: 58px; height: 58px; border-radius: 50%;
     display: flex; align-items: center; justify-content: center; font-size: 12px; font-weight: bold; color: rgba(240,200,120,0.9);
     background: rgba(240,200,120,0.12); border: 2px solid rgba(240,200,120,0.45); }
-  #btnJump.pressed { background: rgba(144,232,176,0.4); transform: scale(0.92); }
+  #btnJump.pressed, #btnJump.is-jumping { background: rgba(144,232,176,0.4); transform: scale(0.92); }
   #btnDash.is-aiming, #btnDash.pressed { background: rgba(240,168,136,0.4); transform: scale(0.92); }
   #btnBurst.pressed { background: rgba(240,200,120,0.4); transform: scale(0.92); }
   #btnPause { position: fixed; top: calc(10px + env(safe-area-inset-top, 0px)); right: calc(10px + env(safe-area-inset-right, 0px)); width: 36px; height: 28px;
@@ -83,23 +83,31 @@
     padding: 6px 10px; border-radius: 6px; z-index: 5; pointer-events: none; }
   #btnBurst[disabled] { opacity: .35; filter: saturate(.45); }
   #btnJump.ready, #btnDash.ready, #btnBurst.ready, #btnSlam.ready { box-shadow: 0 0 0 3px rgba(220,255,174,.35), 0 0 18px rgba(220,255,174,.3); }
-  #btnJump { bottom:calc(20px + env(safe-area-inset-bottom,0px)); }
-  #btnDash { right:calc(122px + env(safe-area-inset-right,0px)); bottom:calc(20px + env(safe-area-inset-bottom,0px)); }
+  #touch button { -webkit-touch-callout:none; }
+  #btnJump { bottom:calc(24px + env(safe-area-inset-bottom,0px)); flex-direction:column; gap:4px; font:750 18px system-ui; }
+  #btnJump small { font:650 10px system-ui; color:#d5f5de; pointer-events:none; }
+  #btnJump.is-aiming { background:rgba(116,197,150,.52); border-color:#edffb8; }
+  #btnJump.is-aiming small { visibility:hidden; }
+  #btnJump.is-aiming::after { content:"RELEASE"; position:absolute; bottom:17px; font:750 10px system-ui; color:#fff6ce; }
+  #btnJump.is-aiming::before, #btnDash.is-aiming::before { content:"→"; position:absolute; left:calc(50% - 13px); top:-30px; color:#f8ffcb; font:800 26px system-ui; transform:rotate(var(--aim-angle,0rad)); text-shadow:0 2px 8px #071b16; pointer-events:none; }
+  #touch button > span { pointer-events:none; }
+
+  #btnDash { right:calc(142px + env(safe-area-inset-right,0px)); bottom:calc(24px + env(safe-area-inset-bottom,0px)); }
   #btnBurst { right:calc(128px + env(safe-area-inset-right,0px)); bottom:calc(120px + env(safe-area-inset-bottom,0px)); flex-direction:column; }
   #btnBurst::after { content:attr(data-charge); display:block; font:700 10px system-ui; margin-top:3px; }
   #btnSlam { right:calc(34px + env(safe-area-inset-right,0px)); bottom:calc(142px + env(safe-area-inset-bottom,0px)); }
   #btnPause { width:64px; height:44px; font:650 12px system-ui; color:#e8f6eb; }
   #btnPause.pressed, #btnSlam.pressed { background:rgba(240,200,120,.4); transform:scale(.95); }
-  #touch.left-handed #btnDash { left:calc(122px + env(safe-area-inset-left,0px)); }
+  #touch.left-handed #btnDash { left:calc(142px + env(safe-area-inset-left,0px)); }
   #touch.left-handed #btnBurst { left:calc(128px + env(safe-area-inset-left,0px)); }
   #touch.left-handed #btnSlam { left:calc(34px + env(safe-area-inset-left,0px)); }
   @media (orientation:landscape) and (max-height:480px) {
     #stick { width:104px; height:104px; }
-    #btnJump { width:80px; height:80px; }
-    #btnDash { width:66px; height:66px; right:calc(114px + env(safe-area-inset-right,0px)); }
+    #btnJump { width:96px; height:96px; }
+    #btnDash { width:66px; height:66px; right:calc(132px + env(safe-area-inset-right,0px)); }
     #btnBurst { width:50px; height:50px; right:calc(122px + env(safe-area-inset-right,0px)); bottom:calc(102px + env(safe-area-inset-bottom,0px)); }
-    #btnSlam { width:58px; height:44px; right:calc(28px + env(safe-area-inset-right,0px)); bottom:calc(120px + env(safe-area-inset-bottom,0px)); font-size:14px; }
-    #touch.left-handed #btnDash { left:calc(114px + env(safe-area-inset-left,0px)); }
+    #btnSlam { width:58px; height:44px; right:calc(28px + env(safe-area-inset-right,0px)); bottom:calc(140px + env(safe-area-inset-bottom,0px)); font-size:14px; }
+    #touch.left-handed #btnDash { left:calc(132px + env(safe-area-inset-left,0px)); }
     #touch.left-handed #btnBurst { left:calc(122px + env(safe-area-inset-left,0px)); }
     #touch.left-handed #btnSlam { left:calc(28px + env(safe-area-inset-left,0px)); }
   }
@@ -122,7 +130,7 @@
 <canvas id="game"></canvas>
 <div id="touch" hidden aria-label="Touch controls">
   <button id="stick" type="button" aria-label="Move, 8 directions"><span class="stick-arrow stick-up" aria-hidden="true">↑</span><span class="stick-arrow stick-down" aria-hidden="true">↓</span><span class="stick-arrow stick-left" aria-hidden="true">←</span><span class="stick-arrow stick-right" aria-hidden="true">→</span><span id="nub"></span></button>
-  <button id="btnJump" type="button" aria-label="Jump">JUMP</button>
+  <button id="btnJump" type="button" aria-label="Jump. Hold, then swipe and release to dash."><span>JUMP</span><small>swipe to dash</small></button>
   <button id="btnDash" type="button" aria-label="Dash">DASH</button>
   <button id="btnSlam" type="button" aria-label="Slam" hidden>SLAM</button>
   <button id="btnBurst" type="button" aria-label="Burst">BURST</button>
@@ -141,14 +149,14 @@
 </div>
 <script src="ui/campaign.js"></script>
 <script src="ui/storybook.js"></script>
-<script src="ui/bloom-controls.js"></script>
+<script src="ui/bloom-controls.js?v=touch-20260909"></script>
 <script src="ui/transitions.js"></script>
 <script src="ui/guardians.js"></script>
 <script src="ui/terrain.js"></script>
 <script src="ui/inhabitants.js"></script>
 <script src="ui/display.js"></script>
-<script src="ui/menus.js"></script>
-<script src="ui/play-overlay.js"></script>
+<script src="ui/menus.js?v=touch-20260909"></script>
+<script src="ui/play-overlay.js?v=touch-20260909"></script>
 <script>
 (() => {
 "use strict";
@@ -1733,29 +1741,35 @@ function applyTouchLayout() {
   else root.classList.remove("left-handed");
 }
 
+let touchUiSignature = "";
 function syncTouchVisibility() {
+  const gameplayVisible = TOUCH.active && S.mode === "play" && !S.lesson;
+  const p = S.player;
+  const slamReady = gameplayVisible && (S.levelIdx >= LEVELS.findIndex(level => level.name === "THE UNDERFIELD") || p?.slamReady);
+  const timed = competitiveRun();
+  const charge = Math.floor(p?.resonance || 0);
+  const burstReady = !timed && !!p && (p.resonance || 0) >= RESONANCE_MAX;
+  const dashReady = !!(p?.canDash || p?.dashing);
+  const jumpReady = !!(p && (p.grounded || p.coyote > 0 || p.wallDir || (adventureMechanics() && p.flutterReady)));
+  const signature = [gameplayVisible, slamReady, timed, charge, burstReady, dashReady, jumpReady].join("|");
+  if (signature === touchUiSignature) return;
   const root = document.getElementById("touch");
   if (!root) return;
-  const gameplayVisible = TOUCH.active && S.mode === "play" && !S.lesson;
+  touchUiSignature = signature;
   root.hidden = !gameplayVisible;
   root.style.pointerEvents = gameplayVisible ? "" : "none";
-  root.classList.remove("menu-nav");
-  const p = S.player;
-  const underfieldIndex = LEVELS.findIndex(level => level.name === "THE UNDERFIELD");
-  const slamReady = gameplayVisible && (S.levelIdx >= underfieldIndex || S.lesson?.kind === "slam" || p?.slamReady);
   const slam = document.getElementById("btnSlam");
   if (slam) slam.hidden = !slamReady;
   const burst = document.getElementById("btnBurst");
-  const burstReady = !competitiveRun() && !!p && (p.resonance || 0) >= RESONANCE_MAX;
   if (burst) {
-    burst.hidden = !gameplayVisible || competitiveRun(); burst.disabled = !burstReady;
-    burst.dataset.charge = burstReady ? "READY" : Math.floor(p?.resonance || 0) + "%";
+    burst.hidden = !gameplayVisible || timed; burst.disabled = !burstReady;
+    burst.dataset.charge = burstReady ? "READY" : charge + "%";
     if (burstReady) burst.classList.add("ready"); else burst.classList.remove("ready");
   }
   const dash = document.getElementById("btnDash");
-  if (dash) { if (p?.canDash || p?.dashing) dash.classList.add("ready"); else dash.classList.remove("ready"); }
+  if (dash) { if (dashReady) dash.classList.add("ready"); else dash.classList.remove("ready"); }
   const jump = document.getElementById("btnJump");
-  if (jump) { if (p && (p.grounded || p.coyote > 0 || p.wallDir || (adventureMechanics() && p.flutterReady))) jump.classList.add("ready"); else jump.classList.remove("ready"); }
+  if (jump) { if (jumpReady) jump.classList.add("ready"); else jump.classList.remove("ready"); }
 }
 
 function touchPulse(kind, id) {
@@ -1949,28 +1963,30 @@ function setupTouch() {
   if (matchMedia("(pointer: coarse)").matches) enable();
   addEventListener("touchstart", enable, { passive: true });
 
-  let stickId = null;
+  let stickId = null, stickOct = null;
   function setStick(t) {
     const r = stick.getBoundingClientRect();
     const cx = r.left + r.width / 2, cy = r.top + r.height / 2;
     let dx = (t.clientX - cx) / (r.width / 2), dy = (t.clientY - cy) / (r.height / 2);
     const len = Math.hypot(dx, dy);
     if (len > 1) { dx /= len; dy /= len; }
-    // Snap to 8-way intent past a small dead zone — full commitment, like keys.
-    // Analog drift made movement mushy and dash aims unreliable on phones.
-    const dead = 0.13;
+    // Keep full-speed digital movement, with separate engage/release zones and
+    // angular hysteresis so resting-thumb drift cannot flicker the direction.
+    const dead = stickOct === null ? 0.22 : 0.14;
     if (len < dead) {
-      TOUCH.ax = 0; TOUCH.ay = 0;
+      TOUCH.ax = 0; TOUCH.ay = 0; stickOct = null;
     } else {
-      const oct = Math.round(Math.atan2(dy, dx) / (Math.PI / 4));
-      TOUCH.ax = Math.round(Math.cos(oct * Math.PI / 4));
-      TOUCH.ay = Math.round(Math.sin(oct * Math.PI / 4));
+      const angle = Math.atan2(dy, dx);
+      const delta = stickOct === null ? Infinity : Math.abs(Math.atan2(Math.sin(angle - stickOct * Math.PI / 4), Math.cos(angle - stickOct * Math.PI / 4)));
+      if (delta > Math.PI / 6) stickOct = Math.round(angle / (Math.PI / 4));
+      TOUCH.ax = Math.round(Math.cos(stickOct * Math.PI / 4));
+      TOUCH.ay = Math.round(Math.sin(stickOct * Math.PI / 4));
     }
     nub.style.transform = "translate(" + (dx * 34).toFixed(0) + "px," + (dy * 34).toFixed(0) + "px)";
   }
   const stickEnd = id => {
     if (id !== stickId) return;
-    stickId = null; TOUCH.ax = 0; TOUCH.ay = 0; nub.style.transform = "";
+    stickId = null; stickOct = null; TOUCH.ax = 0; TOUCH.ay = 0; nub.style.transform = "";
     delete TOUCH.pointers[id];
   };
   function bindBtn(id, prop) {
@@ -2012,13 +2028,12 @@ function setupTouch() {
   stick.addEventListener("touchmove", e => { if ("PointerEvent" in window) return; e.preventDefault(); for (const t of e.changedTouches) if (t.identifier === stickId) setStick(t); }, { passive: false });
   const touchStickEnd = e => { if ("PointerEvent" in window) return; for (const t of e.changedTouches) stickEnd(t.identifier); };
   stick.addEventListener("touchend", touchStickEnd); stick.addEventListener("touchcancel", touchStickEnd);
-  bindBtn("btnJump", "jump");
-  if (!window.SporelingBloomControls) bindBtn("btnDash", "dash");
+  if (!window.SporelingBloomControls || !("PointerEvent" in window)) { bindBtn("btnJump", "jump"); bindBtn("btnDash", "dash"); }
   bindBtn("btnSlam", "slam");
   bindBtn("btnBurst", "burst");
   bindBtn("btnPause", "pause");
   resetTouchControls = () => {
-    stickId = null;
+    stickId = null; stickOct = null;
     for (const [id, owner] of Object.entries(TOUCH.pointers)) owner.el?.releasePointerCapture?.(id);
     nub.style.transform = "";
   };
@@ -6090,6 +6105,8 @@ function resize() {
   }
 }
 addEventListener("resize", resize);
+// Rotation moves the thumb pads. End contacts instead of firing a stale swipe.
+addEventListener("orientationchange", () => { if (TOUCH.active) releaseTransientInput(); });
 resize();
 
 // Leaderboard interactivity: @names open X profiles, the small panel opens
@@ -8324,7 +8341,7 @@ function drawHUD() {
 
 function openingLessonLines() {
   const bindings = gp() ? "A: JUMP   X: AIR DASH" : TOUCH.active
-    ? "JUMP: JUMP   DASH: AIR DASH" : "RMB / SPACE: JUMP   LMB / SHIFT: DASH";
+    ? "HOLD JUMP, SWIPE + RELEASE: DASH" : "RMB / SPACE: JUMP   LMB / SHIFT: DASH";
   return [bindings, "Air-dash to grow a step.", "Land, jump, then dash again."];
 }
 
@@ -9524,7 +9541,7 @@ function syncNativeUI() {
     } else if (S.bannerT > 0) {
       message = { title: LEVELS[S.levelIdx].actTitle || "WOODLAND PATH", text: LEVELS[S.levelIdx].displayName || LEVELS[S.levelIdx].name };
     } else if (openingLessonNeeded() && !rootWarningActive()) {
-      message = { title: "GROW YOUR NEXT STEP", text: "Jump, then drag Dash and release to grow a step. Land on it, jump, then dash again before it wilts." };
+      message = { title: "GROW YOUR NEXT STEP", text: "Hold Jump. Swipe, then release to dash and grow a step. Land, then repeat." };
     } else if (S.hint && !noticeBlocked()) {
       message = { title: S.hint.priority >= NOTICE_PRIORITY.BOSS ? "Watch for the opening" : "Field notes", text: S.hint.text };
     }
@@ -9555,7 +9572,8 @@ function frame(nowMs) {
 
 setupTouch();
 if (window.SporelingBloomControls) bloomControls = window.SporelingBloomControls.create({
-  canvas, button: document.getElementById("btnDash"),
+  canvas, button: "PointerEvent" in window ? document.getElementById("btnDash") : null,
+  jumpButton: "PointerEvent" in window ? document.getElementById("btnJump") : null,
   getState(event) {
     const p=S.player, r=canvas.getBoundingClientRect();
     const uiHit=event && event.target===canvas && (talkHitAt(event)||reviewHitAt(event)||lbHitAt(event)||lbUiHitAt(event));
@@ -9569,6 +9587,7 @@ if (window.SporelingBloomControls) bloomControls = window.SporelingBloomControls
   onRelease(aim) { POINTER.dx=aim.dx; POINTER.dy=aim.dy; POINTER.dashEdge=true; POINTER.aimHeld=false; POINTER.aimUntil=S.time+.4; },
   onJumpStart() { POINTER.jump=true; POINTER.jumpEdge=true; },
   onJumpEnd() { POINTER.jump=false; },
+  onAimCancel() { POINTER.aimHeld=false; POINTER.aimUntil=0; },
   onCancel() { POINTER.jump=false; POINTER.jumpEdge=false; POINTER.dashEdge=false; POINTER.aimHeld=false; POINTER.aimUntil=0; },
 });
 lbRefresh();
