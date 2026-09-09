@@ -29,14 +29,52 @@ const ACTIONS = [
 const BASE_ACTION_COUNT = 17;
 
 const ROUTE_WAYPOINTS = {
+  "THE HOLLOW": [
+    { name: "porch gap", x: 18 * 16, y: 9 * 16 - 10, rx: 72 },
+    { name: "first thorns", x: 43 * 16, y: 8 * 16 - 10, rx: 80 },
+    { name: "midway checkpoint", x: 67 * 16, y: 7 * 16 - 10, rx: 70 },
+    { name: "berry bough", x: 75 * 16, y: 7 * 16 - 10, rx: 70 },
+    { name: "exit shelf", x: 92 * 16, y: 5 * 16 - 10, rx: 70 },
+  ],
+  "ROTROOT CHASM": [
+    { name: "lantern steps", x: 24 * 16, y: 7 * 16 - 10, rx: 80 },
+    { name: "moving shelf", x: 52 * 16, y: 8 * 16 - 10, rx: 80 },
+    { name: "high canopy", x: 70 * 16, y: 4 * 16 - 10, rx: 80 },
+    { name: "recovery ledge", x: 87 * 16, y: 6 * 16 - 10, rx: 80 },
+    { name: "exit", x: 116 * 16, y: 10 * 16 - 10, rx: 80 },
+  ],
+  "THE SPIRE": [
+    { name: "garden floor", x: 8 * 16, y: 48 * 16 - 10, rx: 70 },
+    { name: "lower shelf", x: 21 * 16, y: 42 * 16 - 10, rx: 70 },
+    { name: "glide pocket", x: 8 * 16, y: 32 * 16 - 10, rx: 70 },
+    { name: "upper shelf", x: 22 * 16, y: 22 * 16 - 10, rx: 70 },
+    { name: "crown", x: 22 * 16, y: 3 * 16 - 10, rx: 70 },
+  ],
+  // The narrow canopy is best solved as one continuous glide chain. Keeping
+  // this empty avoids steering the beam toward intermediate ledges that are
+  // optional recovery perches rather than mandatory route gates.
+  "MYCEL GARDENS": [],
+  "THE MARROW": [
+    { name: "rain shelf", x: 16 * 16, y: 11 * 16 - 10, rx: 90 },
+    { name: "wide hollow", x: 40 * 16, y: 15 * 16 - 10, rx: 90 },
+    { name: "bell crossing", x: 61 * 16, y: 5 * 16 - 10, rx: 90 },
+    { name: "return shelf", x: 83 * 16, y: 11 * 16 - 10, rx: 90 },
+    { name: "exit", x: 105 * 16, y: 7 * 16 - 10, rx: 80 },
+  ],
+  "THE TRUFFLE RUNS": [
+    { name: "first truffle", x: 27 * 16, y: 22 * 16 - 10, rx: 90 },
+    { name: "first enemy chain", x: 56 * 16, y: 15 * 16 - 10, rx: 105 },
+    { name: "midpoint ledge", x: 91 * 16, y: 15 * 16 - 10, rx: 105 },
+    { name: "last crossing", x: 120 * 16, y: 20 * 16 - 10, rx: 105 },
+    { name: "goal ramp", x: 165 * 16, y: 17 * 16 - 10, rx: 90 },
+  ],
   "THE ROOTWORKS": [
-    { name: "slam seal", x: 15 * 16, y: 14 * 16 - 10, rx: 58, down: true },
-    { name: "first chain middle", x: 46 * 16, y: 17 * 16, rx: 110 },
-    { name: "first rest", x: 69 * 16, y: 21 * 16 - 10, rx: 72 },
-    { name: "long chain middle", x: 96 * 16, y: 16 * 16, rx: 110 },
-    { name: "second rest", x: 116 * 16, y: 19 * 16 - 10, rx: 72 },
-    { name: "last chain middle", x: 143 * 16, y: 14 * 16, rx: 110 },
-    { name: "goal ledge", x: 171 * 16, y: 16 * 16 - 10, rx: 84 },
+    { name: "first truffle", x: 24 * 16, y: 21 * 16 - 10, rx: 90 },
+    { name: "first chain middle", x: 51 * 16, y: 14 * 16 - 10, rx: 110 },
+    { name: "midpoint recovery", x: 81 * 16, y: 20 * 16 - 10, rx: 90 },
+    { name: "long chain middle", x: 111 * 16, y: 13 * 16 - 10, rx: 110 },
+    { name: "second recovery", x: 141 * 16, y: 18 * 16 - 10, rx: 90 },
+    { name: "goal ledge", x: 168 * 16, y: 17 * 16 - 10, rx: 84 },
   ],
   "THE BLOOMHEART": [
     { name: "main shelf gap", x: 40 * 16, y: 15 * 16 - 10, rx: 112 },
@@ -195,6 +233,9 @@ export function probeRoute(levelName, {
     ? level.trial === "reach" || levelName === "THE ROOTWORKS"
     : includeEnemies;
   api.prepareRouteProbe(levelIndex, useEnemies);
+  // Route verification starts after any mandatory lesson card. The lesson is
+  // UI state, while this probe supplies the actual movement inputs.
+  if (api.S.lesson) api.S.lesson = null;
   if (start) {
     Object.assign(api.S.player, {
       x: start.x, y: start.y, vx: 0, vy: 0, grounded: false,
@@ -347,6 +388,7 @@ export function replayRoute(levelName, actions, { includeEnemies = false } = {})
   const levelIndex = api.LEVELS.findIndex(level => level.name === levelName);
   if (levelIndex < 0) throw new Error(`Unknown level: ${levelName}`);
   api.prepareRouteProbe(levelIndex, includeEnemies);
+  if (api.S.lesson) api.S.lesson = null;
   let raw = api.captureRouteState();
   let state = JSON.parse(raw);
   for (let step = 0; step < actions.length; step++) {
@@ -362,6 +404,54 @@ export function replayRoute(levelName, actions, { includeEnemies = false } = {})
       return { ok: false, level: levelName, steps: step + 1, mode: state.mode };
   }
   return { ok: false, level: levelName, steps: actions.length, mode: state.mode };
+}
+
+// Purposeful Underfield controller. Each q triplet is approached on the
+// current shelf, then broken with a real jump plus straight-down dash. Enemy
+// proximity makes the controller hold jump longer, matching the playtest
+// route while retaining ordinary collision and health rules.
+export function probeUnderfield({ includeEnemies = true } = {}) {
+  const { api } = bootGame();
+  api.prepareRouteProbe(api.LEVELS.findIndex(level => level.name === "THE UNDERFIELD"), includeEnemies);
+  api.S.lesson = null;
+  const actions = [];
+  const step = (dir = 0, jump = false, down = false, frames = 1) => {
+    for (let i = 0; i < frames; i++) {
+      for (const key of Object.keys(api.keys)) delete api.keys[key];
+      for (const key of Object.keys(api.just)) delete api.just[key];
+      if (dir) api.keys[dir < 0 ? "KeyA" : "KeyD"] = true;
+      if (jump) api.keys.Space = true;
+      if (jump && i === 0) api.just.Space = true;
+      if (down) { api.keys.KeyS = true; if (i === 0) api.just.ShiftLeft = true; }
+      api.tick(api.FIXED_DT);
+      actions.push({ dir, jump: jump && i === 0, holdJump: jump, down: down && i === 0 });
+    }
+  };
+  const seals = [11, 43, 9, 40, 17, 46];
+  const landings = [];
+  for (const col of seals) {
+    const target = col * 16 + 3;
+    let guard = 0;
+    while (Math.abs(api.S.player.x - target) > 3 && guard++ < 1600) {
+      const p = api.S.player;
+      const danger = includeEnemies && api.S.enemies.some(e => !e.dead && Math.abs(e.x - p.x) < 80 && Math.abs(e.y - p.y) < 35);
+      if (p.grounded && danger) step(Math.sign(target - p.x), true, false, 24);
+      else step(Math.sign(target - p.x));
+    }
+    step(0, false, false, 12);
+    const before = api.S.player.y;
+    step(0, true, false, 12);
+    step(0, false, true);
+    step(0, false, false, 100);
+    landings.push({ before, after: api.S.player.y, x: api.S.player.x, mode: api.S.mode });
+  }
+  let guard = 0;
+  while (api.S.mode === "play" && guard++ < 1500) {
+    const p = api.S.player;
+    const danger = includeEnemies && api.S.enemies.some(e => !e.dead && Math.abs(e.x - p.x) < 80 && Math.abs(e.y - p.y) < 35);
+    step(1, p.grounded && danger, false, p.grounded && danger ? 24 : 1);
+  }
+  return { ok: api.S.mode === "clear", actions, landings, health: api.S.health, deaths: api.S.score.deaths, x: api.S.player.x, y: api.S.player.y, mode: api.S.mode };
 }
 
 export const actionNames = actions => actions.map(index => ACTIONS[index].name);

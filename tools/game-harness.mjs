@@ -7,6 +7,7 @@ import { fileURLToPath } from "node:url";
 const root = join(dirname(fileURLToPath(import.meta.url)), "..");
 export const html = readFileSync(join(root, "index.html"), "utf8");
 export const scripts = [...html.matchAll(/<script(?:\s[^>]*)?>([\s\S]*?)<\/script>/g)].map(match => match[1]).filter(source => source.trim());
+export const campaignSource = readFileSync(join(root, "ui/campaign.js"), "utf8");
 
 function createElement(kind = "div") {
   const listeners = new Map();
@@ -118,6 +119,8 @@ export function bootGame({
   };
   context.window = context;
   context.globalThis = context;
+  // Match the browser's external campaign module boot order.
+  vm.runInNewContext(campaignSource, context);
 
   const marker = /requestAnimationFrame\(frame\);\s*\}\)\(\);\s*$/;
   assert.match(scripts[0], marker, "test export marker must match the game loop");
@@ -126,6 +129,7 @@ globalThis.__SD_TEST__ = {
   S, LEVELS, PATCH_NOTES, BARROW, BOSS, CHORUS, SHOG, ROOT_TIERS, ROOT_TIER_ORDER,
   MAIN_LAST_INDEX, UNDRAWN_INDEX, PALE_ROOT_INDEX, BLOOMHEART_INDEX, PRESSED_GARDEN_INDEX, REACH_INDEX,
   REVIEWS,
+  campaignApplied: LEVELS.map((level, index) => level && level.campaignNotes ? index : null).filter(index => index != null),
   KEEPSAKE_IDS, TOTAL_KEEPSAKES,
   FIXED_DT, MAX_FRAME_DT, MAX_SPORES, RESONANCE_MAX, START_HEALTH, MAX_HEALTH,
   ADVENTURE_DIFFICULTIES, ADVENTURE_RULES, TIMED_RUN_RULES, NOTICE_PRIORITY,
@@ -169,6 +173,9 @@ globalThis.__SD_TEST__ = {
   },
   captureRouteState() {
     const snap = JSON.parse(JSON.stringify(S));
+    // Cracked-floor slams mutate LEVEL outside S. Include the active map in
+    // route snapshots so beam branches cannot inherit another branch's breaks.
+    snap.__levelMap = LEVEL.slice();
     snap.particles = [];
     snap.trail = [];
     snap.rec = [];
@@ -176,8 +183,20 @@ globalThis.__SD_TEST__ = {
   },
   restoreRouteState(raw) {
     const snap = JSON.parse(raw);
+    const levelMap = snap.__levelMap;
+    delete snap.__levelMap;
     for (const key of Object.keys(S)) delete S[key];
     Object.assign(S, snap);
+    if (Array.isArray(levelMap)) {
+      LEVEL = levelMap.slice();
+      ROWS = LEVEL.length;
+      COLS = LEVEL[0]?.length || 0;
+      WORLD_W = COLS * TILE;
+      WORLD_H = ROWS * TILE;
+      STATIC_LIGHTS = [];
+      // Beam search never renders between branches. Avoid rebaking the large
+      // terrain canvas here, which otherwise dominates route verification.
+    }
     releaseTransientInput();
   },
   setTestMap(rows) {

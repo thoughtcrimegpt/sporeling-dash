@@ -8,6 +8,7 @@ import { fileURLToPath } from "node:url";
 const root = join(dirname(fileURLToPath(import.meta.url)), "..");
 const html = readFileSync(join(root, "index.html"), "utf8");
 const scripts = [...html.matchAll(/<script(?:\s[^>]*)?>([\s\S]*?)<\/script>/g)].map(match => match[1]).filter(source => source.trim());
+const campaignSource = readFileSync(join(root, "ui/campaign.js"), "utf8");
 
 test("every inline script parses", () => {
   assert.ok(scripts.length >= 2);
@@ -111,6 +112,9 @@ function bootGame({ hostname = "127.0.0.1", protocol = "http:", search = "", ini
   };
   context.window = context;
   context.globalThis = context;
+  // Load the external authored campaign module before booting the inline game,
+  // as the browser does.
+  vm.runInNewContext(campaignSource, context);
 
   const marker = /requestAnimationFrame\(frame\);\s*\}\)\(\);\s*$/;
   assert.match(scripts[0], marker, "test export marker must match the game loop");
@@ -120,6 +124,7 @@ globalThis.__SD_TEST__ = {
   REUNION_SPRITES, REUNION_LINES,
   MAIN_LAST_INDEX, UNDRAWN_INDEX, PALE_ROOT_INDEX, BLOOMHEART_INDEX, PRESSED_GARDEN_INDEX, REACH_INDEX,
   REVIEWS,
+  campaignApplied: LEVELS.map((level, index) => level && level.campaignNotes ? index : null).filter(index => index != null),
   KEEPSAKE_IDS, TOTAL_KEEPSAKES, MAIN_BOARD_DB,
   FIXED_DT, MAX_FRAME_DT, MAX_SPORES, RESONANCE_MAX, START_HEALTH, MAX_HEALTH, TILE,
   ADVENTURE_DIFFICULTIES, ADVENTURE_RULES, TIMED_RUN_RULES, NOTICE_PRIORITY,
@@ -183,6 +188,46 @@ test("every chamber has a rectangular map and one spawn", () => {
     assert.ok(width > 0, `${level.name} has columns`);
     assert.ok(level.map.every(row => row.length === width), `${level.name} is rectangular`);
     assert.equal(level.map.join("").split("P").length - 1, 1, `${level.name} has exactly one spawn`);
+  }
+});
+
+test("authored campaign layouts apply cleanly and retain a walkable route", () => {
+  const { api } = bootGame();
+  const authored = new Map([[0, [96, 14]], [1, [120, 16]], [3, [30, 56]], [4, [100, 12]], [7, [110, 20]], [11, [176, 30]], [13, [178, 30]]]);
+  assert.deepEqual([...api.campaignApplied], [...authored.keys()], "campaign applies every layout whose target level exists");
+  for (const [index, [width, height]] of authored) {
+    const level = api.LEVELS[index];
+    assert.equal(level.map.length, height, `${level.name} keeps authored height`);
+    assert.ok(level.map.every(row => row.length === width), `${level.name} keeps authored width`);
+    assert.match(level.campaignNotes, /\S/, `${level.name} records campaign intent`);
+    const points = symbol => { for (let r = 0; r < height; r++) for (let c = 0; c < width; c++) if (level.map[r][c] === symbol) return [c, r]; return null; };
+    const spawn = points("P"), goal = points("G");
+    assert.ok(spawn, `${level.name} has an authored spawn`);
+    assert.ok(goal, `${level.name} has an authored exit`);
+    const seen = new Set([spawn.join(",")]), queue = [spawn];
+    while (queue.length) {
+      const [c, r] = queue.shift();
+      for (const [dc, dr] of [[1, 0], [-1, 0], [0, 1], [0, -1]]) {
+        const nc = c + dc, nr = r + dr, key = `${nc},${nr}`;
+        if (nc >= 0 && nc < width && nr >= 0 && nr < height && !seen.has(key) && !/[#qS]/.test(level.map[nr][nc])) { seen.add(key); queue.push([nc, nr]); }
+      }
+    }
+    assert.ok(seen.has(goal.join(",")), `${level.name} exit is connected to its spawn through open space`);
+    for (const npc of level.npcs || []) {
+      assert.ok(npc.c >= 0 && npc.c < width && npc.r >= 0 && npc.r < height, `${level.name} NPC ${npc.name} is inside authored bounds`);
+      assert.ok(!/[#qS]/.test(level.map[npc.r][npc.c]), `${level.name} NPC ${npc.name} stands in open space`);
+      assert.ok([1, 2, 3].some(distance => /[#q]/.test(level.map[npc.r + distance]?.[npc.c] || ".")), `${level.name} NPC ${npc.name} has a nearby supported platform`);
+    }
+    for (const row of level.map) for (const cell of row) if (/[eEfFkwos]/.test(cell)) assert.ok(!/[#qS]/.test(cell), `${level.name} enemy or fuel spawn is not solid`);
+    for (const mover of level.movers || []) {
+      assert.ok(mover.c0 >= 0 && mover.c1 < width && mover.rA >= 0 && mover.rA < height && mover.rB >= 0 && mover.rB < height, `${level.name} mover stays inside authored bounds`);
+      assert.ok(mover.c1 > mover.c0 && mover.rA !== mover.rB, `${level.name} mover has meaningful travel`);
+    }
+  }
+  for (const [index, id] of [[1, "rotroot-wall"], [4, "skitter-alcove"]]) {
+    const level = api.LEVELS[index], cells = level.map.join("");
+    assert.equal(level.keepsakeId, id);
+    assert.equal(cells.includes("K"), true, `${level.name} keeps its keepsake placement`);
   }
 });
 
@@ -313,14 +358,14 @@ test("checkpoint spacing keeps each retry stretch meaningful", () => {
 
   const hollowCheckpoint = api.LEVELS[0].map.findIndex(row => row.includes("C"));
   assert.equal(hollowCheckpoint, 7, "The Hollow checkpoint stays on its supported platform row");
-  assert.equal(api.LEVELS[0].map[7].indexOf("C"), 66, "The Hollow checkpoint comes after the first spike-pit test");
+  assert.equal(api.LEVELS[0].map[7].indexOf("C"), 67, "The Hollow checkpoint comes after the first spike-pit test");
 });
 
 test("mercy retry anchors sit in safe, intentional parts of the route", () => {
   const { api } = bootGame();
   const expected = new Map([
-    ["THE SKITTERWAY", [{ c: 45, r: 8 }]],
-    ["THE MARROW", [{ c: 72, r: 15 }]],
+    ["THE SKITTERWAY", [{ c: 45, r: 7 }]],
+    ["THE MARROW", [{ c: 72, r: 16 }]],
   ]);
 
   for (const [name, anchors] of expected) {
@@ -1187,7 +1232,7 @@ test("personal-best and leaderboard ghosts are loaded only when deliberately sel
   const personal = bootGame({ initialStorage: {
     sd_run_mode: "speedrun",
     sd_ghost_pref: "personal",
-    sd_pb15: JSON.stringify({ t: 4.2, frames }),
+    sd_pb_storybook1: JSON.stringify({ t: 4.2, frames }),
   } });
   personal.api.startTitleRun();
   assert.equal(personal.api.S.ghost.name, "your echo");
@@ -1363,7 +1408,7 @@ test("level instructions and transient notices share one prioritized lane", () =
   api.g.operations.length = 0;
   api.draw();
   let labels = api.g.operations.filter(op => op.type === "fillText").map(op => op.value);
-  assert.ok(labels.includes("THE CHORUS HALL"));
+  assert.ok(labels.includes(api.LEVELS[chorusIndex].displayName));
   assert.equal(api.S.hint, null, "the level instruction waits while the chamber name is visible");
   assert.ok(api.S.hintQueue.some(notice => /diving wisps/i.test(notice.text)));
 
@@ -1670,8 +1715,10 @@ test("the active Chorus camera keeps both player and heart inside the frame", ()
 
 test("the browser-test bridge exists locally and is absent on the deployed host", () => {
   const local = bootGame();
-  assert.deepEqual({ ...local.context.__SPORELING_DEV__.snapshot() }, {
-    mode: "title", level: 0, boss: null, rootTier: null, rootWarning: 0,
+  assert.deepEqual(JSON.parse(JSON.stringify(local.context.__SPORELING_DEV__.snapshot())), {
+    mode: "title", level: 0, boss: null, bossState: null,
+    player: { x: 35, y: 148, grounded: false, dashing: false, spores: 3, health: 4 },
+    rootTier: null, rootWarning: 0,
   });
 
   const deployed = bootGame({ hostname: "thoughtcrimegpt.github.io" });
@@ -2198,7 +2245,7 @@ test("dialogue stays readable and every resident has a concrete voice", () => {
 
   const marrow = api.LEVELS.find(level => level.name === "THE MARROW");
   const jb = marrow.npcs.find(npc => npc.name === "JB");
-  assert.deepEqual([jb.c, jb.r, jb.sprite], [50, 7, "jb"], "JB waits on The Marrow's safe high ledge");
+  assert.deepEqual([jb.c, jb.r, jb.sprite], [58, 7, "jb"], "JB waits on The Marrow's safe high ledge");
 
   const pressedGarden = api.LEVELS.find(level => level.name === "THE PRESSED GARDEN");
   const frog = pressedGarden.npcs.find(npc => npc.name === "FROG");
@@ -2424,7 +2471,7 @@ test("the visible patch history uses plain factual copy", () => {
   const reviewPlacementCopy = /(?:review|reviews).*(?:added|joined|linked|quote|order|top|opens?)/i;
   assert.match(api.PATCH_NOTES[0].v, /^V5\.1/);
   assert.doesNotMatch(html, retiredBossName, "the Boar Pit boss stays unnamed in player-facing copy");
-  assert.match(html, /fillText\("THE BOAR PIT"/, "the boss entrance names the chamber instead");
+  assert.ok(html.includes("THE BOAR PIT"), "the boss entrance names the chamber instead");
   for (const block of api.PATCH_NOTES) {
     assert.equal(block.v.includes("—"), false, `patch title uses an em-dash slogan: ${block.v}`);
     assert.doesNotMatch(block.v, reviewPlacementCopy, `patch title exposes review placement: ${block.v}`);

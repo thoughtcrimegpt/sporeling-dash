@@ -8,14 +8,19 @@ const port = Number.parseInt(process.env.PORT || "8765", 10);
 
 const server = createServer((req, res) => {
   const path = new URL(req.url || "/", "http://localhost").pathname;
-  if (["/ui/display.js", "/ui/menus.js", "/ui/menus.css", "/ui/play-overlay.js", "/ui/play-overlay.css"].includes(path)) {
+  if (["/ui/storybook.js", "/ui/campaign.js", "/ui/guardians.js", "/ui/terrain.js", "/ui/inhabitants.js", "/ui/display.js", "/ui/menus.js", "/ui/menus.css", "/ui/play-overlay.js", "/ui/play-overlay.css"].includes(path)) {
     res.writeHead(200, { "Content-Type": path.endsWith(".js") ? "text/javascript; charset=utf-8" : "text/css; charset=utf-8", "Cache-Control": "no-store" });
     createReadStream(join(root, path.slice(1))).pipe(res);
     return;
   }
-  if (path === "/assets/mycelium-cathedral.png") {
+  if (["/assets/mycelium-cathedral.png", "/assets/hearthwood.png", "/assets/lantern.png", "/assets/rainbell.png", "/assets/heartroot.png", "/icons/apple-touch-icon.png", "/icons/icon-192.png", "/icons/icon-512.png"].includes(path)) {
     res.writeHead(200, { "Content-Type": "image/png", "Cache-Control": "public, max-age=3600" });
-    createReadStream(join(root, "assets", "mycelium-cathedral.png")).pipe(res);
+    createReadStream(join(root, path.slice(1))).pipe(res);
+    return;
+  }
+  if (path === "/manifest.webmanifest") {
+    res.writeHead(200, { "Content-Type": "application/manifest+json", "Cache-Control": "no-store" });
+    createReadStream(join(root, "manifest.webmanifest")).pipe(res);
     return;
   }
   if (path !== "/" && path !== "/index.html") {

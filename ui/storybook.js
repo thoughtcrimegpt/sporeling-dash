@@ -3,7 +3,7 @@
 (function (root) {
   "use strict";
 
-  var cache = Object.create(null);
+  var cache = Object.create(null), plates = Object.create(null);
   var TAU = Math.PI * 2;
   var clamp = function (n, a, b) { return Math.max(a, Math.min(b, n)); };
   var fract = function (n) { return n - Math.floor(n); };
@@ -36,40 +36,34 @@
    * coordinates of the 10x14 collision box's lower centre. */
   function drawHero(g, options) {
     options = options || {}; var p = options.player || options;
-    var x = Number(options.x != null ? options.x : p.x) || 0;
-    var y = Number(options.y != null ? options.y : (p.y + (p.h || 14))) || 0;
-    var face = Number(p.facing || options.facing || 1) < 0 ? -1 : 1;
-    var anim = String(p.anim || options.anim || "idle").toLowerCase();
-    var t = Number(options.time != null ? options.time : p.time) || 0;
-    var reduced = !!(options.reducedMotion || p.reducedMotion);
-    var moving = anim === "run" || anim === "jump" || anim === "dash" || anim === "glide";
+    var x = Number(options.x != null ? options.x : p.x) || 0, y = Number(options.y != null ? options.y : (p.y + (p.h || 14))) || 0;
+    var face = Number(p.facing || options.facing || 1) < 0 ? -1 : 1, anim = String(p.anim || options.anim || "idle").toLowerCase(), t = Number(options.time || p.time) || 0, reduced = !!(options.reducedMotion || p.reducedMotion);
+    var moving = anim === "run" || anim === "jump" || anim === "dash" || anim === "glide", run = reduced ? 0 : Math.sin(t * 11), dash = anim === "dash" || p.dashing, glide = anim === "glide";
     var bob = reduced ? 0 : Math.sin(t * (moving ? 11 : 3.2)) * (moving ? .6 : .28);
-    var dash = anim === "dash" || p.dashing; var glide = anim === "glide";
-    var tilt = dash ? face * .08 : (glide ? face * -.05 : 0);
-    g.save(); g.translate(x, y - Math.abs(bob)); g.rotate(tilt);
-    var sx = (dash ? 1.22 : 1) * (2 - (Number(p.squish) || 1));
-    var sy = (dash ? .8 : 1) * (Number(p.squish) || 1); g.scale(sx, sy); g.translate(0, -8.7);
-    glow(g, 0, -1, dash ? 16 : 10, [255, 220, 169], dash ? .34 : .17);
-    if (dash && !reduced) { g.fillStyle = "rgba(248,184,160,.5)"; g.beginPath(); g.ellipse(-face * 10, 1, 11, 3, 0, 0, TAU); g.fill(); }
-    var body = g.createLinearGradient(-4, -1, 4, 8); body.addColorStop(0, "#fff3d0"); body.addColorStop(.55, "#e8c990"); body.addColorStop(1, "#ad765f");
-    g.fillStyle = body; g.beginPath(); g.moveTo(-3.8, -1); g.quadraticCurveTo(-4.5, 3, -3, 7.2); g.quadraticCurveTo(0, 9.3, 3.5, 7.1); g.quadraticCurveTo(4.4, 3, 3, -1); g.closePath(); g.fill();
-    g.fillStyle = "rgba(255,252,220,.7)"; g.beginPath(); g.ellipse(-1.5, 2.4, 1.2, 3.5, -.2, 0, TAU); g.fill();
-    var cap = g.createLinearGradient(0, -10, 0, -1); cap.addColorStop(0, "#ffb39d"); cap.addColorStop(.48, "#d87789"); cap.addColorStop(1, "#774663");
-    g.fillStyle = cap; g.beginPath(); g.moveTo(-8, -2); g.quadraticCurveTo(-7, -8, 0, -9.7); g.quadraticCurveTo(7, -8, 8, -2); g.quadraticCurveTo(3, -.2, 0, -1.4); g.quadraticCurveTo(-4, -.2, -8, -2); g.closePath(); g.fill();
-    g.fillStyle = "rgba(255,224,200,.86)"; blob(g, -2.3, -6.2, 1.55, 2.1, "rgba(255,224,200,.86)", -.3); blob(g, 3.1, -4.3, .9, 1.2, "rgba(255,224,200,.8)", .2);
-    g.fillStyle = "rgba(255,240,211,.72)"; g.fillRect(-5.2, -2.3, 10.4, 1);
-    var blink = p.frame === 3 || p.blink; var fx = face < 0 ? -2.7 : .6;
-    g.fillStyle = "#34263a"; g.fillRect(fx, .35, 1.25, blink ? .5 : 1.8); g.fillRect(fx + 3.3, .35, 1.25, blink ? .5 : 1.8);
-    g.fillStyle = "#fff8db"; g.fillRect(fx + .2, .5, .45, .55);
-    if (glide) { g.strokeStyle = "rgba(255,241,214,.75)"; g.lineWidth = .8; g.beginPath(); g.arc(0, -3, 10, Math.PI, 0); g.stroke(); }
-    if (anim === "slide") { g.strokeStyle = "#9abf9a"; g.lineWidth = .7; var wx = face > 0 ? 5 : -7; for (var k = -3; k <= 5; k += 4) { g.beginPath(); g.moveTo(wx, k); g.lineTo(wx + face * 3, k + 1); g.stroke(); } }
-    g.fillStyle = "#825064"; blob(g, -2.5, 7.6, 2.2, 1.1, "#825064"); blob(g, 2.4, 7.6, 2.2, 1.1, "#825064");
-    g.restore();
+    var renderScale = Number(options.scale) || 1;
+    g.save(); g.translate(x, y - Math.abs(bob)); g.scale(renderScale * (dash ? 1.24 : (glide ? 1.1 : 1)), renderScale * (dash ? .8 : 1)); g.translate(0, -8.8);
+    glow(g, 0, -1, dash ? 16 : 10, [255,220,169], dash ? .34 : .14);
+    if (dash && !reduced) { g.fillStyle="rgba(248,143,120,.5)"; g.beginPath(); g.ellipse(-face*11,1,12,3,0,0,TAU); g.fill(); }
+    g.strokeStyle="#e9c99a"; g.lineWidth=2.1; g.lineCap="round"; var arm= moving && !reduced ? run*1.4 : 0;
+    g.beginPath();g.moveTo(-3.8,1);g.quadraticCurveTo(-6.3,2+arm,-6.5,4+arm);g.stroke(); g.beginPath();g.moveTo(3.8,1);g.quadraticCurveTo(6.3,2-arm,6.5,4-arm);g.stroke();
+    g.fillStyle="#f7e5bd"; g.beginPath(); g.moveTo(-4.5,-1);g.quadraticCurveTo(-5.2,3.5,-3.4,7);g.quadraticCurveTo(0,9.4,3.7,7);g.quadraticCurveTo(5.1,3.4,4.3,-1);g.quadraticCurveTo(0,-3,-4.5,-1);g.closePath();g.fill(); blob(g,-2.1,1.7,1.45,2.8,"rgba(255,251,223,.8)",-.2);
+    var wob = reduced ? 0 : Math.sin(t*(moving?8:2.4)+.8)*.08; g.save(); g.rotate(wob + (dash ? face*.07 : (glide ? face*-.12 : 0)));
+    g.fillStyle="#f6d8ac";g.beginPath();g.ellipse(0,-1.8,8.8,2.5,0,0,TAU);g.fill(); var capShade=g.createLinearGradient(0,-12,0,-1);capShade.addColorStop(0,"#f19280");capShade.addColorStop(.6,dash?"#d85d64":"#e76d73");capShade.addColorStop(1,"#cd666c");g.fillStyle=capShade;g.beginPath();g.moveTo(-9.3,-2);g.quadraticCurveTo(-8.8,-9.8,-2.2,-11.4);g.quadraticCurveTo(3.6,-13,8.7,-7.6);g.quadraticCurveTo(10.7,-5,9.2,-2.2);g.quadraticCurveTo(3.2,-.5,0,-1.5);g.quadraticCurveTo(-5,-.5,-9.3,-2);g.closePath();g.fill(); g.fillStyle="#f58b7e";blob(g,-3.1,-7.8,3.3,2.2,"#f58b7e",-.35);blob(g,3.9,-6.5,1.05,1.45,"rgba(255,213,170,.7)",.2); g.restore();
+    var blink=p.frame===3||p.blink; g.fillStyle="#36283a"; if(blink){g.fillRect(-2.8,.75,2,.45);g.fillRect(.8,.75,2,.45);}else{blob(g,-1.7,.1,.95,1.45,"#36283a");blob(g,1.7,.1,.95,1.45,"#36283a");} g.fillStyle="#fff9dd";blob(g,-1.95,-.45,.38,.52,"#fff9dd");blob(g,1.45,-.45,.38,.52,"#fff9dd");
+    g.fillStyle="rgba(231,113,113,.58)";blob(g,-3.5,2.5,1.15,.62,"rgba(231,113,113,.58)");blob(g,3.5,2.5,1.15,.62,"rgba(231,113,113,.58)"); g.strokeStyle="#774653";g.lineWidth=.65;g.beginPath();g.arc(0,2.2,1.45,.2,Math.PI-.2);g.stroke();
+    if(glide){g.strokeStyle="rgba(255,245,209,.82)";g.lineWidth=.9;g.beginPath();g.arc(0,-3,11,Math.PI,0);g.stroke();} g.fillStyle="#9e5b5e";var step=moving&&!reduced?run*1.1:0;blob(g,-2.5+step,7.7,2.35,1.12,"#9e5b5e");blob(g,2.4-step,7.7,2.35,1.12,"#9e5b5e");g.restore();
   }
 
   function makeLayer(w, h, act, reduced) {
     if (typeof document === "undefined" || !document.createElement) return null;
-    var c = document.createElement("canvas"); c.width = w; c.height = h; var x = c.getContext("2d"); paintStatic(x, w, h, act, reduced); return c;
+    var c = document.createElement("canvas"), scale = 4; c.width = w * scale; c.height = h * scale; var x = c.getContext("2d"); x.scale(scale, scale); paintStatic(x, w, h, act, reduced); return c;
+  }
+  function plateFor(act) {
+    if (plates[act] || typeof Image === "undefined") return plates[act] || null;
+    var img = new Image(); plates[act] = img;
+    img.onload = function () { cache = Object.create(null); };
+    img.onerror = function () { plates[act] = false; cache = Object.create(null); };
+    img.src = "assets/" + act + ".png"; return img;
   }
   function paintStatic(g, w, h, act, reduced) {
     var p = palettes[act] || palettes.hearthwood;
@@ -86,6 +80,14 @@
     g.fillStyle = rgba(p.water,.62); g.beginPath(); g.moveTo(w*.32,h); g.bezierCurveTo(w*.48,h*.82,w*.36,h*.7,w*.55,h*.56); g.bezierCurveTo(w*.69,h*.46,w*.54,h*.36,w*.68,h*.23); g.lineTo(w*.78,h*.23); g.bezierCurveTo(w*.64,h*.43,w*.81,h*.52,w*.63,h*.68); g.bezierCurveTo(w*.48,h*.82,w*.64,h*.9,w*.48,h); g.closePath(); g.fill();
     // foreground grasses and little storybook leaves
     g.strokeStyle = rgba(p.moss,.78); g.lineWidth = 1.4; for (var j=0;j<34;j++){ var gx=hash(j+70)*w, gy=h*.78+hash(j+90)*h*.23; g.beginPath(); g.moveTo(gx,gy); g.quadraticCurveTo(gx-3,gy-8,gx-2-hash(j)*5,gy-13-hash(j)*12); g.stroke(); }
+    // Inked trunks, roots, and bark scars give each horizon a tactile frame.
+    g.strokeStyle=rgba(p.deep,.55); g.lineCap="round"; for(var tr=0;tr<6;tr++){var tx=hash(tr+500)*w;g.lineWidth=5+hash(tr+510)*6;g.beginPath();g.moveTo(tx,h);g.bezierCurveTo(tx-9,h*.72,tx+12,h*.4,tx-5,0);g.stroke();g.lineWidth=1;g.strokeStyle=rgba(p.gold,.2);g.beginPath();g.moveTo(tx-2,h*.75);g.quadraticCurveTo(tx+4,h*.64,tx-1,h*.55);g.stroke();g.strokeStyle=rgba(p.deep,.55);}
+    for(var rt=0;rt<8;rt++){var rx=hash(rt+530)*w, ry=h*.82;g.strokeStyle=rgba(p.deep,.48);g.lineWidth=1.6;g.beginPath();g.moveTo(rx,ry);g.quadraticCurveTo(rx+(hash(rt+540)-.5)*35,ry-5,rx+(hash(rt+550)-.5)*55,ry-17);g.stroke();}
+    // Small, grouped foreground flora keeps the scene authored at gameplay scale.
+    for(var mu=0;mu<7;mu++){var mx=hash(mu+570)*w,my=h*.78+hash(mu+580)*h*.18,ms=1.5+hash(mu+590)*2.2;g.fillStyle="#e6c491";g.fillRect(mx-1,my-5*ms,2,5*ms);g.fillStyle=mu%2?"#d96d72":"#e58d79";g.beginPath();g.ellipse(mx,my-6*ms,5*ms,2.4*ms,0,Math.PI,TAU);g.fill();}
+    for(var fl=0;fl<10;fl++){var px=hash(fl+610)*w,py=h*.73+hash(fl+620)*h*.18;g.strokeStyle=rgba(p.gold,.7);g.lineWidth=.8;g.beginPath();g.moveTo(px,py+4);g.lineTo(px,py);g.stroke();g.fillStyle=rgba(p.gold,.82);g.beginPath();g.arc(px,py,2,0,TAU);g.fill();}
+    // Two plank suggestions cross the water in acts where the path is a crossing.
+    if(act === "hearthwood" || act === "rainbell"){g.strokeStyle=rgba(p.deep,.62);g.lineWidth=2;for(var br=0;br<4;br++){var by=h*.64+br*3;g.beginPath();g.moveTo(w*.43,by);g.lineTo(w*.67,by+4);g.stroke();}}
     if (act === "lantern") { for (var l=0;l<7;l++){ var lx=30+l*w/7, ly=45+hash(l+120)*h*.25; g.strokeStyle=rgba(p.deep,.5); g.beginPath(); g.moveTo(lx,0); g.lineTo(lx,ly); g.stroke(); glow(g,lx,ly,16,p.gold,.18); blob(g,lx,ly,3,5,rgba(p.gold,.88)); } }
     if (act === "rainbell") { g.strokeStyle="rgba(210,232,226,.36)"; g.lineWidth=.7; for(var r=0;r<38;r++){var rx=hash(r+160)*w, ry=hash(r+180)*h; g.beginPath();g.moveTo(rx,ry);g.lineTo(rx-2,ry+7+hash(r)*12);g.stroke();} }
     if (act === "heartroot") { g.strokeStyle=rgba(p.gold,.22); g.lineWidth=2; for(var q=0;q<8;q++){var qx=hash(q+210)*w;g.beginPath();g.moveTo(qx,h);g.quadraticCurveTo(qx+20,h*.62,qx-8,h*.35);g.stroke();} }
@@ -96,19 +98,25 @@
     var act = String(options.act || "hearthwood").toLowerCase(); if (!palettes[act]) act = "hearthwood";
     var reduced = !!options.reducedMotion, key = w + "x" + h + ":" + act + ":" + reduced;
     if (!cache[key]) cache[key] = makeLayer(w, h, act, reduced);
-    if (cache[key]) g.drawImage(cache[key], 0, 0); else paintStatic(g, w, h, act, reduced);
+    var camX = Number(options.camX) || 0, camY = Number(options.camY) || 0;
+    var plate = plateFor(act), plateReady = plate && plate.complete && plate.naturalWidth > 0;
+    g.save();
+    // The painted page drifts gently against the camera, giving the rear ink
+    // work a little depth without changing collision or gameplay coordinates.
+    g.translate(-clamp(camX * .035, -7, 7), -clamp(camY * .02, -4, 4));
+    if (plateReady) { var ox = clamp(camX * .012, -4, 4), oy = clamp(camY * .008, -2, 2); g.drawImage(plate, 0, 0, plate.naturalWidth, plate.naturalHeight, ox, oy, w - ox * 2, h - oy * 2); }
+    else if (cache[key]) g.drawImage(cache[key], 0, 0, cache[key].width, cache[key].height, 0, 0, w, h); else paintStatic(g, w, h, act, reduced);
+    g.restore();
+    if (options.title !== true) { g.fillStyle = "rgba(7,15,17,.22)"; g.fillRect(0, 0, w, h); }
     var time = Number(options.time) || 0, drift = reduced ? 0 : time;
     // animated fireflies stay sparse and screen-space, preserving gameplay readability
     if (!reduced) for (var i=0;i<8;i++){var fx=(hash(i+400)*w+drift*(3+i%3))%(w+20)-10, fy=h*(.2+hash(i+420)*.55)+Math.sin(drift*.7+i)*4; glow(g,fx,fy,7,[249,214,133],.12); g.fillStyle="#ffe8a3";g.fillRect(fx,fy,1.5,1.5);}
-    if (String(options.title || "").length || options.act === "hearthwood") {
-      var title = options.title || (act === "hearthwood" ? "SPORELING DASH" : "");
-      if (title) { g.save(); g.textAlign="center"; g.font="bold " + Math.max(14, Math.round(w*.045)) + "px Georgia, serif"; g.fillStyle="rgba(56,38,48,.86)"; g.fillText(title,w*.5,h*.16); g.font="italic " + Math.max(8,Math.round(w*.018)) + "px Georgia, serif"; g.fillStyle="rgba(255,239,190,.78)"; g.fillText(act === "hearthwood" ? "a little journey beneath the old trees" : act.replace("heartroot","heartroot"),w*.5,h*.21); g.restore(); }
-    }
-    // mushroom home on title scene, warm windows and chimney curl
-    if (act === "hearthwood" && (options.title || options.showHome !== false)) {
-      var hx=w*.76, hy=h*.67; glow(g,hx,hy-19,34,[255,192,104],.18); g.fillStyle="#d9b17b"; g.fillRect(hx-5,hy-26,10,27); g.fillStyle="#9a526d"; g.beginPath();g.ellipse(hx,hy-29,28,14,0,Math.PI,TAU);g.fill(); g.fillStyle="#f8d68d";g.fillRect(hx-15,hy-17,7,8);g.fillRect(hx+8,hy-17,7,8); g.fillStyle="#71455d";g.fillRect(hx-4,hy-10,8,11); g.strokeStyle="rgba(255,239,192,.38)";g.lineWidth=1;g.beginPath();g.moveTo(hx+16,hy-38);g.quadraticCurveTo(hx+24,hy-50,hx+17,hy-57);g.stroke();
+    // Mushroom cottage and hero are title-only foreground story elements.
+    if (act === "hearthwood" && (options.title === true || options.showHome === true)) {
+      drawHero(g,{x:w*.70,y:h*.82,anim:"idle",time:time,scale:2,reducedMotion:reduced,facing:1});
     }
   }
 
+  if (typeof Image !== "undefined") plateFor("hearthwood");
   root.SporelingStorybook = { drawHero: drawHero, drawScene: drawScene, clearCache: function(){ cache=Object.create(null); } };
 })(typeof globalThis !== "undefined" ? globalThis : window);
