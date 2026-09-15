@@ -1,0 +1,117 @@
+{
+  "commit": "0c4622640d85c210566abbc7edd43a1fdb0b3e9e",
+  "levels": [
+    {
+      "name": "THE HOLLOW",
+      "hash": "132464ed459c877b2ad6d4502a6b53036c9f0f0a2a3a6f1028506120956483f0"
+    },
+    {
+      "name": "ROTROOT CHASM",
+      "hash": "19cb5ffb382c3bced3c5e7968aa32fd567de8ca7cbc24c3ac3c09d89f8fcda9a"
+    },
+    {
+      "name": "THE SPIRE",
+      "hash": "9d82578535e66a32b5130ed5e5ea144183c3857885578cd26bd255bb1e57ce55"
+    },
+    {
+      "name": "MYCEL GARDENS",
+      "hash": "04cb60678448c7210b6feb94971622df05e4631ed554dd99326b9585fdc9daa6"
+    },
+    {
+      "name": "THE SKITTERWAY",
+      "hash": "df7f0c160f38cdf236789ea8bc111843a66587f0cd72da01f5de0b69d4c458b9"
+    },
+    {
+      "name": "THE BROODNEST",
+      "hash": "2f01e852b145483839b6996cead35374d633d8aa738f49276ea746a168bccf28"
+    },
+    {
+      "name": "THE BLOOMHEART",
+      "hash": "007bcdf5b0684244df3ded45a6d18094fa5392b27fd882e54d4b10e167e5e594"
+    },
+    {
+      "name": "THE MARROW",
+      "hash": "440ce63bcdfeb4280ebce611e3037c5565d450ce654dbea68cab3516ab4e1d18"
+    },
+    {
+      "name": "THE CHORUS HALL",
+      "hash": "b4843bf9792613632bf762d8d266c9b12904755bc059a64b81d80fa17eb772ac"
+    },
+    {
+      "name": "THE SWALLOW",
+      "hash": "a9e641d123fb00dd548486e862bf20d9c2798e6e5a8cfa3fad569eac083e7d61"
+    },
+    {
+      "name": "THE UNDERFIELD",
+      "hash": "ea41192e2c5b54a37c000921a8ce8dec2de3b5085589b34c09240856eac7a03b"
+    },
+    {
+      "name": "THE TRUFFLE RUNS",
+      "hash": "d92a68564d33a5dd3de3c7bfdaf0291c46bf43e944d091ae9bcf81b34e59e0f4"
+    },
+    {
+      "name": "THE BOAR PIT",
+      "hash": "c40b993d5eeb8c87cdb48158865b0863d2b69b070ebc1b237d84e717cca00500"
+    },
+    {
+      "name": "THE ROOTWORKS",
+      "hash": "1726f30569223d7e9872d23eabd6bcec83ff7287063167a0095ba74d9ff7e99a"
+    },
+    {
+      "name": "THE MOTHER'S THROAT",
+      "hash": "36547475a8071d7d98bd91a6c54ccbb6893bd5ed77a35903b531eb2e5858b8b2"
+    },
+    {
+      "name": "THE UNDRAWN MAP",
+      "hash": "38efdcbf138ffdcbf96b45cb60c9df6684d52b461eadac41c70aac7ea6c90264"
+    },
+    {
+      "name": "THE PALE ROOT",
+      "hash": "beee92cfbc004666faf962bfb579663225f413cef463ba6b19e34ea5a20156c5"
+    },
+    {
+      "name": "THE PRESSED GARDEN",
+      "hash": "f7bc76bf7117158f0e354989752ee67cd998f6e5a3e56da0345038a7fc4758aa"
+    },
+    {
+      "name": "THE REACH",
+      "hash": "c8f84d2d2ca51df51eda81799aa701bc972c6b3b770a8131b221c73630b76078"
+    }
+  ],
+  "files": {
+    "ui/storybook.js": "375eec34e57d79086d7d761de4a440a1019366c85206501162c89ba8f00dd2f0",
+    "ui/terrain.js": "1b0a120abf792e2973f088f155078834a7da5b5b1c697309088e322e7c254852",
+    "ui/bloom-controls.js": "d1d1973961a79e844a7eff9ed8a924c363e5b2fa7a0a1d424424348ab3fc941e",
+    "ui/inhabitants.js": "3bd828f9e77ade317a2bd0ecc4fdc3ba9c8fa674253cc0473981b92eca557024"
+  },
+  "regions": [
+    {
+      "label": "movement tuning",
+      "start": "// \u2500\u2500 Feel",
+      "end": "// Boss tuning",
+      "hash": "c4a38b348181704854795f4f88147cd9da6bc708c63c6c519de7982ef9970681"
+    },
+    {
+      "label": "hero sprite",
+      "start": "// \u2500\u2500 Player sprite",
+      "end": "// Ghostly palette",
+      "hash": "3894ac65ed90736dffee977b33cf6ad753f2adfaf678909cc2e17871081279f9"
+    },
+    {
+      "label": "sound synthesis",
+      "start": "function audioInit()",
+      "end": "const LEVEL_MUSIC",
+      "hash": "d8e535721b2d0eee6445a805e6c03be42f95a22bccfdbc873ab110349f56445c"
+    }
+  ],
+  "guardianFunctions": {
+    "barrow": {
+      "end": "chorus",
+      "hash": "1a3f0c76f35cab4ffb815508c195e2b4762e19ad542351f34a777bf7aeeb057c"
+    },
+    "chorus": {
+      "end": "boar",
+      "hash": "b47f1c7e14cbad6bd2522371f3838aa85f17ffdbfaa875b3f944f03ac27bc10f"
+    }
+  }
+}

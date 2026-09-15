@@ -11,31 +11,33 @@
   "use strict";
 
   const layouts = {
-    0: { w: 96, h: 14, notes: "Porch, a safe first bloom gap, two visible 4-6 tile thorn crossings, broad runways, then a low final rise to the goal. Every mandatory rise is two tiles or less; the upper berries are optional bloom-chain routes.", build: ({ set, rect, seg }) => {
-      seg(0, 10, 10); seg(11, 20, 9); seg(21, 25, 13); seg(26, 27, 10); seg(28, 36, 9);
-      seg(37, 45, 10); seg(46, 54, 9); seg(55, 63, 10); seg(64, 70, 8);
-      seg(71, 78, 9); seg(79, 87, 8); seg(88, 95, 7);
-      rect(24, 11, 25, 11);
-      rect(90, 6, 95, 6);
-      for (let c = 39; c <= 44; c++) set(c, 9, "S");
-      for (let c = 56; c <= 61; c++) set(c, 9, "S");
-      rect(16, 6, 17, 6); rect(29, 5, 30, 5); rect(44, 4, 44, 4); rect(58, 4, 59, 4); rect(75, 7, 76, 7);
-      set(2, 9, "P"); set(67, 7, "C"); set(92, 5, "G");
-      for (const [c, r, ch] of [[18, 8, "e"], [34, 8, "f"], [52, 8, "e"], [73, 8, "f"], [86, 7, "e"]]) set(c, r, ch);
-      for (const [c, r] of [[6, 9], [14, 7], [28, 7], [35, 6], [49, 7], [67, 6], [73, 4], [84, 6]]) set(c, r, "B");
+    0: { w: 120, h: 16, notes: "A short porch teaches one bloom placement, then three readable sequences escalate from a four-tile gap to thorn timing and a final two-bloom landing. Checkpoints at the two recovery porches keep the demanding last sequence fair; all mandatory landings are grounded or bloom-assisted and wall-free.", build: ({ set, rect, seg }) => {
+      seg(0, 12, 12); seg(13, 28, 12); seg(34, 45, 13); seg(46, 63, 13); seg(70, 81, 12); seg(82, 101, 12); seg(108, 119, 12);
+      rect(13, 10, 16, 10); rect(29, 8, 33, 8); rect(46, 10, 51, 10); rect(64, 7, 69, 7); rect(82, 9, 88, 9); rect(102, 6, 107, 6);
+      rect(37, 11, 40, 11); rect(75, 10, 78, 10); rect(94, 7, 98, 7);
+      // The first escalation is the bloom gap itself. Keep the landing clear
+      // so the opening teaches placement before the later thorn timing.
+      for (let c = 55; c <= 61; c++) set(c, 12, "S");
+      for (let c = 92; c <= 96; c++) set(c, 11, "S");
+      rect(22, 6, 25, 6); rect(40, 5, 43, 5); rect(57, 4, 60, 4); rect(76, 3, 79, 3); rect(96, 2, 99, 2);
+      set(2, 11, "P"); set(47, 9, "C"); set(83, 8, "C"); set(115, 11, "G");
+      for (const [c, r, ch] of [[10, 11, "e"], [26, 9, "f"], [40, 12, "e"], [59, 10, "f"], [76, 11, "e"], [96, 8, "f"], [111, 11, "e"]]) set(c, r, ch);
+      for (const [c, r] of [[7, 10], [15, 9], [32, 7], [39, 10], [57, 10], [67, 6], [94, 6], [105, 5]]) set(c, r, "B");
     } },
-    1: { w: 120, h: 16, movers: [{ c0: 48, c1: 51, rA: 13, rB: 8, period: 3.4, phase: 0 }], notes: "Lantern steps alternate broad 5-10 tile runways with three readable thorn spans. The route rises in two-tile steps, while the moving shelf and high berries remain optional mastery lines.", build: ({ set, rect, seg }) => {
-      seg(0, 9, 12); seg(10, 18, 13); seg(19, 27, 11); seg(28, 36, 12); seg(37, 45, 14);
-      seg(46, 54, 13); seg(55, 63, 11); seg(64, 72, 12); seg(73, 81, 11);
-      seg(82, 90, 12); seg(91, 99, 11); seg(100, 108, 9); seg(109, 119, 11);
-      rect(22, 7, 24, 7); rect(36, 4, 38, 4); rect(52, 8, 54, 8); rect(69, 4, 71, 4); rect(86, 6, 88, 6); rect(104, 3, 106, 3);
-      for (const c of [11, 12, 13, 14, 15, 84, 85, 86, 87, 88]) set(c, 12, "S");
-      for (const c of [42, 43, 44, 45]) set(c, 13, "S");
-      set(46, 12, "S");
-      set(2, 11, "P"); set(41, 13, "C"); set(116, 10, "G"); set(69, 3, "K");
-      for (const [c, r, ch] of [[16, 12, "e"], [28, 9, "f"], [40, 13, "e"], [76, 10, "f"], [96, 10, "e"], [108, 7, "f"]]) set(c, r, ch);
-      for (const [c, r] of [[7, 10], [23, 6], [35, 7], [52, 7], [69, 6], [87, 5], [104, 5], [113, 9]]) set(c, r, "B");
-    } },
+    1: { w:150,h:18,
+      movers:[{c0:36,c1:39,rA:17,rB:12,period:4.4,phase:0},{c0:98,c1:101,rA:15,rB:10,period:4.8,phase:1.2}],
+      notes:"Rootbridge Crossing alternates open bloom gaps, moving recovery shelves, a raised launch over thorns, and a low overhang. Two earned checkpoints divide the route. A high keepsake path rewards extra bloom control; the main route never requires wall jumping.",
+      build:({set,rect,seg})=>{
+        seg(0,15,15);seg(22,34,14);seg(41,56,13);seg(62,74,15);seg(81,95,12);seg(103,118,14);seg(125,149,12);
+        rect(44,11,46,11);rect(66,11,70,11);rect(85,8,89,8);rect(127,10,129,10);
+        rect(62,12,64,12);rect(68,7,72,7);rect(113,10,116,10);
+        for(let c=48;c<=52;c++)set(c,12,'S');
+        for(let c=131;c<=135;c++)set(c,11,'S');
+        set(2,14,'P');set(55,12,'C');set(110,13,'C');set(146,11,'G');set(70,6,'K');
+        for(const[c,r,ch]of[[10,14,'e'],[40,11,'f'],[54,12,'e'],[91,11,'e'],[116,12,'f'],[140,11,'e']])set(c,r,ch);
+        for(const[c,r]of[[7,13],[28,12],[38,10],[50,10],[67,13],[93,10],[112,12],[138,10]])set(c,r,'B');
+      }
+    },
     3: { w: 30, h: 56, notes: "A vertical garden with alternating bloom shelves, a glide pocket, and a calm gardener landing before the crown. The upper half narrows to short shelves, with two inward wall lips that reward side transfers while leaving both outer walls usable.", build: ({ set, rect }) => {
       rect(0, 0, 0, 55); rect(29, 0, 29, 55); rect(1, 54, 28, 55);
       rect(3, 48, 10, 48); rect(19, 43, 26, 43); rect(5, 38, 13, 38); rect(16, 33, 24, 33);
@@ -115,7 +117,7 @@
           level.movers = (layout.movers || []).map(mover => ({ ...mover }));
           applied.push(index);
         }
-        const npcPositions = { 0: { BARNABY: [8, 9] }, 1: { COMMANTHA: [36, 3], "THE TWINS": [70, 3] }, 3: { "GRANNY MOREL": [10, 37] }, 4: {}, 7: { JB: [58, 11] }, 11: {}, 13: {} };
+        const npcPositions = { 0: { BARNABY: [8, 11] }, 1: { COMMANTHA: [26, 13], "THE TWINS": [110, 13] }, 3: { "GRANNY MOREL": [10, 37] }, 4: {}, 7: { JB: [58, 11] }, 11: {}, 13: {} };
         for (const [key, placements] of Object.entries(npcPositions)) {
           const level = levels[Number(key)];
           for (const npc of level?.npcs || []) if (placements[npc.name]) [npc.c, npc.r] = placements[npc.name];

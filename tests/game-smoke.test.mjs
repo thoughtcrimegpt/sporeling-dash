@@ -115,6 +115,7 @@ function bootGame({ hostname = "127.0.0.1", protocol = "http:", search = "", ini
   // Load the external authored campaign module before booting the inline game,
   // as the browser does.
   vm.runInNewContext(campaignSource, context);
+  for (const path of ["ui/rainbell-chapter.js", "ui/rainmaker.js"]) vm.runInNewContext(readFileSync(join(root, path), "utf8"), context);
 
   const marker = /requestAnimationFrame\(frame\);\s*\}\)\(\);\s*$/;
   assert.match(scripts[0], marker, "test export marker must match the game loop");
@@ -193,7 +194,7 @@ test("every chamber has a rectangular map and one spawn", () => {
 
 test("authored campaign layouts apply cleanly and retain a walkable route", () => {
   const { api } = bootGame();
-  const authored = new Map([[0, [96, 14]], [1, [120, 16]], [3, [30, 56]], [4, [100, 12]], [7, [110, 20]], [11, [176, 30]], [13, [178, 30]]]);
+  const authored = new Map([[0, [120, 16]], [1, [150, 18]], [3, [30, 56]], [4, [100, 12]], [7, [110, 20]], [11, [176, 30]], [13, [178, 30]]]);
   assert.deepEqual([...api.campaignApplied], [...authored.keys()], "campaign applies every layout whose target level exists");
   for (const [index, [width, height]] of authored) {
     const level = api.LEVELS[index];
@@ -327,8 +328,8 @@ test("every chamber loads with safe runtime objects and a working respawn", () =
 test("checkpoint spacing keeps each retry stretch meaningful", () => {
   const { api } = bootGame();
   const expected = new Map([
-    ["THE HOLLOW", 1],
-    ["ROTROOT CHASM", 1],
+    ["THE HOLLOW", 2],
+    ["ROTROOT CHASM", 2],
     ["THE SPIRE", 1],
     ["MYCEL GARDENS", 1],
     ["THE SKITTERWAY", 0],
@@ -346,6 +347,7 @@ test("checkpoint spacing keeps each retry stretch meaningful", () => {
     ["THE PALE ROOT", 2],
     ["THE PRESSED GARDEN", 0],
     ["THE REACH", 2],
+    ["THE REEDBANK", 2], ["THE LANTERN LIFT", 2], ["THE SILVER SLUICE", 2], ["THE STILLWATER PATH", 2], ["THE RAINMAKER", 0],
   ]);
 
   let total = 0;
@@ -354,11 +356,11 @@ test("checkpoint spacing keeps each retry stretch meaningful", () => {
     total += count;
     assert.equal(count, expected.get(level.name), `${level.name} keeps its intentional checkpoint budget`);
   }
-  assert.equal(total, 13, "the expanded main route stays sparse and each standalone marathon has two checkpoints");
+  assert.equal(total, 23, "longer opening rooms and the four Rainbell routes have earned recovery points");
 
   const hollowCheckpoint = api.LEVELS[0].map.findIndex(row => row.includes("C"));
-  assert.equal(hollowCheckpoint, 7, "The Hollow checkpoint stays on its supported platform row");
-  assert.equal(api.LEVELS[0].map[7].indexOf("C"), 67, "The Hollow checkpoint comes after the first spike-pit test");
+  assert.equal(hollowCheckpoint, 8, "The Hollow checkpoint stays on its supported platform row");
+  assert.equal(api.LEVELS[0].map[8].indexOf("C"), 83, "The Hollow checkpoint comes after the first spike-pit test");
 });
 
 test("mercy retry anchors sit in safe, intentional parts of the route", () => {
@@ -843,7 +845,7 @@ test("DEV exposes every level while its damage override cannot leak to productio
   assert.equal(local.api.titleIds().includes("devhealth"), true);
   local.api.S.devLevel = local.api.LEVELS.length - 1;
   local.api.startTitleRun();
-  assert.equal(local.api.S.levelIdx, local.api.REACH_INDEX);
+  assert.equal(local.api.S.levelIdx, local.api.LEVELS.length - 1);
   local.api.S.devInf = true;
   local.api.S.health = 3;
   local.api.S.player.invuln = 0;
@@ -1233,7 +1235,7 @@ test("personal-best and leaderboard ghosts are loaded only when deliberately sel
   const personal = bootGame({ initialStorage: {
     sd_run_mode: "speedrun",
     sd_ghost_pref: "personal",
-    sd_pb_storybook1: JSON.stringify({ t: 4.2, frames }),
+    sd_pb_storybook2: JSON.stringify({ t: 4.2, frames }),
   } });
   personal.api.startTitleRun();
   assert.equal(personal.api.S.ghost.name, "your echo");
@@ -1646,7 +1648,7 @@ test("root warnings are harmless and replace stacked projectile hazards", () => 
 
   api.updateBoss(api.BOSS.WARN);
   assert.equal(api.S.health, health, "the full warning interval cannot hurt the player");
-  assert.equal(boss.arm.x, 15 * 16, "the root does not move during the warning");
+  assert.equal(boss.arm.x, 4 * 16, "the root does not move during the warning");
   assert.equal(boss.floorPulseT, floorPulse, "the phase-three floor pattern pauses for root beats");
   assert.equal(boss.shots.length, 0);
   assert.equal(boss.bolts.length, 0);
@@ -1717,8 +1719,8 @@ test("the active Chorus camera keeps both player and heart inside the frame", ()
 test("the browser-test bridge exists locally and is absent on the deployed host", () => {
   const local = bootGame();
   assert.deepEqual(JSON.parse(JSON.stringify(local.context.__SPORELING_DEV__.snapshot())), {
-    mode: "title", level: 0, boss: null, bossState: null,
-    player: { x: 35, y: 148, grounded: false, dashing: false, spores: 3, health: 4 },
+    mode: "title", level: 0, boss: null, bossState: null, guardian: null,
+    player: { x: 35, y: 180, grounded: false, dashing: false, spores: 3, health: 4 },
     rootTier: null, rootWarning: 0,
   });
 
@@ -1995,7 +1997,7 @@ test("boss grace telegraphs preserve their configured readable windows", () => {
   assert.equal(shoggoth.state, "lunge");
 });
 
-test("the Shoggoth takes a hit from any eye contact or a body dash during its opening", () => {
+test("the Shoggoth requires a descending eye strike or committed body dash", () => {
   const { api } = bootGame();
   const unbloomedIndex = api.LEVELS.findIndex(level => level.boss === "unbloomed");
   api.loadLevel(unbloomedIndex);
@@ -2010,8 +2012,10 @@ test("the Shoggoth takes a hit from any eye contact or a body dash during its op
     vx: 0, vy: -120, dashing: false, dashT: 0, invuln: 0,
   });
   api.updateShoggoth(0);
-  assert.equal(boss.pips, 2, "rising into the eye counts even when the player is not falling or dashing");
-  assert.equal(boss.state, "crawl");
+  assert.equal(boss.pips, 3, "rising into the eye is not a strike");
+  player.vy=120; api.updateShoggoth(0);
+  assert.equal(boss.pips,2,"descending onto the eye is a strike");
+  assert.equal(boss.state, "recover");
   assert.equal(player.vy, -280, "eye contact gives a clear bounce away from the boss");
 
   boss.state = "eyeOpen";
@@ -2022,7 +2026,7 @@ test("the Shoggoth takes a hit from any eye contact or a body dash during its op
   });
   api.updateShoggoth(0);
   assert.equal(boss.pips, 1, "dashing through the body during the eye opening also counts");
-  assert.equal(boss.state, "crawl");
+  assert.equal(boss.state, "recover");
   assert.equal(player.dashing, false, "the successful dash ends cleanly instead of striking twice");
 
   boss.state = "eyeOpen";
@@ -2210,7 +2214,7 @@ test("the opening lesson names the active controls and precedes a safe mandatory
     assert.equal(opening[13][c], "#", "the first gap has a safe floor");
     assert.notEqual(opening[12][c], "S", "the teaching pit has no spikes");
   }
-  assert.ok(opening[9].slice(54, 63).includes("S"), "the dangerous bloom test comes later");
+  assert.ok(opening[12].slice(54, 63).includes("S"), "the dangerous bloom test comes later");
 
   keyboard.api.S.mode = "play";
   keyboard.api.S.levelIdx = 0;
@@ -2472,7 +2476,7 @@ test("the visible patch history uses plain factual copy", () => {
   const { api } = bootGame();
   const retiredBossName = new RegExp(["niki", "ta", "bo", "ar"].join("\\s*"), "i");
   const reviewPlacementCopy = /(?:review|reviews).*(?:added|joined|linked|quote|order|top|opens?)/i;
-  assert.match(api.PATCH_NOTES[0].v, /^V5\.1/);
+  assert.match(api.PATCH_NOTES[0].v, /^V5\.2/);
   assert.doesNotMatch(html, retiredBossName, "the Boar Pit boss stays unnamed in player-facing copy");
   assert.ok(html.includes("THE BOAR PIT"), "the boss entrance names the chamber instead");
   for (const block of api.PATCH_NOTES) {

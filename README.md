@@ -1,5 +1,7 @@
 # Sporeling Dash
 
+V5.2 expands the live storybook game with longer opening challenges and the Rainbell chapter. The original pixel hero, movement, controls, illustrated environments, audio and Lantern Chorus remain intact. Local development runs on port 8884.
+
 A woodland platformer with a dependency-free canvas engine, the original pixel mushroom hero, and four painted environments.
 
 The storybook overhaul restores the original pixel hero and builds a warmer world around it: Hearthwood, Lantern Canopy, Rainbell Hollows, and Heartroot. Seven main-route chambers have new terrain and pacing. Wall-cling, spore-glide, temporary bloom platforms, and the down-slam remain the foundation of movement.
@@ -8,7 +10,7 @@ The Mother Bloom has gone quiet. Dash in mid-air to grow a mushroom at the end o
 
 Movement uses the original short-hop release, gentle airborne steering, and brief dash anticipation. A bloom does not snap the character into place or stop their horizontal motion. Reliable input buffering, collision forgiveness, and mouse and touch controls remain available.
 
-The main Adventure crosses 15 chambers and four guardian encounters: Barrow, the Chorus, Brambleback, and the Heartwood Guardian. Two hidden rooms, four persistent keepsakes, the Pale Root, and The Reach sit outside that route.
+The main Adventure crosses 20 chambers and five guardian encounters: Barrow, Old Brindle the Rainmaker, the Chorus, Brambleback, and the Unbloomed / Shoggoth finale. Two hidden rooms, four persistent keepsakes, the Pale Root, and The Reach sit outside that route.
 
 Adventure also has Resonance: bounce or dash through ordinary enemies and chain blooms to fill the meter. At full charge, press Q, gamepad Y, or the touch burst button for a radial burst that clears nearby ordinary enemies, restores dash and blooms, and lifts you upward. A released and re-pressed jump provides one midair flutter jump; an input just before landing waits for a normal jump. Adventure mushrooms last longer to give you time to choose your next step.
 
@@ -28,13 +30,23 @@ Adventure has no clock or leaderboard submission. Level select becomes available
 
 Deaths return you to the latest checkpoint and restore the current difficulty's full health.
 
-The Hollow and Lantern Canopy use broad runways, short rises, and visible jump-and-dash crossings. The first teaching pit has a safe floor and recovery steps. Rainbell Crossing follows a lower ground route with short climbs and a supported checkpoint porch. Higher platforms and collectibles provide optional bloom routes. Later, Mycel Gardens narrows its upper transfers, Canopy Run alternates rising and falling landings, Truffle Runs offers high and low approaches around a moving shelf, and Rootworks combines overhead gates with isolated thorns. Wider helper shelves in the late chambers accommodate carried momentum.
+The Hollow and Rootbridge Crossing combine longer traversal with raised launch shelves, thorn banks, bloom catches and moving platforms. Two checkpoints in each room split the sustained sequences. The first teaching section has a safe floor. Rainbell Crossing follows a lower ground route with short climbs and a supported checkpoint porch. Higher platforms and collectibles provide optional bloom routes. Later, Mycel Gardens narrows its upper transfers, Canopy Run alternates rising and falling landings, Truffle Runs offers high and low approaches around a moving shelf, and Rootworks combines overhead gates with isolated thorns. Wider helper shelves in the late chambers accommodate carried momentum.
 
 The camera keeps fast upward chains in view and immediately returns to the checkpoint with the character on a retry.
 
+### Rainbell chapter
+
+After Rainbell Crossing, Adventure continues through The Reedbank, The Lantern Lift, The Silver Sluice, The Stillwater Path and Old Brindle's arena, then returns to the Bellflower Hall. The banks teach short crossings and safe recoveries; the lift uses the existing wall jump and moving shelves; the sluice offers descending routes; bellflowers rehearse the rings before the boss. The original Pale Root and Reach remain the demanding optional trials.
+
+Bellflowers swell and show a direction before releasing an amber ground ring. Jump over it. Brindle alternates rings with a marked leap and a low tongue strike. The landing mark and tongue direction lock before the attack. Move out of the mark, jump the splash or tongue, then dash the mint throat during its 2.6-second recovery. Later rounds combine those attacks. Missing a counter repeats the sequence.
+
+The Unbloomed's crown opens on alternating sides of the climbing arena. Root sweeps cover the arena and clear before the crown opens. The broken crown reveals the Shoggoth: committed short lunges, marked tendrils and rolling spores lead into exposed-eye counters. Dash through the exposed body or descend onto its raised eye. The last phase combines familiar attacks. Successful hits clear leftover hazards, and a death during the second form restarts that form.
+
+Original save indices remain fixed. The new rooms have stable IDs and their own unlock record; returning players who reached the Bellflower Hall can select them immediately. Adventure inserts the chapter into its route. Timed Run retains its 15-room ordering and uses the revised opening maps and finale. Its `storybook2` scores and personal bests are separate from earlier layouts; old challenge ghosts are rejected.
+
 ### Timed Run
 
-Timed Run always starts in The Hollow with 4 health. Its original sparse checkpoint layout stays intact, and the clock keeps running through deaths. Ghosts are off by default; players can opt into a personal-best or leaderboard ghost.
+Timed Run always starts in The Hollow with 4 health. It uses each room’s authored checkpoints, and the clock keeps running through deaths. Ghosts are off by default; players can opt into a personal-best or leaderboard ghost.
 
 Every completed run qualifies for the Any% board. Collecting every berry, meeting every resident, finding the secret memory, and owning all four keepsakes also qualifies for the optional 100% board. The storybook route uses fresh Any% and 100% board categories and personal bests so its times and ghosts are not mixed with previous layouts.
 
@@ -56,14 +68,18 @@ The leaderboard names each route directly: Any%, 100%, Pale Root, and The Reach.
 6. The Broodnest — Barrow
 7. The Bloomheart
 8. The Marrow
-9. The Chorus Hall — Chorus
-10. The Swallow
-11. The Underfield — a one-time down-slam lesson followed by six breakable floors, fast runners, wisps, spitters, and bouncing firecaps
-12. The Truffle Runs — slam drops lead into a much longer enemy-refund crossing marked by visible truffles
-13. Brambleback’s Clearing: a flat charge-and-slam arena
-14. The Rootworks — three long horizontal enemy chains and one midpoint checkpoint
-15. Heartroot: the Heartwood Guardian
-
+9. The Reedbank
+10. The Lantern Lift
+11. The Silver Sluice
+12. The Stillwater Path
+13. Old Brindle, the Rainmaker
+14. The Chorus Hall — Chorus
+15. The Swallow
+16. The Underfield — a one-time down-slam lesson followed by six breakable floors, fast runners, wisps, spitters, and bouncing firecaps
+17. The Truffle Runs — slam drops lead into a much longer enemy-refund crossing marked by visible truffles
+18. Brambleback’s Clearing: a flat charge-and-slam arena
+19. The Rootworks — three long horizontal enemy chains and one midpoint checkpoint
+20. Heartroot: the Heartwood Guardian
 The Undrawn Map is hidden above the Spire. A second hidden room sits high beyond the Bloomheart's right wall. A small Frog sign and a berry trail mark the start, but three overhangs stop a straight wall climb; two enemy connectors return after a failed attempt. FROG lives inside beneath a pile of old hardware and only makes frog noises. The Pale Root unlocks after the main game is beaten; The Reach appears only after the Pale Root is cleared.
 
 Brambleback is a woodland boar with a leafy flank. Its charge direction is announced before the rush; after a crash, the mint flank marks a straight-down slam opportunity. Later phases introduce faster charges and a rebound. Every boss resets to full health on a retry.
@@ -100,7 +116,7 @@ No dependencies or build step. Keep the `assets` and `ui` folders beside `index.
 
 ## Development
 
-The storybook overhaul is developed on `storybook-overhaul`; production is updated only after release approval.
+Development uses `live-campaign-expansion`. GitHub Pages publishes the root of `main`. Private browser recordings and screenshots stay in ignored `qa/`; regression tests retain the original release fingerprints in `tests/release-reference.json`.
 
 ```text
 npm run dev

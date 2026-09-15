@@ -45,7 +45,7 @@
         // to those visible changes without delaying the clock after a restart.
         if (view.timed) put(timer, view.time);
         setHidden(boss, view.bossPips == null);
-        if (view.bossPips != null) put(boss, `Boss ${view.bossPips}/3`);
+        if (view.bossPips != null) put(boss, `Boss ${view.bossPips}/${view.bossMaxPips || 3}`);
         setHidden(lesson, !view.lesson);
         if (view.lesson) {
           put(lessonTitle, view.lesson.title);

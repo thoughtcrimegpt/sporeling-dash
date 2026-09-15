@@ -67,7 +67,10 @@ test("Rootworks clears through its real enemy chain", { timeout: 15_000 }, () =>
 
 test("The Reach clears in all three checkpoint retry chunks", { timeout: 30_000 }, () => {
   for (let chunk = 0; chunk < 3; chunk++) {
-    const result = probeReachChunk(chunk, { beamWidth: 30, maxSteps: chunk >= 1 ? 900 : 620 });
+    // The first span has two equally viable bloom launches. A wider beam is
+    // justified only here to retain the enemy-enabled route after the opening
+    // map's authored RNG consumption changes the deterministic branch order.
+    const result = probeReachChunk(chunk, { beamWidth: chunk === 0 ? 60 : 30, maxSteps: chunk >= 1 ? 900 : 620 });
     assert.equal(result.ok, true,
       `Reach chunk ${chunk + 1} stopped at ${result.nextWaypoint || "the route"} after ${result.expanded} expansions`);
     assert.ok(result.actions.length > 0, `Reach chunk ${chunk + 1} has replayable inputs`);

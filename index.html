@@ -147,13 +147,16 @@
     </div>
   </div>
 </div>
-<script src="ui/campaign.js"></script>
+<script src="ui/campaign.js?v=challenge-20260914"></script>
+<script src="ui/rainbell-chapter.js?v=challenge-20260914"></script>
+<script src="ui/rainmaker.js?v=challenge-20260914"></script>
 <script src="ui/storybook.js"></script>
 <script src="ui/bloom-controls.js?v=touch-20260909"></script>
 <script src="ui/transitions.js"></script>
-<script src="ui/guardians.js"></script>
+<script src="ui/guardians.js?v=challenge-20260914"></script>
 <script src="ui/terrain.js"></script>
 <script src="ui/inhabitants.js"></script>
+<script src="ui/enemies.js?v=challenge-20260914"></script>
 <script src="ui/display.js"></script>
 <script src="ui/menus.js?v=touch-20260909"></script>
 <script src="ui/play-overlay.js?v=touch-20260909"></script>
@@ -337,7 +340,7 @@ const tri = u => { u = ((u % 1) + 1) % 1; return u < 0.5 ? u * 2 : 2 - u * 2; };
 // Boss tuning — The Unbloomed
 const BOSS = {
   WARN: 0.7, RECOVER: 1.0, RISE: 0.8,
-  OPEN: [1.7, 1.35, 1.1],         // landing window per phase (pips 3/2/1)
+  OPEN: [2.0, 1.8, 1.6],         // landing window per phase (pips 3/2/1)
   ATTACK: 2.2,
   SWEEP_V: 240, RAIN_V: 85, BOLT_V: 150,
   CAP_W: 76, CAP_H: 26,
@@ -351,8 +354,8 @@ const ROOT_TIER_ORDER = Object.freeze({
   2: Object.freeze(["mid", "ground"]),
   3: Object.freeze(["ground", "upper", "mid"]),
 });
-const ROOT_X_MIN = 15 * TILE;
-const ROOT_X_MAX = 48 * TILE;
+const ROOT_X_MIN = 4 * TILE;
+const ROOT_X_MAX = 59 * TILE;
 const ROOT_W = 32;
 
 // Boss tuning — Barrow, the Oldest Slug (it swims the earth; stomp the
@@ -652,7 +655,7 @@ function musicWanted() {
   if (m === "title" || m === "notes" || m === "reviews" || m === "board") return "hearth";
   if (S.boss && S.boss.state === "falsebloom") return null;   // the false quiet
   if (S.boss && S.boss.kind === "shoggoth") return "heartroot";
-  return LEVEL_MUSIC[S.levelIdx] || "dream";
+  return LEVELS[S.levelIdx]?.music || LEVEL_MUSIC[S.levelIdx] || "dream";
 }
 
 function mfreq(trk, deg, oct) {
@@ -853,19 +856,18 @@ const reachSet = idx => {
 // Cycle the practice selector: 0 = full run (title only), 1..reach = chambers,
 // 99 = the Shoggoth directly once it's been met
 function stepPrac(dir, allowZero) {
-  const reach = reachGet(), hasShog = shogSeen();
-  const lo = allowZero ? 0 : 1;
-  if (dir > 0) S.pracSel = S.pracSel === 99 ? lo : (S.pracSel >= reach ? (hasShog ? 99 : lo) : S.pracSel + 1);
-  else S.pracSel = S.pracSel <= lo ? (hasShog ? 99 : Math.max(lo, reach)) : (S.pracSel === 99 ? Math.max(lo, reach) : S.pracSel - 1);
+  const choices = adventureChoices().filter(i => allowZero || i !== 0);
+  if (shogSeen()) choices.push(99);
+  if (!choices.length) choices.push(allowZero ? 0 : 1);
+  S.pracSel = choices[wrap(Math.max(0, choices.indexOf(S.pracSel)) + (dir < 0 ? -1 : 1), choices.length)];
 }
 const pracName = sel => sel === 99 ? "THE SHOGGOTH" : LEVELS[sel] ? LEVELS[sel].name : "";
 
 function stepAdventureLevel(dir) {
-  const max = reachGet();
-  if (max <= 0) { S.advStart = 0; return; }
-  S.advStart = wrap(S.advStart + (dir < 0 ? -1 : 1), max + 1);
+  const choices = adventureChoices();
+  S.advStart = choices[wrap(Math.max(0, choices.indexOf(S.advStart)) + (dir < 0 ? -1 : 1), choices.length)];
 }
-const adventureLevelName = () => (S.advStart + 1) + ". " + LEVELS[S.advStart].name.replace(/^THE /, "");
+const adventureLevelName = () => (ADVENTURE_ROUTE.indexOf(S.advStart) + 1) + ". " + LEVELS[S.advStart].name.replace(/^THE /, "");
 const devLevelLabel = () => (S.devLevel + 1) + "/" + LEVELS.length + " " + LEVELS[S.devLevel].name.replace(/^THE /, "");
 
 const pauseIds = () => {
@@ -934,7 +936,7 @@ function startTitleRun() {
       : "Timed Run: there isn't a leaderboard ghost to load yet.";
   } else if (S.runMode === "speedrun" && ghostPref === "personal") {
     try {
-      const pb = JSON.parse(localStorage.getItem("sd_pb_storybook1") || "null");
+      const pb = JSON.parse(localStorage.getItem("sd_pb_storybook2") || "null");
       if (pb && pb.frames) {
         S.ghost = { frames: pb.frames, name: "your echo" };
         runNotice = "Timed Run: you're racing your " + fmtMs(pb.t * 1000) + " personal best.";
@@ -945,7 +947,7 @@ function startTitleRun() {
   } else if (S.runMode === "speedrun") {
     runNotice = "Timed Run started. Checkpoint retries stay on while the clock runs.";
   }
-  const startLevel = DEV ? S.devLevel : S.runMode === "adventure" ? clamp(S.advStart, 0, reachGet()) : 0;
+  const startLevel = DEV ? S.devLevel : S.runMode === "adventure" && adventureChoices().includes(S.advStart) ? S.advStart : 0;
   loadLevel(startLevel);
   S.mode = "play";
   if (S.runMode === "adventure") S.resonanceNoticePending = true;
@@ -1097,6 +1099,14 @@ function prefetchLeader(slot, list) {
 }
 // ── Patch notes — the cave remembers its own growth. Newest first. ─────────
 const PATCH_NOTES = [
+  { v: "V5.2  Roots and Reckoning", d: "2026-09-15 06:31 UTC", lines: [
+    "· Longer opening routes with bloom transfers, thorn crossings and moving landings.",
+    "· Four Rainbell platforming rooms lead to Brindle's rings, marked leaps and tongue attack.",
+    "· New hostile enemy silhouettes and an armored Brambleback with the familiar charge and flank slam.",
+    "· The Unbloomed shifts its crown between climbing routes. The Shoggoth reveals the real final fight.",
+    "· Every final-boss attack leads to a clean counter. The second form has its own retry checkpoint.",
+    "· Original hero, movement and Lantern Chorus preserved. Timed Run starts a fresh record season.",
+  ] },
   { v: "V5.1.2  More cave, less HUD", d: "2026-09-07 23:58 UTC", lines: [
     "· Full screen is available from the title and pause menus, or with F on a keyboard.",
     "· The HUD stays compact when the game window grows, including in fullscreen and on Retina displays.",
@@ -1316,7 +1326,7 @@ const fmtMs = ms => {
   const s2 = t - m * 60;
   return m + ":" + (s2 < 10 ? "0" : "") + s2.toFixed(1);
 };
-const MAIN_BOARD_DB = Object.freeze({ any: "any_storybook1", full: "full_storybook1", fallen: "fallen_storybook1" });
+const MAIN_BOARD_DB = Object.freeze({ any: "any_storybook2", full: "full_storybook2", fallen: "fallen_storybook2" });
 
 async function lbFetch(cat) {
   try {
@@ -1745,7 +1755,7 @@ let touchUiSignature = "";
 function syncTouchVisibility() {
   const gameplayVisible = TOUCH.active && S.mode === "play" && !S.lesson;
   const p = S.player;
-  const slamReady = gameplayVisible && (S.levelIdx >= LEVELS.findIndex(level => level.name === "THE UNDERFIELD") || p?.slamReady);
+  const slamReady = gameplayVisible && (abilityLevel() >= LEVELS.findIndex(level => level.name === "THE UNDERFIELD") || p?.slamReady);
   const timed = competitiveRun();
   const charge = Math.floor(p?.resonance || 0);
   const burstReady = !timed && !!p && (p.resonance || 0) >= RESONANCE_MAX;
@@ -2677,7 +2687,34 @@ for (let i=0;i<WOODLAND_NAMES.length;i++) LEVELS[i].displayName=WOODLAND_NAMES[i
 
 if (window.createSporelingCampaign) window.createSporelingCampaign({ buildLevel, levels: LEVELS }).apply();
 
+// Retain every released level index for saves, secrets, replays and trials.
+const RAINBELL_START = LEVELS.length;
+const RAINBELL_LEVELS = window.SporelingRainbellChapter.create(buildLevel);
+LEVELS.push(...RAINBELL_LEVELS);
+const CLASSIC_ROUTE = Object.freeze(Array.from({length:15}, (_, i) => i));
+const ADVENTURE_ROUTE = Object.freeze([...CLASSIC_ROUTE.slice(0,8), ...RAINBELL_LEVELS.map((_,i) => RAINBELL_START+i), ...CLASSIC_ROUTE.slice(8)]);
 const MAIN_LAST_INDEX = 14;
+const activeRoute = () => S.runMode === "adventure" ? ADVENTURE_ROUTE : CLASSIC_ROUTE;
+function nextChamber(index = S.levelIdx) {
+  const route = activeRoute(), at = route.indexOf(index);
+  return at >= 0 ? (route[at + 1] ?? null) : null;
+}
+function rainbellUnlocked() {
+  try { const v = JSON.parse(localStorage.getItem("sd_rainbell_unlocked_v1") || "[]"); return Array.isArray(v) ? v : []; } catch(e) { return []; }
+}
+function unlockChamber(index) {
+  if (index == null) return;
+  if (index <= MAIN_LAST_INDEX) { reachSet(index); return; }
+  const id = LEVELS[index]?.id;
+  if (!id) return;
+  const unlocked = rainbellUnlocked();
+  if (!unlocked.includes(id)) { unlocked.push(id); try { localStorage.setItem("sd_rainbell_unlocked_v1", JSON.stringify(unlocked)); } catch(e) {} }
+}
+function adventureChoices() {
+  const reached = reachGet(), unlocked = rainbellUnlocked();
+  return ADVENTURE_ROUTE.filter(i => i <= MAIN_LAST_INDEX ? i <= reached : reached >= 8 || unlocked.includes(LEVELS[i].id));
+}
+const abilityLevel = () => LEVELS[S.levelIdx]?.abilityLevel ?? S.levelIdx;
 const UNDRAWN_INDEX = LEVELS.findIndex(level => level.name === "THE UNDRAWN MAP");
 const PALE_ROOT_INDEX = LEVELS.findIndex(level => level.name === "THE PALE ROOT");
 const BLOOMHEART_INDEX = LEVELS.findIndex(level => level.name === "THE BLOOMHEART");
@@ -2980,6 +3017,7 @@ function loadLevel(idx) {
       y: m.rA * TILE,
     };
   });
+  S.rainbells = window.SporelingRainmaker.createPools(L.rainbells || []);
   if (L.boss) {
     S.boss = {
       kind: L.boss, state: "intro", t: 0, pips: 3,
@@ -2988,7 +3026,9 @@ function loadLevel(idx) {
       sweepSide: false, rootPhase: 0, rootPhaseN: 0, lastRootTier: null,
       grace: true,   // until the first successful hit, windows run 1.45x longer
     };
-    if (L.boss === "unbloomed") {
+    if (L.boss === "rainmaker") {
+      S.boss = window.SporelingRainmaker.create();
+    } else if (L.boss === "unbloomed") {
       S.boss.x = 31.5 * TILE; S.boss.y = 6 * TILE; S.boss.homeY = 6 * TILE;
     } else if (L.boss === "barrow") {
       S.boss.x = 24 * TILE; S.boss.y = 13 * TILE - BARROW.H; S.boss.dir = 1;
@@ -3598,10 +3638,10 @@ function onGround(p) {
   return false;
 }
 
-const wallsUnlocked = () => S.levelIdx >= WALL_LEVEL;
+const wallsUnlocked = () => abilityLevel() >= WALL_LEVEL;
 // HEAVY AIR no longer removes the glide — it just makes it sink faster.
 // The Swallow must always be survivable.
-const glideUnlocked = () => S.levelIdx >= GLIDE_LEVEL;
+const glideUnlocked = () => abilityLevel() >= GLIDE_LEVEL;
 
 // -1 = wall on the left, 1 = wall on the right, 0 = none (real tiles only)
 function touchingWallDir(p) {
@@ -4212,7 +4252,7 @@ function chamberClear() {
   S.mode = "clear";
   S.winT = 0;
   S.goalOpen = 0;
-  if (!S.daily && !S.reachTrial && S.levelIdx + 1 <= MAIN_LAST_INDEX) reachSet(S.levelIdx + 1);
+  if (!S.daily && !S.reachTrial) unlockChamber(nextChamber());
   // Split vs the echo you're racing: when did THEY leave this chamber?
   S.split = null;
   if (competitiveRun() && S.ghost && S.ghost.frames) {
@@ -4230,6 +4270,7 @@ function chamberClear() {
 // finish your berry-collecting, leave when you're ready
 function bossVanquished(b) {
   b.state = "defeated";
+  if (b.kind === "rainmaker") { resetNotices(); b.caption = "The water is quiet. The path is open."; }
   S.eshots = [];
   SFX.bossHit();
   for (let i = 0; i < 30; i++) {
@@ -4238,7 +4279,7 @@ function bossVanquished(b) {
     burst(b.x, b.y, Math.cos(a) * sp, Math.sin(a) * sp - 30, 0.8,
       i & 1 ? rgb(PAL.accent) : C.bloomHi, 2);
   }
-  S.bossDoor = b.kind === "barrow"
+  S.bossDoor = b.kind === "rainmaker" ? { x: 276, y: 144, w: 22, h: 48 } : b.kind === "barrow"
     ? { x: 44 * TILE + 6, y: 13 * TILE - 48, w: 22, h: 48 }
     : b.kind === "nikita"
       ? { x: 42 * TILE - 4, y: 16 * TILE - 48, w: 22, h: 48 }
@@ -4522,7 +4563,7 @@ function bossStartAttack(b) {
     b.sweepHints = (b.sweepHints || 0) + 1;
     b.shots = [];
     b.bolts = [];
-    b.lanes = [16 * TILE, 31.5 * TILE, 47 * TILE].map(x => x + (Math.random() - 0.5) * 30);
+    b.lanes = [16 * TILE, 31.5 * TILE, 47 * TILE];
     b.rainT = 0; b.rainN = 0;
     SFX.bossWarn();
     blip(tier === "upper" ? 230 : tier === "mid" ? 180 : 135, 70, 0.35, "sawtooth", 0.12);
@@ -4533,11 +4574,11 @@ function bossStartAttack(b) {
 const SHOG = {
   W: 64, H: 36,
   CRAWL_V: [41, 52, 67],          // slither speed per phase
-  CRAWL_T: 2.0,
-  LUNGE_V: 300, LUNGE_WARN: [0.9, 0.75, 0.6],
-  SLAM_WARN: [1.05, 0.9, 0.72], SLAM_ACTIVE: 0.4, TENT_H: 72, TENT_W: 22,
-  EYE_OPEN: [2.8, 2.3, 1.8],      // risen-eye window per phase
-  STUN: [2.8, 2.3, 1.9],          // exposed-core window per phase
+  CRAWL_T: 1.0,
+  LUNGE_V: 300, LUNGE_WARN: [0.9, 0.8, 0.75],
+  SLAM_WARN: [1.05, 0.95, 0.85], SLAM_ACTIVE: 0.4, TENT_H: 72, TENT_W: 22,
+  EYE_OPEN: [2.8, 2.5, 2.2],      // risen-eye window per phase
+  STUN: [2.8, 2.5, 2.2],          // exposed-core window per phase
   MINION_MAX: 3, BOUNCE_V: -390,
   FLOOR: 21 * 16,
 };
@@ -4595,9 +4636,12 @@ function spawnShoggoth() {
   try { localStorage.setItem("sd_shoggoth", "1"); } catch (e) {}
   S.movers = [];
   S.shogGates = true;
+  const arrivalX = clamp(S.player.x, 7*TILE, WORLD_W-8*TILE);
+  const emergenceX = clamp(arrivalX + (arrivalX < WORLD_W/2 ? 140 : -140), 7*TILE, WORLD_W-7*TILE);
+  S.spawn = S.checkPt = {x:arrivalX,y:SHOG.FLOOR-S.player.h};
   S.boss = {
     kind: "shoggoth", state: "emerge", t: 0, pips: 3, grace: true,
-    x: 31.5 * 16, y: SHOG.FLOOR - SHOG.H, dir: 1,
+    x: emergenceX, y: SHOG.FLOOR - SHOG.H, dir: 1,
     atkI: 0, vx: 0, tent: null, tents: [], minions: [], rollers: [], grinN: 0, grinT: 0,
     windowHint: false, capFlash: 0, arm: null, shots: [], bolts: [], lanes: [],
   };
@@ -4616,7 +4660,7 @@ function stageShoggothPractice() {
   S.spawn = { x, y };
   S.checkPt = { x, y };
   S.camLook = 0;
-  S.camX = clamp(p.x + p.w / 2 - W / 2, 0, Math.max(0, WORLD_W - W));
+  S.camX = clamp(cameraTargetX(p), 0, Math.max(0, WORLD_W - W));
   S.camY = clamp(p.y + p.h / 2 - H / 2, 0, Math.max(0, WORLD_H - H));
 }
 
@@ -4628,6 +4672,7 @@ function shoggothHit(b, fromTop) {
   const p = S.player;
   b.pips--;
   b.grace = false;
+  b.tents = []; b.rollers = []; b.minions = [];
   p.dashing = false; p.dashT = 0; p.slamDash = false;
   p.vy = -280;
   if (!fromTop) p.vx = (p.x + p.w / 2 < b.x ? -1 : 1) * 150;
@@ -4647,7 +4692,7 @@ function shoggothHit(b, fromTop) {
     S.eshots = [];
     S.shakeT = 0.6; S.shakeMag = 3;
   } else {
-    b.state = "crawl"; b.t = 0;
+    b.state = "recover"; b.t = 0; b.atkI = 0;
   }
 }
 
@@ -4701,13 +4746,14 @@ function updateShoggoth(dt) {
     }
     if (tn.live && tn.t < tn.warn + SHOG.SLAM_ACTIVE && p.invuln <= 0 &&
         overlap(p, { x: tn.x, y: SHOG.FLOOR - SHOG.TENT_H, w: SHOG.TENT_W, h: SHOG.TENT_H }))
-      hurtPlayer(tn.x + SHOG.TENT_W / 2, "a rising root");
+      hurtPlayer(tn.x + SHOG.TENT_W / 2, "a Shoggoth tendril");
   }
   b.tents = b.tents.filter(tn => tn.t < tn.warn + SHOG.SLAM_ACTIVE + 0.25);
 
   // Grinning spores — they roll along the floor wearing a face they stole.
   // Jump them, or dash them apart.
   for (const r of b.rollers) {
+    if (r.life != null) { r.life -= dt; if (r.life <= 0) r.dead = true; }
     r.x += r.vx * dt;
     r.spin += Math.abs(r.vx) * dt * 0.4;
     const box = { x: r.x, y: SHOG.FLOOR - 12, w: 12, h: 12 };
@@ -4718,7 +4764,7 @@ function updateShoggoth(dt) {
       for (let i = 0; i < 8; i++)
         burst(r.x + 6, SHOG.FLOOR - 6, (Math.random() - 0.5) * 90, -Math.random() * 70, 0.4, "#9a6ec0", 2);
     } else if (p.invuln <= 0 && overlap(p, box)) {
-      hurtPlayer(r.x + 6, "a rolling seed");
+      hurtPlayer(r.x + 6, "a Shoggoth spore");
     }
     if (r.x < 3 * 16 || r.x > 61 * 16 - 12) r.dead = true;
   }
@@ -4734,104 +4780,86 @@ function updateShoggoth(dt) {
     return;
   }
 
-  if (b.state === "emerge") {
-    if (Math.random() < 0.5)
-      burst(b.x + (Math.random() - 0.5) * 40, b.y + 20, (Math.random() - 0.5) * 30, -40, 0.6, "#3a2b4a", 2);
-    if (b.t > 2.2) {
-      b.state = "crawl"; b.t = 0;
-      queueNotice("When the flower rises, touch it or dash through the glowing heart.", 5, NOTICE_PRIORITY.BOSS);
-    }
-  } else if (b.state === "crawl") {
-    const tx = p.x + 5;
-    b.dir = tx < b.x ? -1 : 1;
-    b.x += b.dir * SHOG.CRAWL_V[phase - 1] * dt;
-    b.x = clamp(b.x, 4 * 16 + half, 60 * 16 - half);
-    if (Math.random() < 0.25)
-      burst(b.x - b.dir * half, SHOG.FLOOR, -b.dir * 20, -10, 0.35, "#3a2b4a", 2);
-    if (b.t > SHOG.CRAWL_T * (phase === 3 ? 0.7 : 1)) {
-      b.t = 0;
-      const cycle = ["lungeWarn", "slamWarn", "grin", "summon", "eyeOpen"];
-      b.state = cycle[b.atkI % 5];
-      b.atkI++;
-      if (b.state === "lungeWarn") SFX.bossWarn();
-      if (b.state === "slamWarn") blip(200, 90, 0.3, "sawtooth", 0.12);
-      if (b.state === "eyeOpen") blip(880, 1175, 0.35, "sine", 0.15);
-      if (b.state === "summon") blip(500, 800, 0.3, "triangle", 0.12);
-      if (b.state === "grin") {
-        b.grinN = phase + 1; b.grinT = 0.9 * (b.grace ? 1.45 : 1);   // the smile is the tell
-        blip(660, 520, 0.12, "triangle", 0.1);
-        blip(520, 400, 0.12, "triangle", 0.1, 0.14);
-      }
-      if (b.state === "slamWarn") {
-        b.tents.push({ x: p.x + 5 - SHOG.TENT_W / 2, t: 0, warn: SHOG.SLAM_WARN[phase - 1] * gm, live: false });
-        if (phase === 3)
-          b.tents.push({ x: 2 * b.x - (p.x + 5) - SHOG.TENT_W / 2, t: -0.25, warn: SHOG.SLAM_WARN[2] * gm, live: false });
-        b.state = "crawl";   // the body keeps slithering while the floor rises
-        b.t = -0.6;
-      }
-      if (b.state === "eyeOpen") b.windowHint = false;
-    }
-  } else if (b.state === "lungeWarn") {
-    if (Math.random() < 0.5)
-      burst(b.x - b.dir * half, b.y + 10, -b.dir * 30, (Math.random() - 0.5) * 20, 0.3, "#c9a0f0", 2);
-    if (b.t > SHOG.LUNGE_WARN[phase - 1] * gm) {
-      b.state = "lunge"; b.t = 0;
-      b.vx = b.dir * SHOG.LUNGE_V;
-      whoosh(0.3, 0.18, 900);
-    }
-  } else if (b.state === "lunge") {
-    b.x += b.vx * dt;
-    if (Math.random() < 0.6)
-      burst(b.x - Math.sign(b.vx) * half, b.y + SHOG.H - 4, -Math.sign(b.vx) * 40, -15, 0.3, "#6a4a8a", 2);
-    if (b.x - half <= 3 * 16 || b.x + half >= 61 * 16) {
-      b.x = clamp(b.x, 3 * 16 + half, 61 * 16 - half);
-      b.state = "crawl"; b.t = 0;
-      S.shakeT = 0.2; S.shakeMag = 2.6;
-      blip(90, 40, 0.25, "square", 0.15);
-    }
-  } else if (b.state === "grin") {
-    b.grinT -= dt;
-    if (b.grinT <= 0 && b.grinN > 0) {
-      b.grinT = 0.35;
-      b.grinN--;
-      const dir = phase === 3 && b.grinN % 2 ? -Math.sign((p.x + 5) - b.x) || 1 : Math.sign((p.x + 5) - b.x) || 1;
-      b.rollers.push({ x: b.x + dir * (SHOG.W / 2 - 4), vx: dir * (95 + Math.random() * 20), spin: 0, dead: false });
-      blip(300, 180, 0.1, "square", 0.09);
-    }
-    if (b.grinN <= 0 && b.grinT < -0.3) { b.state = "crawl"; b.t = 0; }
-  } else if (b.state === "summon") {
-    if (b.t > 1.0) {
-      const spots = [[-74, 236], [74, 236], [0, 214]];
-      let si = 0;
-      while (b.minions.length < SHOG.MINION_MAX && si < spots.length) {
-        const [ox, oy] = spots[si++];
-        if (!b.minions.some(m => Math.abs(m.cx - (b.x + ox)) < 20)) {
-          b.minions.push({ x: b.x, y: b.y, cx: clamp(b.x + ox, 40, WORLD_W - 56), cy: oy, ph: Math.random() * 6, bounces: 2, squish: 0 });
-          burst(b.x, b.y + 6, (Math.random() - 0.5) * 60, -80, 0.5, "#c9a0f0", 2);
-        }
-      }
-      b.state = "crawl"; b.t = 0;
-    }
-  } else if (b.state === "eyeOpen") {
-    if (!b.windowHint) {
-      b.windowHint = true;
-      if (b.grace) queueNotice("The flower is open. Touch it or dash through the glowing heart.", 2.8, NOTICE_PRIORITY.BOSS);
-    }
-    if (b.t > SHOG.EYE_OPEN[phase - 1] * gm) { b.state = "crawl"; b.t = 0; }
-    const eye = { x: b.x - 8, y: b.y - 44, w: 16, h: 14 };
-    const body = { x: b.x - half + 4, y: b.y + 4, w: SHOG.W - 8, h: SHOG.H - 4 };
-    const touchedEye = overlap(p, eye);
-    if (touchedEye || (p.dashing && overlap(p, body))) shoggothHit(b, touchedEye);
-  } else if (b.state === "stunned") {
-    if (b.t > SHOG.STUN[phase - 1] * gm) { b.state = "crawl"; b.t = 0; }
-    const core = { x: b.x - 12, y: b.y + 6, w: 24, h: 24 };
-    if (overlap(p, core) && p.dashing) shoggothHit(b, false);
+  function enter(state) { b.state = state; b.t = 0; }
+  function expose() {
+    // Counter windows are clean. Residual attacks cannot punish the reward.
+    b.tents = []; b.rollers = []; b.windowHint = false;
+    enter('eyeOpen'); blip(880,1175,.3,'sine',.14);
   }
-
-  // The mass itself hurts — except when it's stunned and open
-  if (b.state !== "stunned" && b.state !== "emerge" && p.invuln <= 0 &&
-      overlap(p, { x: b.x - half + 4, y: b.y + 4, w: SHOG.W - 8, h: SHOG.H - 4 }))
-    hurtPlayer(b.x, "the Heartwood Guardian");
+  function telegraph(kind) {
+    enter(kind); b.dir = p.x + p.w/2 < b.x ? -1 : 1;
+    SFX.bossWarn();
+    if (kind === 'lungeWarn') {
+      // A committed, visible rush past the bait point, not an off-screen lap.
+      const distance = clamp(Math.abs(p.x+5-b.x)+50, 110, 185);
+      b.lungeEnd = clamp(b.x+b.dir*distance, 5*TILE+half, 59*TILE-half);
+    } else if (kind === 'slamWarn') {
+      const target = clamp(p.x+5, 4*TILE+16,60*TILE-16);
+      const offsets = phase === 3 ? [-42,0,42] : [0, b.dir*48];
+      b.tents = offsets.map((dx,i)=>({x:clamp(target+dx,64,WORLD_W-86)-SHOG.TENT_W/2,
+        t:-i*.18,warn:SHOG.SLAM_WARN[phase-1]*gm,live:false}));
+    } else if (kind === 'grin') {
+      b.grinN = phase === 3 ? 3 : 2; b.grinT = .85;
+    }
+  }
+  if (b.state === 'emerge') {
+    if (Math.random()<.4) burst(b.x+(Math.random()-.5)*40,b.y+20,0,-40,.6,'#3a2b4a',2);
+    if (b.t>2.2 && p.y+p.h>SHOG.FLOOR-85) {
+      enter('crawl');
+      queueNotice('The Shoggoth. Dodge its attack, then dash the exposed eye.',4,NOTICE_PRIORITY.BOSS);
+    }
+  } else if (b.state === 'recover') {
+    if (b.t>1.1) enter('crawl');
+  } else if (b.state === 'crawl') {
+    b.dir=p.x+5<b.x?-1:1;
+    if (Math.abs(p.x+5-b.x)>90) b.x+=b.dir*SHOG.CRAWL_V[phase-1]*dt;
+    b.x=clamp(b.x,5*TILE+half,59*TILE-half);
+    if (b.t>SHOG.CRAWL_T) {
+      const cycle=phase===1?['lungeWarn','slamWarn']:phase===2?['slamWarn','grin']:['lungeWarn','slamWarn'];
+      b.combo=0; telegraph(cycle[b.atkI++%cycle.length]);
+    }
+  } else if (b.state === 'lungeWarn') {
+    if (b.t>SHOG.LUNGE_WARN[phase-1]*gm) {
+      if (!Number.isFinite(b.lungeEnd)) b.lungeEnd=clamp(b.x+b.dir*160,112,WORLD_W-112);
+      enter('lunge'); b.vx=b.dir*SHOG.LUNGE_V; whoosh(.3,.18,900);
+    }
+  } else if (b.state === 'lunge') {
+    b.x+=b.vx*dt;
+    if ((b.vx>0&&b.x>=b.lungeEnd)||(b.vx<0&&b.x<=b.lungeEnd)) {
+      b.x=b.lungeEnd; S.shakeT=.18;S.shakeMag=2.5;
+      if (phase===3 && !b.combo) { b.combo=1; telegraph('slamWarn'); }
+      else expose();
+    }
+  } else if (b.state === 'slamWarn') {
+    // Hold position while the marked columns rise. No moving body pins a dodge.
+    if (!b.tents.length && b.t>.5) {
+      if (phase>=2 && !b.combo) { b.combo=1; telegraph('grin'); }
+      else expose();
+    }
+  } else if (b.state === 'grin') {
+    b.grinT-=dt;
+    if (b.grinT<=0&&b.grinN>0) {
+      b.grinT=.64; b.grinN--;
+      b.rollers.push({x:b.x+b.dir*(half+2),vx:b.dir*(phase===3?125:110),spin:0,dead:false,life:2.1});
+      blip(300,180,.1,'square',.09);
+    }
+    if (b.grinN===0 && b.grinT<-.8) expose();
+  } else if (b.state === 'summon') {
+    // Retained for old practice fixtures. The real fight uses committed attacks.
+    if (b.t>1) expose();
+  } else if (b.state === 'eyeOpen' || b.state === 'stunned') {
+    if (!b.windowHint) { b.windowHint=true; queueNotice('Eye exposed. Dash through, or land on the raised eye.',2.5,NOTICE_PRIORITY.BOSS); }
+    const duration=b.state==='stunned'?SHOG.STUN[phase-1]:SHOG.EYE_OPEN[phase-1];
+    if (b.t>duration*gm) enter('crawl');
+    else {
+      const eye={x:b.x-10,y:b.y-44,w:20,h:14};
+      const body={x:b.x-half+4,y:b.y+4,w:SHOG.W-8,h:SHOG.H-4};
+      const top=overlap(p,eye)&&(p.vy>0||p.dashing);
+      if (top||(p.dashing&&overlap(p,body))) shoggothHit(b,top);
+    }
+  }
+  if (!['eyeOpen','stunned','emerge','recover','melting','defeated'].includes(b.state) && p.invuln<=0 &&
+      overlap(p,{x:b.x-half+4,y:b.y+4,w:SHOG.W-8,h:SHOG.H-4})) hurtPlayer(b.x,'the Shoggoth');
 }
 
 function bossLanded(b) {
@@ -4894,6 +4922,10 @@ function resetNikitaBoss(b = S.boss) {
 function resetBossAfterDeath() {
   const b = S.boss;
   if (!b || b.state === "defeated") return false;
+  if (b.kind === "rainmaker") {
+    S.boss = window.SporelingRainmaker.create(); S.eshots = []; S.bossDoor = null;
+    resetNotices(); queueNotice(S.boss.caption, 2.8, NOTICE_PRIORITY.BOSS); return true;
+  }
   if (b.kind === "nikita") return resetNikitaBoss(b);
   const common = {
     state: "intro", t: 0, pips: 3, grace: true,
@@ -4910,7 +4942,7 @@ function resetBossAfterDeath() {
     Object.assign(b, common, { x: 20 * TILE, y: 10 * TILE, wisps: [] });
   } else if (b.kind === "shoggoth") {
     Object.assign(b, common, {
-      state: "emerge", x: 31.5 * TILE, y: SHOG.FLOOR - SHOG.H, dir: 1,
+      state: "emerge", x: clamp(S.player.x + 140,112,WORLD_W-112), y: SHOG.FLOOR - SHOG.H, dir: 1,
       atkI: 0, vx: 0, tent: null, tents: [], minions: [], rollers: [], grinN: 0, grinT: 0,
     });
     S.shogGates = true;
@@ -5030,9 +5062,31 @@ function updateNikita(dt) {
     hurtPlayer(b.x, "the boar's charge");
 }
 
+function rainbellContext() {
+  return { player: S.player, overlap, hurt: hurtPlayer, defeat: bossVanquished,
+    cue: name => SFX[name]?.(),
+    notice: text => {
+      if (S.boss?.kind === "rainmaker") {
+        // Combat tells describe the current move, never wait behind an old tell.
+        S.hintQueue = S.hintQueue.filter(n => n.priority !== NOTICE_PRIORITY.BOSS);
+        S.hint = { text, t: 3.5, duration: 3.5, priority: NOTICE_PRIORITY.BOSS, seq: noticeSeq++ };
+      } else queueNotice(text, 3.5, NOTICE_PRIORITY.TUTORIAL);
+    },
+    hit: b => {
+      const p = S.player; b.pips--;
+      p.dashing = false; p.slamDash = false; p.dashT = 0;
+      p.vx = (p.x + p.w / 2 < b.x ? -1 : 1) * 75; p.vy = -180;
+      p.grounded = false; p.invuln = 1.25; p.canDash = true; p.spores = MAX_SPORES; p.chainN = 0;
+      S.freezeT = .045; S.shakeT = .15; S.shakeMag = 2;
+      SFX.bossHit();
+      for (let i = 0; i < 12; i++) { const a = i * Math.PI / 6; burst(b.x, b.y + 22, Math.cos(a) * 65, Math.sin(a) * 65 - 20, .45, "#b8f2c9", 2); }
+    }
+  };
+}
 function updateBoss(dt) {
   const b = S.boss, p = S.player;
   if (!b || b.state === "defeated") return;
+  if (b.kind === "rainmaker") return window.SporelingRainmaker.update(b, dt, rainbellContext());
   if (b.state === "falsebloom") return updateFalseBloom(dt);
   if (b.kind === "shoggoth") return updateShoggoth(dt);
   if (b.kind === "barrow") return updateBarrow(dt);
@@ -5042,6 +5096,7 @@ function updateBoss(dt) {
   b.capFlash = Math.max(0, b.capFlash - dt);
   const phase = bossPhase(b);
   const openY = b.homeY - (phase === 3 ? 12 : 0);
+  b.crownX = [28*TILE,35*TILE,31.5*TILE][phase-1];
 
   if (b.state === "intro") {
     if (b.t > 2.2) { b.state = "warn"; b.t = 0; SFX.bossWarn(); }
@@ -5066,17 +5121,19 @@ function updateBoss(dt) {
           burst(ox, oy, (Math.random() - 0.5) * 40, (Math.random() - 0.5) * 40, 0.25, "#f06080", 2);
       }
     }
-    if (b.t > BOSS.ATTACK) {
+    if (b.t > BOSS.ATTACK && !b.arm) {
       b.state = "rise"; b.t = 0;
+      b.arm = null; b.shots = []; b.bolts = []; b.lanes = [];
       if (phase === 3) [0, 0.28, 0.56].forEach(d => blip(392, 392, 0.12, "triangle", 0.16, d));
     }
   } else if (b.state === "rise") {
+    b.x += (b.crownX - b.x) * Math.min(1, dt * 6);
     b.y += (openY - b.y) * Math.min(1, dt * 4);
-    if (b.t > BOSS.RISE) { b.state = "open"; b.t = 0; blip(880, 1175, 0.3, "sine", 0.14); }
+    if (b.t > BOSS.RISE) { b.x=b.crownX; b.state = "open"; b.t = 0; blip(880, 1175, 0.3, "sine", 0.14); }
   } else if (b.state === "open") {
     if (!b.windowHint) {
       b.windowHint = true;
-      queueNotice("Hold Jump and glide down onto the open crown.", 4, NOTICE_PRIORITY.BOSS);
+      queueNotice("Follow the marked crown. Land on it when it opens.", 4, NOTICE_PRIORITY.BOSS);
     }
     if (b.t > BOSS.OPEN[3 - b.pips] * (b.grace ? 1.45 : 1)) { b.state = "recover"; b.t = 0; b.capFlash = 0.4; }
   } else if (b.state === "recover") {
@@ -5138,7 +5195,7 @@ function updateBoss(dt) {
   b.bolts = b.bolts.filter(bo => !bo.dead);
 
   // Phase 3: the center floor pulses hazardous
-  if (phase === 3 && !b.arm) {
+  if (phase === 3 && b.state === "attack" && !b.arm) {
     b.floorPulseT += dt;
     const cyc = b.floorPulseT % 3.2;
     if (cyc > 2.2 && cyc < 3.0) {
@@ -5207,9 +5264,9 @@ function startEnding() {
   // remember your best echo
   try {
     if (competitiveRun() && !S.daily) {
-      const pb = JSON.parse(localStorage.getItem("sd_pb_storybook1") || "null");
+      const pb = JSON.parse(localStorage.getItem("sd_pb_storybook2") || "null");
       if (!pb || S.score.time < pb.t)
-        localStorage.setItem("sd_pb_storybook1", JSON.stringify({ t: S.score.time, frames: S.rec }));
+        localStorage.setItem("sd_pb_storybook2", JSON.stringify({ t: S.score.time, frames: S.rec }));
     }
   } catch (e) {}
   S.mode = "freed";
@@ -5321,6 +5378,7 @@ function respawn() {
   S.blooms = [];
   spawnEnemies();
   resetBossAfterDeath();
+  S.rainbells = window.SporelingRainmaker.createPools(LEVELS[S.levelIdx].rainbells || []);
   // A retry starts at the checkpoint in both world and screen space.
   S.camLook = 0; S.lookFace = p.facing; S.lookHoldT = 0;
   S.camX = clamp(cameraTargetX(p), 0, Math.max(0, WORLD_W - W));
@@ -5384,7 +5442,7 @@ function cameraTargetX(p) {
   // its short gather window at the screen edge, so frame both subjects.
   if (b && b.kind === "chorus" && b.state !== "defeated")
     return (px + b.x) / 2 - W / 2;
-  if (b && b.kind === "nikita" && b.state !== "defeated" && Math.abs(px - b.x) < W * 1.2)
+  if (b && ["nikita","shoggoth"].includes(b.kind) && b.state !== "defeated" && Math.abs(px - b.x) < W * .9)
     return (px + b.x) / 2 - W / 2;
   return px - W / 2 + S.camLook;
 }
@@ -5396,8 +5454,8 @@ async function fetchRace(id) {
     });
     if (!r.ok) return null;
     const row = (await r.json())[0];
-    if (!row || !row.ghost) return null;
-    const category = row.category === "any_storybook1" ? "any" : row.category === "full_storybook1" ? "full" : row.category || "any";
+    if (!row || !row.ghost || ![MAIN_BOARD_DB.any,MAIN_BOARD_DB.full,"root","reach"].includes(row.category)) return null;
+    const category = row.category === "any_storybook2" ? "any" : row.category === "full_storybook2" ? "full" : row.category || "any";
     return { frames: JSON.parse(row.ghost), category };
   } catch (e) { return null; }
 }
@@ -5661,8 +5719,8 @@ function tick(dt) {
         S.lbMsg = ""; S.lbConfirm = false;
         lbRefresh();
         SFX.win();
-      } else if (S.levelIdx < MAIN_LAST_INDEX) {
-        loadLevel(S.levelIdx + 1);
+      } else if (nextChamber() != null) {
+        loadLevel(nextChamber());
         S.mode = "play";
       } else {
         S.mode = "win";
@@ -5957,6 +6015,7 @@ function tick(dt) {
 
   updateEnemies(dt);
   updateFallen(dt);
+  if (S.rainbells?.length) window.SporelingRainmaker.updatePools(S.rainbells, dt, rainbellContext());
   if (S.boss) updateBoss(dt);
   if (S.mode !== "play") { clearJust(); return; }   // boss landing may have started the ending
 
@@ -6295,10 +6354,11 @@ function draw() {
   g.save();
   g.translate(Math.round(-S.camX + ox), Math.round(-S.camY + oy));
   if (window.SporelingTerrain) {
-    const opts = { camX: S.camX, camY: S.camY, width: W, height: H, tileAt, cols: COLS, rows: ROWS, tile: TILE, palette: S.levelIdx < 7 ? "earth" : S.levelIdx < 13 ? "dusk" : "root", seed: S.levelIdx, spikes: SPIKES };
+    const opts = { camX: S.camX, camY: S.camY, width: W, height: H, tileAt, cols: COLS, rows: ROWS, tile: TILE, palette: LEVELS[S.levelIdx].terrainPalette || (S.levelIdx < 7 ? "earth" : S.levelIdx < 13 ? "dusk" : "root"), seed: S.levelIdx, spikes: SPIKES };
     window.SporelingTerrain.drawTerrain(g, opts); window.SporelingTerrain.drawSpikes(g, opts);
   } else g.drawImage(terrainCv, 0, 0);
   drawDecor();
+  if (S.rainbells?.length) window.SporelingRainmaker.drawPools(g, S.rainbells, { time: S.time, reducedMotion });
   drawOke();
   drawBlooms();
   drawCheckpoints();
@@ -6352,9 +6412,9 @@ function draw() {
     g.save();g.globalAlpha=Math.min(1,remaining/.6);g.textAlign="center";
     g.fillStyle="rgba(25,37,29,.78)";g.fillRect(W/2-102,44,204,43);
     g.fillStyle="#ead3a0";g.font="italic 17px Georgia, serif";
-    g.fillText(S.shogTitleT > 0 ? "The Heartwood Guardian" : "Brambleback",W/2,63);
+    g.fillText(S.shogTitleT > 0 ? "The Shoggoth" : "Brambleback",W/2,63);
     g.fillStyle="#d3dab8";g.font="7px Georgia, serif";
-    g.fillText(S.shogTitleT > 0 ? "Help the old forest bloom again" : "Keeper of the truffle grove",W/2,78);
+    g.fillText(S.shogTitleT > 0 ? "Break the thing beneath the crown" : "Keeper of the truffle grove",W/2,78);
     g.restore();
   }
 
@@ -6474,7 +6534,7 @@ function draw() {
     } else if (S.mode === "play") {
       const bossT=Math.max(S.shogTitleT||0,S.nikitaTitleT||0,S.guardianIntroT||0);
       if(bossT>0){
-        const names={barrow:["Barrow","Gardener of the hidden hollow"],chorus:["The Lantern Chorus","Listen for the opening"],nikita:["Brambleback","Keeper of the truffle grove"],unbloomed:["The Heartwood Guardian","Help the old forest bloom again"],shoggoth:["The Heartwood Guardian","Help the old forest bloom again"]};
+        const names={rainmaker:["Old Brindle","The Rainmaker · Jump the rings, dash the throat"],barrow:["Barrow","Gardener of the hidden hollow"],chorus:["The Lantern Chorus","Listen for the opening"],nikita:["Brambleback","Keeper of the truffle grove"],unbloomed:["The Unbloomed","Climb past the roots. Land on the open crown."],shoggoth:["The Shoggoth","Break the thing beneath the crown"]};
         const card=names[S.boss?.kind]||names.unbloomed;
         drawTransition("boss",1-bossT/(S.shogTitleT>0?3.4:S.nikitaTitleT>0?3.2:2.6),{title:card[0],subtitle:card[1]});
       }
@@ -6486,7 +6546,7 @@ function draw() {
 
 function drawBackdrop() {
   if (window.SporelingStorybook) {
-    const act = S.levelIdx <= 2 ? "hearthwood" : S.levelIdx <= 6 ? "lantern" : S.levelIdx <= 12 ? "rainbell" : "heartroot";
+    const act = LEVELS[S.levelIdx]?.storyAct || (S.levelIdx <= 2 ? "hearthwood" : S.levelIdx <= 6 ? "lantern" : S.levelIdx <= 12 ? "rainbell" : "heartroot");
     window.SporelingStorybook.drawScene(g, { width: W, height: H, time: S.time, camX: S.camX, camY: S.camY, act: S.mode === "title" ? "hearthwood" : act, title: S.mode === "title", showHome: S.mode === "title", reducedMotion });
     return;
   }
@@ -6994,6 +7054,7 @@ function drawTalk() {
 function drawEnemies() {
   for (const e of S.enemies) {
     if (e.x < S.camX - 24 || e.x > S.camX + W + 24) continue;
+    if (window.SporelingEnemies && window.SporelingEnemies.draw(g, e, {time:S.time,reducedMotion,playerX:S.player.x})) continue;
     if (window.SporelingInhabitants && window.SporelingInhabitants.enemy(g, e, { time: S.time, reducedMotion, playerX: S.player.x + S.player.w / 2 })) continue;
     if (e.t === "slug") {
       const wob = Math.sin(S.time * 6 + e.ph);
@@ -7383,6 +7444,16 @@ function drawStrikeMark() {
 // Boss warnings that must remain legible even when their source is off-camera.
 function drawBossWarnings() {
   const b = S.boss;
+  if (b?.kind === 'shoggoth' && !['emerge','melting','defeated'].includes(b.state)) {
+    const screenX=b.x-S.camX;
+    if (screenX<24 || screenX>W-24) {
+      const left=screenX<W/2, x=left?8:W-8;
+      g.save(); g.font='bold 7px monospace';g.textAlign=left?'left':'right';
+      g.fillStyle=['eyeOpen','stunned'].includes(b.state)?'#b8f2c9':'#f3bf7c';
+      g.fillText(left?'<< SHOGGOTH':'SHOGGOTH >>',x,H-36);g.restore();
+    }
+    return;
+  }
   if (!b || b.kind !== "unbloomed" || !b.arm || b.arm.warm <= 0) return;
   const a = b.arm;
   const fromLeft = a.dir > 0;
@@ -7422,7 +7493,7 @@ function drawBossWarnings() {
 
 function drawShoggoth(b) {
   if (window.SporelingGuardians) {
-    if (S.shogGates) { g.fillStyle = "#697654"; g.fillRect(2 * 16, SHOG.FLOOR - 130, 12, 130); g.fillRect(61 * 16 + 4, SHOG.FLOOR - 130, 12, 130); }
+    if (S.shogGates) { g.fillStyle = "#30293f"; g.fillRect(2 * 16, SHOG.FLOOR - 130, 12, 130); g.fillRect(61 * 16 + 4, SHOG.FLOOR - 130, 12, 130); }
     return window.SporelingGuardians.heart(g, b, { time: S.time, reducedMotion, shog: SHOG, boss: BOSS });
   }
   const t = S.time;
@@ -7726,6 +7797,7 @@ function drawNikitaBoss(b) {
 function drawBoss() {
   const b = S.boss;
   if (!b) return;
+  if (b.kind === "rainmaker") return window.SporelingRainmaker.draw(g, b, { time: S.time, reducedMotion });
   if (b.kind === "shoggoth") return drawShoggoth(b);
   if (b.kind === "barrow") return drawBarrow(b);
   if (b.kind === "chorus") return drawChorus(b);
@@ -8316,13 +8388,14 @@ function drawHUD() {
   anchor(W / 2, 4, W / 2, inset);
   if (S.boss && S.boss.state !== "defeated") {
     g.fillStyle = "rgba(8,12,18,0.55)";
-    g.fillRect(W / 2 - 22, 4, 44, 12);
-    for (let i = 0; i < 3; i++) {
+    const count = S.boss.maxPips || 3, left = W / 2 - (count * 12 - 7) / 2;
+    g.fillRect(left - 5, 4, count * 12 + 3, 12);
+    for (let i = 0; i < count; i++) {
       const on = i < S.boss.pips;
       g.fillStyle = on ? "#c05468" : "#3a2a34";
-      g.fillRect(W / 2 - 15 + i * 12, 7, 7, 6);
+      g.fillRect(left + i * 12, 7, 7, 6);
       g.fillStyle = on ? "#f08098" : "#2a1f26";
-      g.fillRect(W / 2 - 13 + i * 12, 5, 3, 3);
+      g.fillRect(left + 2 + i * 12, 5, 3, 3);
     }
   }
 
@@ -9198,6 +9271,13 @@ function applyDevFixture() {
     resize();
   }
   if (!fixture) return false;
+  if(fixture==='challenge'){
+    S.runMode='adventure';configureRunRules('adventure');
+    loadLevel(clamp(parseInt(params.get('level')||'0',10)||0,0,LEVELS.length-1));
+    S.mode='play';if(params.get('form')==='shoggoth')spawnShoggoth();
+    return true;
+  }
+
 
   const placePlayer = (x, y) => {
     const p = S.player;
@@ -9219,6 +9299,11 @@ function applyDevFixture() {
     S.bloomLessonDone = true;
   };
 
+  if (fixture === "rainbell") {
+    S.runMode = "adventure"; configureRunRules("adventure");
+    openLevel(clamp(parseInt(params.get("level") || String(RAINBELL_START), 10) || RAINBELL_START, RAINBELL_START, LEVELS.length - 1));
+    return true;
+  }
   if (fixture === "level-notice") {
     const requestedLevel = clamp(parseInt(params.get("level") || "0", 10) || 0, 0, LEVELS.length - 1);
     loadLevel(requestedLevel);
@@ -9548,7 +9633,7 @@ function syncNativeUI() {
     playOverlay.sync({ touch: TOUCH.active, leftHanded, mode: S.mode, health: S.health, maxHealth: S.maxHealth,
       spores: S.player.spores, berries: S.berries, berriesTotal: S.berriesTotal, reach: S.reachTrial,
       keepsakes: S.keepsakes.length, timed: competitiveRun(), time: fmtMs(S.score.time * 1000),
-      bossPips: S.boss && S.boss.state !== "defeated" ? S.boss.pips : null,
+      bossPips: S.boss && S.boss.state !== "defeated" ? S.boss.pips : null, bossMaxPips: S.boss?.maxPips || 3,
       lesson: S.lesson, message });
   }
 }
@@ -9627,9 +9712,13 @@ if (DEV) globalThis.__SPORELING_DEV__ = {
     mode: S.mode, level: S.levelIdx, boss: S.boss?.kind || null,
     player: S.player ? {x:S.player.x,y:S.player.y,grounded:S.player.grounded,dashing:S.player.dashing,spores:S.player.spores,health:S.health} : null,
     bossState: S.boss?.state || null,
+    guardian: S.boss ? {x:S.boss.x,y:S.boss.y,t:S.boss.t,pips:S.boss.pips,
+      waves:(S.boss.waves||[]).map(w=>({...w})),tents:(S.boss.tents||[]).map(w=>({...w})),
+      rollers:(S.boss.rollers||[]).map(w=>({...w})),toX:S.boss.toX,dir:S.boss.dir,lungeEnd:S.boss.lungeEnd,caption:S.boss.caption} : null,
     rootTier: S.boss?.arm?.tier || null, rootWarning: S.boss?.arm?.warm || 0,
   }),
   metrics: devMetricsSnapshot,
+  time: () => S.time,
   cueUnbloomedSweep(fromLeft = true, tier = "ground") {
     const b = S.boss;
     if (!b || b.kind !== "unbloomed" || !ROOT_TIERS[tier]) return false;

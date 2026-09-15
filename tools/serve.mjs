@@ -8,7 +8,7 @@ const port = Number.parseInt(process.env.PORT || "8765", 10);
 
 const server = createServer((req, res) => {
   const path = new URL(req.url || "/", "http://localhost").pathname;
-  if (["/ui/transitions.js", "/ui/bloom-controls.js", "/ui/storybook.js", "/ui/campaign.js", "/ui/guardians.js", "/ui/terrain.js", "/ui/inhabitants.js", "/ui/display.js", "/ui/menus.js", "/ui/menus.css", "/ui/play-overlay.js", "/ui/play-overlay.css"].includes(path)) {
+  if (["/ui/enemies.js", "/ui/rainbell-chapter.js", "/ui/rainmaker.js", "/ui/transitions.js", "/ui/bloom-controls.js", "/ui/storybook.js", "/ui/campaign.js", "/ui/guardians.js", "/ui/terrain.js", "/ui/inhabitants.js", "/ui/display.js", "/ui/menus.js", "/ui/menus.css", "/ui/play-overlay.js", "/ui/play-overlay.css"].includes(path)) {
     res.writeHead(200, { "Content-Type": path.endsWith(".js") ? "text/javascript; charset=utf-8" : "text/css; charset=utf-8", "Cache-Control": "no-store" });
     createReadStream(join(root, path.slice(1))).pipe(res);
     return;

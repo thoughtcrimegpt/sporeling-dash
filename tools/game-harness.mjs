@@ -121,12 +121,13 @@ export function bootGame({
   context.globalThis = context;
   // Match the browser's external campaign module boot order.
   vm.runInNewContext(campaignSource, context);
+  for (const path of ["ui/rainbell-chapter.js", "ui/rainmaker.js"]) vm.runInNewContext(readFileSync(join(root, path), "utf8"), context);
 
   const marker = /requestAnimationFrame\(frame\);\s*\}\)\(\);\s*$/;
   assert.match(scripts[0], marker, "test export marker must match the game loop");
   const source = scripts[0].replace(marker, `
 globalThis.__SD_TEST__ = {
-  S, LEVELS, PATCH_NOTES, BARROW, BOSS, CHORUS, SHOG, ROOT_TIERS, ROOT_TIER_ORDER,
+  S, LEVELS, ADVENTURE_ROUTE, CLASSIC_ROUTE, RAINBELL_START, nextChamber, adventureChoices, unlockChamber, musicWanted, abilityLevel, rainbellContext, PATCH_NOTES, BARROW, BOSS, CHORUS, SHOG, ROOT_TIERS, ROOT_TIER_ORDER,
   MAIN_LAST_INDEX, UNDRAWN_INDEX, PALE_ROOT_INDEX, BLOOMHEART_INDEX, PRESSED_GARDEN_INDEX, REACH_INDEX,
   REVIEWS,
   campaignApplied: LEVELS.map((level, index) => level && level.campaignNotes ? index : null).filter(index => index != null),
