@@ -2606,3 +2606,19 @@ test("tick input accepts one released flutter jump and burst prevents armed mine
   assert.equal(api.S.eshots.length, 0);
   assert.equal(api.S.score.freed, 1);
 });
+
+
+test("room entrance title yields to an active conversation", () => {
+  const { api } = bootGame({ search: "?fixture=dialogue" });
+  api.S.bannerT = 1;
+  const room = api.LEVELS[api.S.levelIdx];
+  const title = room.displayName || room.name;
+  api.g.operations.length = 0;
+  api.draw();
+  assert.equal(api.g.operations.some(op => op.type === "fillText" && op.value === title), false);
+  api.S.talk = null;
+  api.S.lesson = null;
+  api.g.operations.length = 0;
+  api.draw();
+  assert.equal(api.g.operations.some(op => op.type === "fillText" && op.value === title), true);
+});

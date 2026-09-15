@@ -8585,7 +8585,7 @@ function drawEndOverlay() {
 
 function drawBanner() {
   if (playOverlay && TOUCH.active) return;
-  if (S.bannerT > 0) {
+  if (S.bannerT > 0 && !S.talk && !S.lesson) {
     const L = LEVELS[S.levelIdx];
     const dur = 2.4;
     if (window.SporelingTransitions) {
